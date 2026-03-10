@@ -1,0 +1,2419 @@
+"""ReAct Agent 核心 - 观察-思考-行动 循环
+
+将 ZeroAI 从"工具调用循环"升级为真正的 Agent Loop：
+    观察（Observation）→ 思考（Thought）→ 行动（Action）→ 再观察 → ...
+
+核心设计：
+1. ReActPlanner：让 LLM 先思考下一步做什么，输出结构化 JSON
+2. AgentLoop：驱动 观察→思考→行动 循环，支持自我纠错
+3. 完全复用现有 TOOLS / TOOL_MAP 工具体系，无需改造工具层
+4. 可选开关：通过 ZeroAI.react_enabled 启用，不破坏原有 _run_turn_impl
+
+依赖：
+- zeroai.core.llm.LLMClient：调用 LLM
+- zeroai.tools.registry.TOOL_MAP：工具函数映射
+
+参考论文：ReAct: Synergizing Reasoning and Acting in Language Models (Yao et al., 2022)
+参考实现：OpenHands / SWE-agent / smolagents
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import time
+import inspect
+from dataclasses import dataclass, field, asdict
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+
+from .llm import LLMClient
+from .context import cleanup_and_compress, get_model_context_limit
+
+
+# ============================================================================
+# ReAct Planner - 让 LLM 先思考再行动
+# ============================================================================
+
+PLANNER_SYSTEM_PROMPT = """你是 ZeroAI 的任务规划器（ReAct Planner）。
+
+你的职责是分析当前状态，决定下一步行动。严格输出 JSON，格式如下：
+
+```json
+{
+  "thought": "简短说明你的思考过程（1-2句话）",
+  "need_more_info": false,
+  "next_action": {
+    "type": "tool_call" | "final_answer" | "ask_user",
+    "tool": "工具名（仅 type=tool_call 时需要）",
+    "args": {"参数名": "参数值"},
+    "answer": "最终回答（仅 type=final_answer 时需要）",
+    "question": "向用户提问（仅 type=ask_user 时需要）"
+  },
+  "task_complete": false
+}
+```
+
+决策规则：
+1. 如果用户问题可以直接回答（无需外部信息），选择 final_answer
+2. 如果需要读取文件/执行命令/检查系统等，选择 tool_call
+3. 如果信息不足无法继续，选择 ask_user
+4. 工具调用后，根据结果决定继续调用工具还是给出最终答案
+5. 任务完成后设置 task_complete=true
+
+重要：只输出 JSON，不要输出其他任何内容。不要用 markdown 代码块包裹。"""
+
+
+PLANNER_USER_TEMPLATE = """## 用户请求
+{user_input}
+
+## 当前观察
+{observation}
+
+## 可用工具
+{tools_summary}
+
+## 已执行步骤
+{history}
+
+## 任务状态
+请决定下一步行动。"""
+
+
+class ReActPlanner:
+    """ReAct 规划器：让 LLM 思考下一步做什么
+
+    输出结构化 JSON，包含：
+    - thought：思考过程
+    - next_action：下一步行动（tool_call / final_answer / ask_user）
+    - task_complete：任务是否完成
+    """
+
+    def __init__(
+        self,
+        llm: Optional[LLMClient] = None,
+        model_key: str = "glm",
+        temperature: float = 0.2,
+        max_tokens: int = 800,
+        system_prompt: Optional[str] = None,
+    ):
+        """初始化规划器
+
+        Args:
+            llm: LLM 客户端，为 None 时用 model_key 创建
+            model_key: 模型标识（llm 为 None 时生效）
+            temperature: 低温度保证规划稳定性
+            max_tokens: 规划输出 token 上限
+            system_prompt: 自定义系统提示词（阶段 K.4）
+                           为 None 时使用默认 PLANNER_SYSTEM_PROMPT
+                           MultiAgentCollaborator 可为不同角色注入不同 prompt
+        """
+        self.llm = llm or LLMClient(model_key)
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.system_prompt = system_prompt
+        self._tools_summary_cache: Optional[str] = None
+        self._tools_cache_key: Optional[str] = None
+
+    def _build_tools_summary(self, tools: List[Dict[str, Any]]) -> str:
+        """构建工具摘要供规划器参考
+
+        只提取 name 和 description 的第一行，避免 token 暴涨。
+        """
+        cache_key = str(hash((t.get("function", {}).get("name", "") for t in tools)))
+        if self._tools_cache_key == cache_key and self._tools_summary_cache:
+            return self._tools_summary_cache
+
+        lines = []
+        for t in tools:
+            fn = t.get("function", {})
+            name = fn.get("name", "")
+            desc = fn.get("description", "").split("\n")[0][:100]
+            lines.append(f"- {name}: {desc}")
+        self._tools_summary_cache = "\n".join(lines)
+        self._tools_cache_key = cache_key
+        return self._tools_summary_cache
+
+    def _build_observation(
+        self,
+        messages: List[Dict[str, Any]],
+        retriever: Optional[Callable[[str], List[str]]] = None,
+        user_input: str = "",
+    ) -> str:
+        """构建当前观察：最近对话 + 工具结果 + RAG 检索
+
+        Args:
+            messages: 当前对话历史
+            retriever: RAG 检索函数，输入查询返回相关文档片段
+            user_input: 用户原始输入（用于 RAG 检索）
+
+        Returns:
+            观察文本
+        """
+        parts = []
+
+        # 1. RAG 检索项目上下文
+        if retriever and user_input:
+            try:
+                docs = retriever(user_input)
+                if docs:
+                    parts.append("### 项目上下文（RAG 检索）")
+                    for i, doc in enumerate(docs[:3], 1):
+                        parts.append(f"[{i}] {doc[:300]}")
+                    parts.append("")
+            except Exception:
+                pass
+
+        # 2. 最近对话历史（最后 6 条，避免 token 暴涨）
+        recent = messages[-6:] if len(messages) > 6 else messages
+        parts.append("### 最近对话")
+        for msg in recent:
+            role = msg.get("role", "?")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                content = " ".join(
+                    p.get("text", "") for p in content
+                    if isinstance(p, dict) and p.get("type") == "text"
+                )
+            content_str = str(content)[:500]
+            parts.append(f"[{role}] {content_str}")
+        parts.append("")
+
+        return "\n".join(parts)
+
+    def _build_history(self, executed_steps: List[Dict[str, Any]]) -> str:
+        """构建已执行步骤摘要"""
+        if not executed_steps:
+            return "（尚无）"
+        lines = []
+        for i, step in enumerate(executed_steps, 1):
+            thought = step.get("thought", "")[:80]
+            action_type = step.get("action_type", "?")
+            if action_type == "tool_call":
+                tool_name = step.get("tool_name", "?")
+                result_preview = str(step.get("result", ""))[:120]
+                lines.append(f"{i}. 思考: {thought}")
+                lines.append(f"   行动: 调用 {tool_name}")
+                lines.append(f"   结果: {result_preview}")
+            elif action_type == "final_answer":
+                lines.append(f"{i}. 思考: {thought}")
+                lines.append(f"   行动: 给出最终答案")
+            else:
+                lines.append(f"{i}. {thought}")
+        return "\n".join(lines)
+
+    async def plan_next(
+        self,
+        user_input: str,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        executed_steps: List[Dict[str, Any]],
+        retriever: Optional[Callable[[str], List[str]]] = None,
+    ) -> Dict[str, Any]:
+        """规划下一步行动
+
+        Returns:
+            {
+                "thought": "思考过程",
+                "next_action": {
+                    "type": "tool_call" | "final_answer" | "ask_user",
+                    "tool": "...", "args": {...},
+                    "answer": "...", "question": "..."
+                },
+                "task_complete": bool
+            }
+        """
+        observation = self._build_observation(messages, retriever, user_input)
+        tools_summary = self._build_tools_summary(tools)
+        history = self._build_history(executed_steps)
+
+        user_prompt = PLANNER_USER_TEMPLATE.format(
+            user_input=user_input[:500],
+            observation=observation,
+            tools_summary=tools_summary,
+            history=history,
+        )
+
+        try:
+            response = await self.llm.chat(
+                system_prompt=self.system_prompt or PLANNER_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=False,
+                timeout=30,
+            )
+        except Exception as e:
+            return {
+                "thought": f"规划器调用失败: {e}",
+                "next_action": {"type": "final_answer", "answer": f"规划失败: {e}"},
+                "task_complete": True,
+            }
+
+        if response is None:
+            return {
+                "thought": "规划器无响应",
+                "next_action": {"type": "final_answer", "answer": "规划器无响应"},
+                "task_complete": True,
+            }
+
+        return self._parse_plan(response)
+
+    def _parse_plan(self, response: str) -> Dict[str, Any]:
+        """解析规划器输出为结构化 JSON
+
+        兼容多种输出格式：
+        1. 纯 JSON
+        2. JSON 外包裹 ```json ... ```
+        3. JSON 前后有多余文字
+        """
+        text = response.strip()
+
+        # 去除 markdown 代码块
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+
+        # 尝试直接解析
+        try:
+            return self._validate_plan(json.loads(text))
+        except json.JSONDecodeError:
+            pass
+
+        # 尝试提取第一个 JSON 对象
+        match = re.search(r"\{[\s\S]*\}", text)
+        if match:
+            try:
+                return self._validate_plan(json.loads(match.group(0)))
+            except json.JSONDecodeError:
+                pass
+
+        # 解析失败，作为最终答案返回原文
+        return {
+            "thought": "规划器输出解析失败，直接使用原文作为回答",
+            "next_action": {"type": "final_answer", "answer": response},
+            "task_complete": True,
+        }
+
+    def _validate_plan(self, data: Any) -> Dict[str, Any]:
+        """校验并规范化规划输出"""
+        if not isinstance(data, dict):
+            return {
+                "thought": "规划输出非 dict",
+                "next_action": {"type": "final_answer", "answer": str(data)},
+                "task_complete": True,
+            }
+
+        thought = data.get("thought", "")
+        task_complete = bool(data.get("task_complete", False))
+        next_action = data.get("next_action", {})
+
+        if not isinstance(next_action, dict):
+            next_action = {"type": "final_answer", "answer": str(next_action)}
+
+        action_type = next_action.get("type", "final_answer")
+        if action_type not in ("tool_call", "final_answer", "ask_user"):
+            action_type = "final_answer"
+            next_action["type"] = action_type
+
+        # tool_call 必须有 tool 名
+        if action_type == "tool_call" and not next_action.get("tool"):
+            return {
+                "thought": "规划器要求 tool_call 但未提供工具名，转为最终答案",
+                "next_action": {"type": "final_answer", "answer": thought or "无法确定要调用的工具"},
+                "task_complete": True,
+            }
+
+        return {
+            "thought": thought,
+            "next_action": next_action,
+            "task_complete": task_complete,
+        }
+
+
+# ============================================================================
+# Agent Loop - 驱动 观察→思考→行动 循环
+# ============================================================================
+
+class AgentLoop:
+    """ReAct Agent 循环驱动器
+
+    流程：
+        1. 观察：收集当前状态（对话历史 + RAG 检索）
+        2. 思考：ReActPlanner 决定下一步
+        3. 行动：执行工具调用 / 给出最终答案 / 向用户提问
+        4. 回到 1，直到任务完成或达到最大步数
+
+    特性：
+    - 自我纠错：工具调用失败时，把错误反馈给规划器，让它换方案
+    - 步数限制：防止无限循环
+    - 回调机制：每一步都通知 UI 层更新显示
+    - 完全复用现有 TOOL_MAP，无需改造工具
+    """
+
+    def __init__(
+        self,
+        planner: Optional[ReActPlanner] = None,
+        tool_map: Optional[Dict[str, Callable]] = None,
+        tools_schema: Optional[List[Dict[str, Any]]] = None,
+        max_steps: int = 8,
+        retriever: Optional[Callable[[str], List[str]]] = None,
+        use_mcp: bool = False,
+        enable_audit: bool = True,
+        enable_mcp_health_check: bool = False,
+        enable_progress_tracker: bool = False,
+        enable_streaming_thought: bool = False,
+        enable_parallel_tools: bool = False,
+        max_concurrency: int = 4,
+    ):
+        """初始化 Agent Loop
+
+        Args:
+            planner: ReAct 规划器，为 None 时用默认 GLM
+            tool_map: 工具名->函数映射，为 None 时从 registry 导入
+            tools_schema: 工具 schema 列表，为 None 时从 registry 导入
+            max_steps: 单轮对话最大步数
+            retriever: RAG 检索函数
+            use_mcp: 是否启用 MCP 生态统一调度（阶段 J.1）
+                     启用后工具调用走 MCPEcosystemManager.call_tool，
+                     自动获得冲突重命名解析与 MCP 优先调度能力
+            enable_audit: 是否启用工具调用审计日志（阶段 J.2）
+                          启用后所有工具调用自动记录到 MCPAuditLogger
+            enable_mcp_health_check: 是否启用 MCP 健康检查（阶段 J.3）
+                                     启用后 MCP 工具调用前先检查服务器健康状态
+            enable_progress_tracker: 是否启用工具调用进度跟踪（阶段 P.2）
+                                     启用后工具调用自动注册到 ProgressTracker，
+                                     UI 层可实时渲染进度条
+            enable_streaming_thought: 是否启用流式思维链输出（阶段 P.2）
+                                      启用后 on_thought 回调会被流式发射器包装，
+                                      支持增量输出
+            enable_parallel_tools: 是否启用工具并行调用（阶段 S）
+                                   启用后支持单步多工具并行执行
+            max_concurrency: 最大并发工具数（阶段 S，默认 4）
+        """
+        self.planner = planner or ReActPlanner()
+        if tool_map is None or tools_schema is None:
+            from zeroai.tools.registry import TOOL_MAP, TOOLS
+            self.tool_map = tool_map or TOOL_MAP
+            self.tools_schema = tools_schema or TOOLS
+        else:
+            self.tool_map = tool_map
+            self.tools_schema = tools_schema
+        self.max_steps = max_steps
+        self.retriever = retriever
+
+        # 阶段 J：MCP 生态集成开关
+        self.use_mcp = use_mcp
+        self.enable_audit = enable_audit
+        self.enable_mcp_health_check = enable_mcp_health_check
+
+        # 阶段 P.2：流式输出与进度跟踪
+        self.enable_progress_tracker = enable_progress_tracker
+        self.enable_streaming_thought = enable_streaming_thought
+        self._progress_tracker = None
+        self._streaming_emitter = None
+        self._interrupt_handler = None
+        if enable_progress_tracker:
+            try:
+                from .streaming import get_progress_tracker
+                self._progress_tracker = get_progress_tracker()
+            except Exception:
+                self._progress_tracker = None
+        if enable_streaming_thought:
+            try:
+                from .streaming import get_streaming_emitter, get_interrupt_handler
+                self._streaming_emitter = get_streaming_emitter()
+                self._interrupt_handler = get_interrupt_handler()
+            except Exception:
+                self._streaming_emitter = None
+                self._interrupt_handler = None
+
+        # 阶段 S：并行工具调度
+        self.enable_parallel_tools = enable_parallel_tools
+        self.max_concurrency = max_concurrency
+        self._parallel_scheduler = None
+        if enable_parallel_tools:
+            try:
+                from .parallel_tools import ParallelToolScheduler
+                self._parallel_scheduler = ParallelToolScheduler(
+                    tool_map=self.tool_map,
+                    max_concurrency=max_concurrency,
+                )
+            except Exception:
+                self._parallel_scheduler = None
+
+        # 回调钩子（UI 层注册）
+        self.on_thought: Optional[Callable[[str], Awaitable[None]]] = None
+        self.on_tool_call: Optional[Callable[[str, Dict], Awaitable[None]]] = None
+        self.on_tool_result: Optional[Callable[[str, str], Awaitable[None]]] = None
+        self.on_final_answer: Optional[Callable[[str], Awaitable[None]]] = None
+        self.on_error: Optional[Callable[[str], Awaitable[None]]] = None
+        self.is_stopped: Optional[Callable[[], bool]] = None
+
+    def _check_stopped(self) -> bool:
+        """检查是否被用户中断
+
+        阶段 P.2：同时检查流式中断处理器（InterruptionHandler）
+        """
+        if self.is_stopped:
+            try:
+                if bool(self.is_stopped()):
+                    return True
+            except Exception:
+                pass
+        # 阶段 P.2：流式中断处理器检查
+        if self._interrupt_handler is not None:
+            try:
+                if self._interrupt_handler.check():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    async def _execute_tool(self, name: str, args: Dict[str, Any]) -> str:
+        """执行工具调用，返回结果字符串
+
+        自动过滤模型幻觉的无效参数。
+        阶段 J：支持 MCP 生态统一调度、审计日志、健康检查。
+        """
+        import time as _time
+
+        start_ts = _time.time()
+        success = False
+        error_msg = ""
+        result_str = ""
+
+        # 阶段 J.1：MCP 生态统一调度
+        if self.use_mcp:
+            try:
+                from zeroai.mcp.ecosystem import get_ecosystem_manager
+                from zeroai.mcp.registry import parse_mcp_tool_name
+
+                eco = get_ecosystem_manager()
+
+                # 阶段 J.3：MCP 工具健康检查
+                if self.enable_mcp_health_check:
+                    mcp_info = parse_mcp_tool_name(name)
+                    if mcp_info:
+                        server_name, _ = mcp_info
+                        try:
+                            from zeroai.mcp.health import get_health_monitor
+                            monitor = get_health_monitor()
+                            record = monitor.get_record(server_name)
+                            if record.is_degraded:
+                                result_str = f"[降级] MCP 服务器 {server_name} 当前处于降级状态，跳过调用"
+                                success = False
+                                error_msg = result_str
+                                # 审计记录
+                                if self.enable_audit:
+                                    self._record_audit(
+                                        server_name=server_name,
+                                        tool_name=name,
+                                        arguments=args,
+                                        success=False,
+                                        duration=_time.time() - start_ts,
+                                        error_message=error_msg,
+                                    )
+                                return result_str
+                        except Exception:
+                            pass  # 健康检查失败不阻断主流程
+
+                # 通过生态管理器调度
+                result_str = await eco.call_tool(name, args)
+                success = not result_str.startswith("[错误]") and not result_str.startswith("[降级]")
+
+                # 审计记录
+                if self.enable_audit:
+                    mcp_info = parse_mcp_tool_name(name)
+                    server_name = mcp_info[0] if mcp_info else "builtin"
+                    self._record_audit(
+                        server_name=server_name,
+                        tool_name=name,
+                        arguments=args,
+                        success=success,
+                        duration=_time.time() - start_ts,
+                        error_message="" if success else result_str,
+                        result_preview=result_str[:200] if result_str else "",
+                    )
+
+                return result_str
+            except Exception as e:
+                # MCP 调度失败，回退到本地 tool_map
+                result_str = f"[MCP 调度错误] {type(e).__name__}: {e}"
+                error_msg = result_str
+                # 不直接返回，继续走本地 tool_map 作为兜底
+
+        # 本地 tool_map 调用（原有逻辑，保持兼容）
+        fn = self.tool_map.get(name)
+        if fn is None:
+            # 如果 MCP 调度已产生错误信息，附加返回
+            if result_str.startswith("[MCP 调度错误]"):
+                return f"{result_str}\n[错误] 本地工具也未找到: {name}"
+            return f"[错误] 未知工具: {name}"
+
+        # 过滤无效参数
+        try:
+            valid_params = set(inspect.signature(fn).parameters)
+            safe_args = {k: v for k, v in args.items() if k in valid_params}
+            extra = set(args.keys()) - valid_params
+        except (ValueError, TypeError):
+            safe_args = args
+            extra = set()
+
+        # 执行（支持同步和异步函数）
+        try:
+            if inspect.iscoroutinefunction(fn):
+                result = await fn(**safe_args)
+            else:
+                result = fn(**safe_args)
+            result_str = str(result)
+            if extra:
+                result_str += f"\n[提示：忽略多余参数 {extra}]"
+            success = True
+
+            # 阶段 J.2：审计日志记录
+            if self.enable_audit:
+                self._record_audit(
+                    server_name="builtin",
+                    tool_name=name,
+                    arguments=args,
+                    success=True,
+                    duration=_time.time() - start_ts,
+                    result_preview=result_str[:200] if result_str else "",
+                )
+
+            return result_str
+        except TypeError as e:
+            error_msg = f"[参数错误] {e}"
+            if self.enable_audit:
+                self._record_audit(
+                    server_name="builtin",
+                    tool_name=name,
+                    arguments=args,
+                    success=False,
+                    duration=_time.time() - start_ts,
+                    error_message=error_msg,
+                )
+            return error_msg
+        except Exception as e:
+            error_msg = f"[执行错误] {type(e).__name__}: {e}"
+            if self.enable_audit:
+                self._record_audit(
+                    server_name="builtin",
+                    tool_name=name,
+                    arguments=args,
+                    success=False,
+                    duration=_time.time() - start_ts,
+                    error_message=error_msg,
+                )
+            return error_msg
+
+    def _record_audit(
+        self,
+        server_name: str,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        success: bool,
+        duration: float,
+        error_message: str = "",
+        result_preview: str = "",
+    ) -> None:
+        """记录工具调用审计日志（阶段 J.2）
+
+        延迟导入避免循环依赖，审计失败不阻断主流程。
+        """
+        try:
+            from zeroai.mcp.audit import get_audit_logger
+            logger = get_audit_logger()
+            logger.record(
+                server_name=server_name,
+                tool_name=tool_name,
+                full_tool_name=tool_name,
+                arguments=arguments,
+                success=success,
+                duration=duration,
+                result_length=len(result_preview) if result_preview else 0,
+                error_message=error_message,
+                result_preview=result_preview,
+                caller="agent_loop",
+            )
+        except Exception:
+            pass  # 审计记录失败不阻断主流程
+
+    async def run(
+        self,
+        user_input: str,
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """运行 Agent 循环
+
+        Args:
+            user_input: 用户输入
+            messages: 当前对话历史（会被修改）
+
+        Returns:
+            (final_answer, executed_steps)
+
+        阶段 P.2 增强：
+        - 流式思维链：通过 StreamingThoughtEmitter 实时输出思考过程
+        - 进度跟踪：通过 ProgressTracker 跟踪工具调用进度
+        - 中断响应：通过 InterruptionHandler 支持用户中断
+        """
+        executed_steps: List[Dict[str, Any]] = []
+        final_answer = ""
+
+        # 阶段 V：进入循环前先压缩上下文，防止上下文爆炸
+        try:
+            context_limit = get_model_context_limit(self.planner.llm.model) or 8000
+            messages = await cleanup_and_compress(messages, context_limit)
+        except Exception:
+            pass
+
+        # 阶段 P.2：流式思维链开始
+        if self._streaming_emitter is not None:
+            try:
+                self._streaming_emitter.start_thought(f"任务: {user_input[:50]}")
+            except Exception:
+                pass
+
+        for step in range(1, self.max_steps + 1):
+            if self._check_stopped():
+                break
+
+            # 1. 思考：规划下一步
+            plan = await self.planner.plan_next(
+                user_input=user_input,
+                messages=messages,
+                tools=self.tools_schema,
+                executed_steps=executed_steps,
+                retriever=self.retriever,
+            )
+
+            thought = plan.get("thought", "")
+            action = plan.get("next_action", {})
+            task_complete = plan.get("task_complete", False)
+
+            # 阶段 P.2：流式输出思考内容
+            if self._streaming_emitter is not None:
+                try:
+                    self._streaming_emitter.append_chunk(f"[步 {step}] {thought}")
+                except Exception:
+                    pass
+
+            if self.on_thought:
+                try:
+                    await self.on_thought(f"[步 {step}] {thought}")
+                except Exception:
+                    pass
+
+            action_type = action.get("type", "final_answer")
+
+            # 2. 行动
+            if action_type == "tool_call":
+                tool_name = action.get("tool", "")
+                tool_args = action.get("args", {})
+                if not isinstance(tool_args, dict):
+                    tool_args = {}
+
+                if self.on_tool_call:
+                    try:
+                        await self.on_tool_call(tool_name, tool_args)
+                    except Exception:
+                        pass
+
+                # 阶段 P.2：进度跟踪 - 开始
+                call_id = None
+                if self._progress_tracker is not None:
+                    try:
+                        call_id = self._progress_tracker.start(tool_name, tool_args)
+                        self._progress_tracker.update(call_id, progress=0.1, message="启动工具")
+                    except Exception:
+                        call_id = None
+
+                result = await self._execute_tool(tool_name, tool_args)
+
+                # 阶段 P.2：进度跟踪 - 完成/失败
+                if self._progress_tracker is not None and call_id is not None:
+                    try:
+                        if result.startswith("[错误]") or result.startswith("[MCP 调度错误]"):
+                            self._progress_tracker.fail(call_id, error=result[:200])
+                        else:
+                            self._progress_tracker.complete(call_id, result=result[:200])
+                    except Exception:
+                        pass
+
+                if self.on_tool_result:
+                    try:
+                        await self.on_tool_result(tool_name, result)
+                    except Exception:
+                        pass
+
+                step_record = {
+                    "thought": thought,
+                    "action_type": "tool_call",
+                    "tool_name": tool_name,
+                    "args": tool_args,
+                    "result": result,
+                }
+                executed_steps.append(step_record)
+
+                # 把工具结果加入对话历史，让规划器下一轮能看到
+                messages.append({
+                    "role": "assistant",
+                    "content": f"[调用工具 {tool_name}] {thought}",
+                })
+                messages.append({
+                    "role": "user",
+                    "content": f"[工具结果 {tool_name}] {result[:1500]}",
+                })
+
+                # 阶段 P.2：流式追加工具调用结果
+                if self._streaming_emitter is not None:
+                    try:
+                        self._streaming_emitter.append_chunk(f" → {tool_name} 完成")
+                    except Exception:
+                        pass
+
+            elif action_type == "ask_user":
+                question = action.get("question", "需要更多信息")
+                final_answer = question
+                if self.on_final_answer:
+                    try:
+                        await self.on_final_answer(question)
+                    except Exception:
+                        pass
+                break
+
+            else:  # final_answer
+                final_answer = action.get("answer", thought or "")
+                step_record = {
+                    "thought": thought,
+                    "action_type": "final_answer",
+                    "answer": final_answer,
+                }
+                executed_steps.append(step_record)
+
+                if self.on_final_answer:
+                    try:
+                        await self.on_final_answer(final_answer)
+                    except Exception:
+                        pass
+                break
+
+            if task_complete:
+                break
+
+        if not final_answer:
+            final_answer = "已达到最大步数，未能完成任务。"
+            if self.on_final_answer:
+                try:
+                    await self.on_final_answer(final_answer)
+                except Exception:
+                    pass
+
+        # 阶段 P.2：流式思维链结束
+        if self._streaming_emitter is not None:
+            try:
+                self._streaming_emitter.end_thought()
+            except Exception:
+                pass
+
+        return final_answer, executed_steps
+
+    def get_progress_summary(self) -> str:
+        """获取工具调用进度摘要（阶段 P.2）
+
+        Returns:
+            进度摘要字符串，未启用时返回空字符串
+        """
+        if self._progress_tracker is None:
+            return ""
+        try:
+            return self._progress_tracker.render_summary()
+        except Exception:
+            return ""
+
+    def interrupt(self, reason: str = "用户中断") -> None:
+        """触发中断（阶段 P.2）
+
+        Args:
+            reason: 中断原因
+        """
+        if self._interrupt_handler is not None:
+            try:
+                self._interrupt_handler.interrupt(reason)
+            except Exception:
+                pass
+
+    def get_progress_stats(self) -> Dict[str, Any]:
+        """获取工具调用统计（阶段 P.2）
+
+        Returns:
+            统计字典，未启用时返回空字典
+        """
+        if self._progress_tracker is None:
+            return {}
+        try:
+            return self._progress_tracker.get_stats()
+        except Exception:
+            return {}
+
+    async def execute_tools_parallel(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        merge_strategy: str = "concat",
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """并行执行多个工具调用（阶段 S）
+
+        Args:
+            tool_calls: 工具调用列表，每个元素是 {"name": ..., "args": ...}
+            merge_strategy: 结果合并策略（concat/dict/list/priority）
+
+        Returns:
+            (合并后的结果字符串, 详细结果列表)
+        """
+        if not self._parallel_scheduler:
+            # 未启用并行调度器，回退到串行执行
+            results = []
+            for tc in tool_calls:
+                name = tc.get("name", "")
+                args = tc.get("args", {})
+                result = await self._execute_tool(name, args)
+                results.append({
+                    "name": name,
+                    "args": args,
+                    "result": result,
+                    "success": not result.startswith("[错误]"),
+                })
+            merged = "\n\n".join(f"[{r['name']}] {r['result']}" for r in results)
+            return merged, results
+
+        from .parallel_tools import ToolCallRequest
+        requests = [
+            ToolCallRequest(
+                name=tc.get("name", ""),
+                args=tc.get("args", {}),
+                timeout=tc.get("timeout"),
+            )
+            for tc in tool_calls
+        ]
+        results = await self._parallel_scheduler.execute_parallel(requests)
+        merged = self._parallel_scheduler.merge_results(results, strategy=merge_strategy)
+        return merged, [r.to_dict() for r in results]
+
+
+# ============================================================================
+# 便捷工厂函数
+# ============================================================================
+
+_agent_loop_instance: Optional[AgentLoop] = None
+
+
+def get_agent_loop(
+    model_key: str = "glm",
+    max_steps: int = 8,
+    retriever: Optional[Callable[[str], List[str]]] = None,
+) -> AgentLoop:
+    """获取 AgentLoop 单例
+
+    Args:
+        model_key: 规划器使用的模型
+        max_steps: 最大步数
+        retriever: RAG 检索函数
+
+    Returns:
+        AgentLoop 实例
+    """
+    global _agent_loop_instance
+    if _agent_loop_instance is None or retriever is not None:
+        planner = ReActPlanner(model_key=model_key)
+        _agent_loop_instance = AgentLoop(
+            planner=planner,
+            max_steps=max_steps,
+            retriever=retriever,
+        )
+    return _agent_loop_instance
+
+
+def reset_agent_loop() -> None:
+    """重置 AgentLoop 单例（配置变更后调用）"""
+    global _agent_loop_instance
+    _agent_loop_instance = None
+
+
+# ============================================================================
+# 阶段 1 增强：思维链 / 多步规划 / 反思 / 并行 / 摘要
+# 以下代码为增量追加，不修改上方任何既有类与函数，保证向后兼容
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# 1.1 思维链数据结构（Thought + Plan）—— 让 Agent 推理过程可追溯、可持久化
+# ----------------------------------------------------------------------------
+
+@dataclass
+class Thought:
+    """单步思考记录
+
+    Agent Loop 每一步都会生成一个 Thought，完整记录：
+    - 当前思考内容
+    - 采取的行动类型（工具调用 / 最终回答 / 向用户提问 / 反思 / 计划）
+    - 工具名、参数、结果
+    - 反思内容（如果发生错误并触发 Reflexion）
+    - 时间戳
+
+    设计目的：让 Agent 的推理链可追溯、可可视化、可持久化，
+    而非黑盒。TUI 层可通过 on_thought_chain 回调实时流式展示。
+    """
+
+    step: int
+    thought: str
+    action_type: str  # tool_call / final_answer / ask_user / reflect / plan
+    tool_name: Optional[str] = None
+    args: Dict[str, Any] = field(default_factory=dict)
+    result: Optional[str] = None
+    reflection: Optional[str] = None
+    success: bool = True
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转为字典（用于持久化/JSON 序列化）"""
+        return asdict(self)
+
+    def brief(self) -> str:
+        """生成简短摘要（用于 TUI 显示）"""
+        parts = [f"[步{self.step}] {self.thought[:100]}"]
+        if self.action_type == "tool_call" and self.tool_name:
+            parts.append(f"  → 调用 {self.tool_name}({self.args})")
+            if self.result:
+                parts.append(f"  ← {self.result[:80]}")
+        elif self.action_type == "reflect":
+            parts.append(f"  ⟳ 反思: {self.reflection[:100] if self.reflection else ''}")
+        elif self.action_type == "final_answer":
+            parts.append(f"  ✓ 完成")
+        return "\n".join(parts)
+
+
+@dataclass
+class Plan:
+    """多步执行计划（Plan-and-Execute 模式）
+
+    由 PlanAndExecutePlanner.create_plan() 生成，包含：
+    - goal: 任务目标
+    - steps: 有序步骤列表，每个步骤含 tool/args/reason/depends_on
+    - expected_output: 预期输出描述
+    - 支持依赖关系：depends_on 指向前面步骤的索引列表
+
+    执行时按顺序进行，某步依赖前序步骤的结果时，
+    会把前序结果注入该步的 args（通过 {prev_result_N} 占位符）。
+    """
+
+    goal: str
+    steps: List[Dict[str, Any]]  # [{tool, args, reason, depends_on: [int]}, ...]
+    expected_output: str = ""
+    created_at: float = field(default_factory=time.time)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    def step_count(self) -> int:
+        return len(self.steps)
+
+
+# ----------------------------------------------------------------------------
+# 1.3 反思引擎（Reflexion）—— 工具失败时让 LLM 复盘并换方案
+# ----------------------------------------------------------------------------
+
+REFLECTION_SYSTEM_PROMPT = """你是 ZeroAI 的反思引擎。
+
+当一个工具调用失败时，你需要：
+1. 分析失败原因（参数错误？工具选择错误？环境问题？）
+2. 给出改进建议（换工具？修参数？换方案？）
+
+严格输出 JSON：
+```json
+{
+  "failure_reason": "失败原因分析（1-2句）",
+  "suggestion_type": "retry" | "change_args" | "change_tool" | "give_up",
+  "new_tool": "新工具名（仅 change_tool 时需要）",
+  "new_args": {"参数名": "新参数值"},
+  "explanation": "改进方案说明"
+}
+```
+
+只输出 JSON，不要输出其他内容。"""
+
+
+class ReflexionEngine:
+    """反思引擎：工具调用失败时让 LLM 复盘原因并给出改进方案
+
+    参考：Reflexion: Language Agents with Verbal Reinforcement Learning (Shinn et al., 2023)
+
+    使用方式：
+        engine = ReflexionEngine(llm)
+        reflection = await engine.reflect(tool_name, args, error, history)
+        if reflection["suggestion_type"] == "change_args":
+            new_args = reflection["new_args"]
+            # 用新参数重试
+    """
+
+    def __init__(
+        self,
+        llm: Optional[LLMClient] = None,
+        model_key: str = "glm",
+        max_reflections: int = 2,
+    ):
+        """初始化反思引擎
+
+        Args:
+            llm: LLM 客户端
+            model_key: 模型标识
+            max_reflections: 单个工具最大反思次数（避免无限重试）
+        """
+        self.llm = llm or LLMClient(model_key)
+        self.max_reflections = max_reflections
+        self._reflection_count: Dict[str, int] = {}  # tool_name -> count
+
+    async def reflect(
+        self,
+        tool_name: str,
+        args: Dict[str, Any],
+        error: str,
+        history: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """对一次失败的工具调用进行反思
+
+        Args:
+            tool_name: 失败的工具名
+            args: 调用参数
+            error: 错误信息
+            history: 之前执行过的步骤
+
+        Returns:
+            {
+                "failure_reason": "...",
+                "suggestion_type": "retry" | "change_args" | "change_tool" | "give_up",
+                "new_tool": "...",
+                "new_args": {...},
+                "explanation": "..."
+            }
+        """
+        # 检查反思次数
+        count = self._reflection_count.get(tool_name, 0)
+        if count >= self.max_reflections:
+            return {
+                "failure_reason": f"已达到最大反思次数 {self.max_reflections}",
+                "suggestion_type": "give_up",
+                "new_tool": None,
+                "new_args": {},
+                "explanation": "放弃重试，转入最终答案",
+            }
+        self._reflection_count[tool_name] = count + 1
+
+        # 构建反思 prompt
+        history_text = "\n".join(
+            f"  {i+1}. {h.get('action_type','?')}: {h.get('thought','')[:80]}"
+            for i, h in enumerate(history[-5:])
+        )
+        user_prompt = (
+            f"## 失败的工具调用\n"
+            f"工具: {tool_name}\n"
+            f"参数: {json.dumps(args, ensure_ascii=False)}\n"
+            f"错误: {error[:500]}\n\n"
+            f"## 之前的执行历史\n{history_text or '（无）'}\n\n"
+            f"## 任务\n分析失败原因，给出改进建议。"
+        )
+
+        try:
+            response = await self.llm.chat(
+                system_prompt=REFLECTION_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.3,
+                max_tokens=500,
+                stream=False,
+                timeout=20,
+            )
+        except Exception as e:
+            return {
+                "failure_reason": f"反思引擎调用失败: {e}",
+                "suggestion_type": "give_up",
+                "new_tool": None,
+                "new_args": {},
+                "explanation": "反思失败，放弃重试",
+            }
+
+        if response is None:
+            return {
+                "failure_reason": "反思引擎无响应",
+                "suggestion_type": "give_up",
+                "new_tool": None,
+                "new_args": {},
+                "explanation": "无响应",
+            }
+
+        return self._parse_reflection(response)
+
+    def _parse_reflection(self, response: str) -> Dict[str, Any]:
+        """解析反思输出"""
+        text = response.strip()
+        # 去除 markdown 代码块
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            match = re.search(r"\{[\s\S]*\}", text)
+            if match:
+                try:
+                    data = json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    data = {}
+            else:
+                data = {}
+
+        suggestion = data.get("suggestion_type", "give_up")
+        if suggestion not in ("retry", "change_args", "change_tool", "give_up"):
+            suggestion = "give_up"
+
+        return {
+            "failure_reason": data.get("failure_reason", "未知原因"),
+            "suggestion_type": suggestion,
+            "new_tool": data.get("new_tool"),
+            "new_args": data.get("new_args", {}),
+            "explanation": data.get("explanation", ""),
+        }
+
+    def reset(self) -> None:
+        """重置反思计数（新一轮对话开始时调用）"""
+        self._reflection_count.clear()
+
+
+# ----------------------------------------------------------------------------
+# 1.5 工具结果摘要器 —— 长输出用小模型摘要，避免上下文爆炸
+# ----------------------------------------------------------------------------
+
+SUMMARIZER_SYSTEM_PROMPT = """你是 ZeroAI 的工具结果摘要器。
+
+将长文本工具输出压缩为简短摘要，保留关键信息：
+1. 命令输出：保留关键状态/错误/数据，去掉冗余日志
+2. 文件内容：保留核心结构（函数名/类名/关键逻辑），去掉细节
+3. 搜索结果：保留标题和摘要，去掉重复内容
+
+输出格式：纯文本摘要，不超过 500 字。不要加 markdown 标题。"""
+
+
+class ToolResultSummarizer:
+    """工具结果摘要器：超长输出用 LLM 摘要后入对话历史
+
+    作用：避免长输出（如 systeminfo、大文件内容）撑爆上下文窗口。
+    阈值由 summarize_threshold 控制，默认 1500 字符。
+    """
+
+    def __init__(
+        self,
+        llm: Optional[LLMClient] = None,
+        model_key: str = "glm",
+        summarize_threshold: int = 1500,
+        target_length: int = 500,
+    ):
+        """初始化
+
+        Args:
+            llm: LLM 客户端（建议用快速小模型）
+            model_key: 模型标识
+            summarize_threshold: 触发摘要的最小输出长度（字符数）
+            target_length: 摘要目标长度
+        """
+        self.llm = llm or LLMClient(model_key)
+        self.summarize_threshold = summarize_threshold
+        self.target_length = target_length
+
+    async def maybe_summarize(
+        self,
+        result: str,
+        tool_name: str,
+        query: str = "",
+    ) -> str:
+        """如果结果过长，用 LLM 摘要；否则原样返回
+
+        Args:
+            result: 工具返回的原始结果
+            tool_name: 工具名（用于上下文）
+            query: 用户原始查询（帮助摘要聚焦）
+
+        Returns:
+            摘要后的结果（或原始结果）
+        """
+        if not result or len(result) <= self.summarize_threshold:
+            return result
+
+        try:
+            user_prompt = (
+                f"## 工具: {tool_name}\n"
+                f"## 用户意图: {query[:200]}\n"
+                f"## 原始输出（{len(result)} 字符）\n"
+                f"{result[:4000]}"  # 截断，避免摘要本身超长
+            )
+            summary = await self.llm.chat(
+                system_prompt=SUMMARIZER_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=self.target_length * 2,
+                stream=False,
+                timeout=15,
+            )
+            if summary and summary.strip():
+                return f"[摘要] {summary.strip()}"
+        except Exception:
+            pass
+
+        # 摘要失败，截断原结果
+        return result[:self.summarize_threshold] + f"\n...[已截断，共 {len(result)} 字符]"
+
+
+# ----------------------------------------------------------------------------
+# 1.2 多步规划器（Plan-and-Execute）—— 先制定完整计划再执行
+# ----------------------------------------------------------------------------
+
+PLANNER_PLAN_SYSTEM_PROMPT = """你是 ZeroAI 的任务规划器（Plan-and-Execute 模式）。
+
+你的职责是把用户的复杂任务拆解为有序的执行计划。严格输出 JSON：
+
+```json
+{
+  "goal": "任务目标简述",
+  "steps": [
+    {
+      "tool": "工具名",
+      "args": {"参数名": "参数值"},
+      "reason": "为什么这一步",
+      "depends_on": []
+    }
+  ],
+  "expected_output": "预期最终输出"
+}
+```
+
+规则：
+1. steps 必须是有序数组，按执行顺序排列
+2. depends_on 是数组，元素为前序步骤的索引（从0开始），表示依赖关系
+    - 例如 "depends_on": [0] 表示这一步需要用到第0步的结果
+    - 无依赖则留空数组 []
+3. args 中可用占位符 {prev_result_0}、{prev_result_1} 引用前序步骤结果
+    - 例如 "args": {"path": "{prev_result_0}"} 表示路径来自第0步输出
+4. 只输出 JSON，不要其他内容。"""
+
+
+class PlanAndExecutePlanner:
+    """多步规划器：先制定完整计划，再逐步执行
+
+    与 ReActPlanner（逐步反应）互补：
+    - ReActPlanner：每步都问 LLM 下一步做什么，灵活但慢
+    - PlanAndExecutePlanner：先一次性制定完整计划，再执行，快但需要 replan
+
+    参考：Plan-and-Solve Prompting (Wang et al., 2023)
+
+    用法：
+        planner = PlanAndExecutePlanner(llm)
+        plan = await planner.create_plan(user_input, tools, retriever)
+        # 执行 plan.steps...
+        # 如果某步失败，调用 planner.replan() 重新规划剩余步骤
+    """
+
+    def __init__(
+        self,
+        llm: Optional[LLMClient] = None,
+        model_key: str = "glm",
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+    ):
+        self.llm = llm or LLMClient(model_key)
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    def _build_tools_summary(self, tools: List[Dict[str, Any]]) -> str:
+        """构建工具摘要"""
+        lines = []
+        for t in tools:
+            fn = t.get("function", {})
+            name = fn.get("name", "")
+            desc = fn.get("description", "").split("\n")[0][:100]
+            lines.append(f"- {name}: {desc}")
+        return "\n".join(lines)
+
+    def _build_context(
+        self,
+        retriever: Optional[Callable[[str], List[str]]],
+        user_input: str,
+    ) -> str:
+        """构建 RAG 上下文"""
+        if not retriever or not user_input:
+            return "（无）"
+        try:
+            docs = retriever(user_input)
+            if docs:
+                return "\n".join(d[:300] for d in docs[:3])
+        except Exception:
+            pass
+        return "（无）"
+
+    async def create_plan(
+        self,
+        user_input: str,
+        tools: List[Dict[str, Any]],
+        retriever: Optional[Callable[[str], List[str]]] = None,
+    ) -> Plan:
+        """制定完整执行计划
+
+        Args:
+            user_input: 用户请求
+            tools: 可用工具 schema
+            retriever: RAG 检索函数
+
+        Returns:
+            Plan 对象
+        """
+        tools_summary = self._build_tools_summary(tools)
+        context = self._build_context(retriever, user_input)
+
+        user_prompt = (
+            f"## 用户请求\n{user_input[:800]}\n\n"
+            f"## 可用工具\n{tools_summary}\n\n"
+            f"## 项目上下文\n{context}\n\n"
+            f"## 任务\n制定完整的执行计划。"
+        )
+
+        try:
+            response = await self.llm.chat(
+                system_prompt=PLANNER_PLAN_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=False,
+                timeout=30,
+            )
+        except Exception as e:
+            return Plan(goal=user_input, steps=[], expected_output=f"规划失败: {e}")
+
+        if response is None:
+            return Plan(goal=user_input, steps=[], expected_output="规划器无响应")
+
+        return self._parse_plan(response, user_input)
+
+    def _parse_plan(self, response: str, user_input: str) -> Plan:
+        """解析规划输出"""
+        text = response.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            match = re.search(r"\{[\s\S]*\}", text)
+            if match:
+                try:
+                    data = json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    data = {}
+            else:
+                data = {}
+
+        steps = data.get("steps", [])
+        if not isinstance(steps, list):
+            steps = []
+
+        # 校验每个 step
+        valid_steps = []
+        for s in steps:
+            if not isinstance(s, dict):
+                continue
+            tool = s.get("tool", "")
+            if not tool:
+                continue
+            valid_steps.append({
+                "tool": tool,
+                "args": s.get("args", {}) if isinstance(s.get("args"), dict) else {},
+                "reason": s.get("reason", ""),
+                "depends_on": [
+                    int(d) for d in s.get("depends_on", [])
+                    if isinstance(d, (int, str)) and str(d).isdigit()
+                ],
+            })
+
+        return Plan(
+            goal=data.get("goal", user_input),
+            steps=valid_steps,
+            expected_output=data.get("expected_output", ""),
+        )
+
+    async def replan(
+        self,
+        original_plan: Plan,
+        executed_steps: List[Dict[str, Any]],
+        failure: str,
+        tools: List[Dict[str, Any]],
+    ) -> Plan:
+        """根据失败情况重新规划剩余步骤
+
+        Args:
+            original_plan: 原计划
+            executed_steps: 已执行的步骤（含结果）
+            failure: 失败原因
+            tools: 可用工具
+
+        Returns:
+            新的 Plan（只含剩余步骤）
+        """
+        executed_text = "\n".join(
+            f"  {i+1}. {s.get('tool','?')} → {str(s.get('result',''))[:100]}"
+            for i, s in enumerate(executed_steps)
+        )
+        tools_summary = self._build_tools_summary(tools)
+
+        user_prompt = (
+            f"## 原始目标\n{original_plan.goal}\n\n"
+            f"## 已执行步骤\n{executed_text or '（无）'}\n\n"
+            f"## 失败原因\n{failure[:300]}\n\n"
+            f"## 可用工具\n{tools_summary}\n\n"
+            f"## 任务\n根据失败情况，重新规划剩余步骤。"
+        )
+
+        try:
+            response = await self.llm.chat(
+                system_prompt=PLANNER_PLAN_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=False,
+                timeout=30,
+            )
+        except Exception:
+            return Plan(goal=original_plan.goal, steps=[], expected_output="重规划失败")
+
+        if response is None:
+            return Plan(goal=original_plan.goal, steps=[], expected_output="重规划无响应")
+
+        return self._parse_plan(response, original_plan.goal)
+
+
+# ----------------------------------------------------------------------------
+# 1.4 + 全部增强集成：AdvancedAgentLoop
+# ----------------------------------------------------------------------------
+
+class AdvancedAgentLoop(AgentLoop):
+    """增强版 Agent Loop
+
+    在基础 AgentLoop 之上集成：
+    1. 思维链可视化：thought_chain 完整记录每步思考，on_thought_chain 实时回调
+    2. 多步规划：支持 Plan-and-Execute 模式（先制定计划再执行）
+    3. 自我反思：工具失败时 ReflexionEngine 复盘并换方案重试
+    4. 并行工具调用：规划器返回多个无依赖工具时用 asyncio.gather 并行
+    5. 工具结果摘要：长输出自动用小模型摘要
+
+    用法：
+        loop = AdvancedAgentLoop(
+            enable_plan=True,        # 启用多步规划
+            enable_reflexion=True,   # 启用反思
+            enable_parallel=True,    # 启用并行
+            enable_summarize=True,   # 启用摘要
+        )
+        loop.on_thought_chain = my_callback  # 思维链回调
+        final_answer, steps, chain = await loop.run_with_chain(user_input, messages)
+
+    向后兼容：
+        - 不传任何增强参数时，行为与基础 AgentLoop 一致
+        - run() 方法保持原有签名，返回 (answer, steps)
+        - 新功能通过 run_with_chain() 暴露
+    """
+
+    def __init__(
+        self,
+        planner: Optional[ReActPlanner] = None,
+        tool_map: Optional[Dict[str, Callable]] = None,
+        tools_schema: Optional[List[Dict[str, Any]]] = None,
+        max_steps: int = 8,
+        retriever: Optional[Callable[[str], List[str]]] = None,
+        # 增强参数
+        enable_plan: bool = False,
+        enable_reflexion: bool = True,
+        enable_parallel: bool = True,
+        enable_summarize: bool = True,
+        reflexion_engine: Optional[ReflexionEngine] = None,
+        summarizer: Optional[ToolResultSummarizer] = None,
+        plan_planner: Optional[PlanAndExecutePlanner] = None,
+        # 阶段 J：MCP 生态集成参数
+        use_mcp: bool = False,
+        enable_audit: bool = True,
+        enable_mcp_health_check: bool = False,
+    ):
+        """初始化增强版 Agent Loop
+
+        Args:
+            planner: 基础 ReAct 规划器
+            tool_map / tools_schema / max_steps / retriever: 同 AgentLoop
+            enable_plan: 启用 Plan-and-Execute 模式
+            enable_reflexion: 启用反思重试
+            enable_parallel: 启用并行工具调用
+            enable_summarize: 启用结果摘要
+            reflexion_engine: 自定义反思引擎
+            summarizer: 自定义摘要器
+            plan_planner: 自定义多步规划器
+            use_mcp: 启用 MCP 生态统一调度（阶段 J.1）
+            enable_audit: 启用工具调用审计日志（阶段 J.2）
+            enable_mcp_health_check: 启用 MCP 健康检查（阶段 J.3）
+        """
+        super().__init__(
+            planner=planner,
+            tool_map=tool_map,
+            tools_schema=tools_schema,
+            max_steps=max_steps,
+            retriever=retriever,
+            use_mcp=use_mcp,
+            enable_audit=enable_audit,
+            enable_mcp_health_check=enable_mcp_health_check,
+        )
+        self.enable_plan = enable_plan
+        self.enable_reflexion = enable_reflexion
+        self.enable_parallel = enable_parallel
+        self.enable_summarize = enable_summarize
+
+        # 延迟初始化（只在启用时创建，避免浪费 API 资源）
+        self.reflexion_engine = reflexion_engine or (
+            ReflexionEngine() if enable_reflexion else None
+        )
+        self.summarizer = summarizer or (
+            ToolResultSummarizer() if enable_summarize else None
+        )
+        self.plan_planner = plan_planner or (
+            PlanAndExecutePlanner() if enable_plan else None
+        )
+
+        # 思维链（每轮 run 清空）
+        self.thought_chain: List[Thought] = []
+
+        # 新增回调：思维链更新
+        self.on_thought_chain: Optional[Callable[[Thought], Awaitable[None]]] = None
+
+    async def _emit_thought(self, thought: Thought) -> None:
+        """推送思维链更新"""
+        self.thought_chain.append(thought)
+        if self.on_thought_chain:
+            try:
+                await self.on_thought_chain(thought)
+            except Exception:
+                pass
+        # 同时触发基础 on_thought 回调
+        if self.on_thought:
+            try:
+                await self.on_thought(thought.brief())
+            except Exception:
+                pass
+
+    async def _execute_tool_with_enhancements(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        user_input: str = "",
+    ) -> Tuple[str, bool]:
+        """增强版工具执行：含反思重试 + 结果摘要
+
+        Returns:
+            (result, success)
+        """
+        max_attempts = (self.reflexion_engine.max_reflections + 1) if self.reflexion_engine else 1
+        current_name = name
+        current_args = args
+
+        for attempt in range(max_attempts):
+            # 执行工具
+            result = await self._execute_tool(current_name, current_args)
+            success = not result.startswith("[错误]") and not result.startswith("[参数错误]") and not result.startswith("[执行错误]")
+
+            if success:
+                # 成功：摘要压缩
+                if self.summarizer and self.enable_summarize:
+                    result = await self.summarizer.maybe_summarize(
+                        result, current_name, user_input
+                    )
+                return result, True
+
+            # 失败：如果不启用反思，直接返回
+            if not self.reflexion_engine or not self.enable_reflexion:
+                return result, False
+
+            # 触发反思
+            reflection = await self.reflexion_engine.reflect(
+                tool_name=current_name,
+                args=current_args,
+                error=result,
+                history=[t.to_dict() for t in self.thought_chain],
+            )
+
+            thought = Thought(
+                step=len(self.thought_chain) + 1,
+                thought=f"工具 {current_name} 失败，反思中...",
+                action_type="reflect",
+                tool_name=current_name,
+                args=current_args,
+                result=result,
+                reflection=reflection.get("failure_reason", ""),
+                success=False,
+            )
+            await self._emit_thought(thought)
+
+            suggestion = reflection.get("suggestion_type", "give_up")
+            if suggestion == "give_up":
+                return result, False
+            elif suggestion == "retry":
+                continue  # 用相同参数重试
+            elif suggestion == "change_args":
+                new_args = reflection.get("new_args", {})
+                if isinstance(new_args, dict):
+                    current_args = {**current_args, **new_args}
+            elif suggestion == "change_tool":
+                new_tool = reflection.get("new_tool", "")
+                if new_tool and new_tool in self.tool_map:
+                    current_name = new_tool
+
+        return result, False
+
+    async def _execute_tools_parallel(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        user_input: str = "",
+    ) -> List[Tuple[str, str, bool]]:
+        """并行执行多个无依赖的工具调用
+
+        Args:
+            tool_calls: [{"tool": "...", "args": {...}}, ...]
+
+        Returns:
+            [(tool_name, result, success), ...]
+        """
+        async def _run_one(call: Dict[str, Any]) -> Tuple[str, str, bool]:
+            name = call.get("tool", "")
+            args = call.get("args", {})
+            result, success = await self._execute_tool_with_enhancements(
+                name, args, user_input
+            )
+            return name, result, success
+
+        results = await asyncio.gather(*[_run_one(c) for c in tool_calls])
+        return list(results)
+
+    async def run_with_chain(
+        self,
+        user_input: str,
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[str, List[Dict[str, Any]], List[Thought]]:
+        """运行 Agent 循环（增强版），返回完整思维链
+
+        Args:
+            user_input: 用户输入
+            messages: 对话历史
+
+        Returns:
+            (final_answer, executed_steps, thought_chain)
+        """
+        self.thought_chain = []
+        if self.reflexion_engine:
+            self.reflexion_engine.reset()
+
+        # 阶段 V：进入循环前先压缩上下文，防止上下文爆炸
+        try:
+            context_limit = get_model_context_limit(self.planner.llm.model) or 8000
+            messages = await cleanup_and_compress(messages, context_limit)
+        except Exception:
+            pass
+
+        # 分支：Plan-and-Execute 模式
+        if self.enable_plan and self.plan_planner:
+            return await self._run_with_plan(user_input, messages)
+
+        # 默认：ReAct 模式（增强版）
+        return await self._run_react_enhanced(user_input, messages)
+
+    async def _run_react_enhanced(
+        self,
+        user_input: str,
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[str, List[Dict[str, Any]], List[Thought]]:
+        """增强版 ReAct 循环"""
+        executed_steps: List[Dict[str, Any]] = []
+        final_answer = ""
+
+        for step in range(1, self.max_steps + 1):
+            if self._check_stopped():
+                break
+
+            # 1. 思考
+            plan = await self.planner.plan_next(
+                user_input=user_input,
+                messages=messages,
+                tools=self.tools_schema,
+                executed_steps=executed_steps,
+                retriever=self.retriever,
+            )
+
+            thought_text = plan.get("thought", "")
+            action = plan.get("next_action", {})
+            task_complete = plan.get("task_complete", False)
+            action_type = action.get("type", "final_answer")
+
+            # 检查是否为并行工具调用（规划器返回 next_action.type=parallel_tool_calls）
+            is_parallel = action_type == "parallel_tool_calls"
+            tool_calls_list = action.get("tool_calls", []) if is_parallel else []
+
+            thought = Thought(
+                step=step,
+                thought=thought_text,
+                action_type="parallel_tool_calls" if is_parallel else action_type,
+                tool_name=action.get("tool") if not is_parallel else None,
+                args=action.get("args", {}) if not is_parallel else {},
+            )
+            await self._emit_thought(thought)
+
+            # 2. 行动
+            if action_type == "tool_call":
+                tool_name = action.get("tool", "")
+                tool_args = action.get("args", {})
+                if not isinstance(tool_args, dict):
+                    tool_args = {}
+
+                if self.on_tool_call:
+                    try:
+                        await self.on_tool_call(tool_name, tool_args)
+                    except Exception:
+                        pass
+
+                result, success = await self._execute_tool_with_enhancements(
+                    tool_name, tool_args, user_input
+                )
+
+                if self.on_tool_result:
+                    try:
+                        await self.on_tool_result(tool_name, result)
+                    except Exception:
+                        pass
+
+                # 更新 thought
+                thought.result = result
+                thought.success = success
+
+                executed_steps.append({
+                    "thought": thought_text,
+                    "action_type": "tool_call",
+                    "tool_name": tool_name,
+                    "args": tool_args,
+                    "result": result,
+                    "success": success,
+                })
+
+                messages.append({
+                    "role": "assistant",
+                    "content": f"[调用工具 {tool_name}] {thought_text}",
+                })
+                messages.append({
+                    "role": "user",
+                    "content": f"[工具结果 {tool_name}] {result[:1500]}",
+                })
+
+            elif is_parallel and self.enable_parallel:
+                # 并行执行多个工具
+                if self.on_tool_call:
+                    for tc in tool_calls_list:
+                        try:
+                            await self.on_tool_call(tc.get("tool", ""), tc.get("args", {}))
+                        except Exception:
+                            pass
+
+                results = await self._execute_tools_parallel(tool_calls_list, user_input)
+
+                for name, result, success in results:
+                    if self.on_tool_result:
+                        try:
+                            await self.on_tool_result(name, result)
+                        except Exception:
+                            pass
+                    executed_steps.append({
+                        "thought": thought_text,
+                        "action_type": "tool_call",
+                        "tool_name": name,
+                        "args": next((tc.get("args", {}) for tc in tool_calls_list if tc.get("tool") == name), {}),
+                        "result": result,
+                        "success": success,
+                    })
+                    messages.append({
+                        "role": "assistant",
+                        "content": f"[并行调用 {name}]",
+                    })
+                    messages.append({
+                        "role": "user",
+                        "content": f"[工具结果 {name}] {result[:1500]}",
+                    })
+
+            elif action_type == "ask_user":
+                question = action.get("question", "需要更多信息")
+                final_answer = question
+                thought.action_type = "ask_user"
+                if self.on_final_answer:
+                    try:
+                        await self.on_final_answer(question)
+                    except Exception:
+                        pass
+                break
+
+            else:  # final_answer
+                final_answer = action.get("answer", thought_text or "")
+                thought.action_type = "final_answer"
+                executed_steps.append({
+                    "thought": thought_text,
+                    "action_type": "final_answer",
+                    "answer": final_answer,
+                })
+                if self.on_final_answer:
+                    try:
+                        await self.on_final_answer(final_answer)
+                    except Exception:
+                        pass
+                break
+
+            if task_complete:
+                break
+
+        if not final_answer:
+            final_answer = "已达到最大步数，未能完成任务。"
+            if self.on_final_answer:
+                try:
+                    await self.on_final_answer(final_answer)
+                except Exception:
+                    pass
+
+        return final_answer, executed_steps, self.thought_chain
+
+    async def _run_with_plan(
+        self,
+        user_input: str,
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[str, List[Dict[str, Any]], List[Thought]]:
+        """Plan-and-Execute 模式：先制定计划，再逐步执行
+
+        流程：
+        1. PlanAndExecutePlanner.create_plan() 制定完整计划
+        2. 按顺序执行每个 step
+        3. 某步失败时，调用 replan() 重新规划剩余步骤
+        4. 全部完成后，让 LLM 基于所有结果生成最终答案
+        """
+        # 1. 制定计划
+        plan = await self.plan_planner.create_plan(
+            user_input=user_input,
+            tools=self.tools_schema,
+            retriever=self.retriever,
+        )
+
+        thought = Thought(
+            step=1,
+            thought=f"已制定计划：{plan.goal}（{plan.step_count()} 步）",
+            action_type="plan",
+        )
+        await self._emit_thought(thought)
+
+        if plan.step_count() == 0:
+            # 规划失败，回退到 ReAct
+            return await self._run_react_enhanced(user_input, messages)
+
+        # 2. 逐步执行
+        executed_steps: List[Dict[str, Any]] = []
+        step_results: List[str] = []  # 每步的结果，供后续步骤引用
+        final_answer = ""
+
+        for idx, step_def in enumerate(plan.steps):
+            if self._check_stopped():
+                break
+
+            tool_name = step_def.get("tool", "")
+            raw_args = step_def.get("args", {})
+            reason = step_def.get("reason", "")
+            depends_on = step_def.get("depends_on", [])
+
+            # 替换占位符 {prev_result_N}
+            args = {}
+            for k, v in raw_args.items():
+                if isinstance(v, str):
+                    replaced = v
+                    for dep_idx in depends_on:
+                        placeholder = f"{{prev_result_{dep_idx}}}"
+                        if placeholder in replaced and dep_idx < len(step_results):
+                            replaced = replaced.replace(placeholder, step_results[dep_idx][:500])
+                    args[k] = replaced
+                else:
+                    args[k] = v
+
+            thought = Thought(
+                step=idx + 2,  # 第1步是 plan
+                thought=f"执行步骤 {idx+1}/{plan.step_count()}: {reason}",
+                action_type="tool_call",
+                tool_name=tool_name,
+                args=args,
+            )
+            await self._emit_thought(thought)
+
+            if self.on_tool_call:
+                try:
+                    await self.on_tool_call(tool_name, args)
+                except Exception:
+                    pass
+
+            result, success = await self._execute_tool_with_enhancements(
+                tool_name, args, user_input
+            )
+
+            thought.result = result
+            thought.success = success
+
+            if self.on_tool_result:
+                try:
+                    await self.on_tool_result(tool_name, result)
+                except Exception:
+                    pass
+
+            executed_steps.append({
+                "thought": reason,
+                "action_type": "tool_call",
+                "tool_name": tool_name,
+                "args": args,
+                "result": result,
+                "success": success,
+            })
+            step_results.append(result)
+
+            messages.append({
+                "role": "assistant",
+                "content": f"[执行计划步骤 {idx+1}: {tool_name}] {reason}",
+            })
+            messages.append({
+                "role": "user",
+                "content": f"[工具结果 {tool_name}] {result[:1500]}",
+            })
+
+            # 失败时重规划
+            if not success and self.reflexion_engine and self.enable_reflexion:
+                new_plan = await self.plan_planner.replan(
+                    original_plan=plan,
+                    executed_steps=executed_steps,
+                    failure=result,
+                    tools=self.tools_schema,
+                )
+                if new_plan.step_count() > 0:
+                    # 用新计划的剩余步骤替换未执行部分
+                    plan.steps = new_plan.steps
+                    thought = Thought(
+                        step=idx + 3,
+                        thought=f"重规划成功，剩余 {plan.step_count()} 步",
+                        action_type="plan",
+                    )
+                    await self._emit_thought(thought)
+
+        # 3. 让 LLM 基于所有结果生成最终答案
+        if executed_steps:
+            summary_parts = []
+            for i, s in enumerate(executed_steps):
+                summary_parts.append(f"步骤{i+1} ({s['tool_name']}): {str(s['result'])[:300]}")
+            summary_text = "\n".join(summary_parts)
+
+            try:
+                final_answer = await self.planner.llm.chat(
+                    system_prompt="你是 ZeroAI。根据工具执行结果，回答用户问题。简明扼要。",
+                    user_prompt=f"## 用户问题\n{user_input}\n\n## 执行结果\n{summary_text}\n\n## 请给出最终答案",
+                    temperature=0.5,
+                    max_tokens=1000,
+                    stream=False,
+                    timeout=30,
+                ) or "执行完成，但无法生成最终答案"
+            except Exception as e:
+                final_answer = f"执行完成，但生成答案失败: {e}"
+
+            thought = Thought(
+                step=len(self.thought_chain) + 1,
+                thought="生成最终答案",
+                action_type="final_answer",
+                result=final_answer,
+            )
+            await self._emit_thought(thought)
+
+            if self.on_final_answer:
+                try:
+                    await self.on_final_answer(final_answer)
+                except Exception:
+                    pass
+
+        return final_answer, executed_steps, self.thought_chain
+
+
+# ----------------------------------------------------------------------------
+# 工厂函数（增强版）
+# ----------------------------------------------------------------------------
+
+_advanced_agent_loop_instance: Optional[AdvancedAgentLoop] = None
+
+
+def get_advanced_agent_loop(
+    model_key: str = "glm",
+    max_steps: int = 8,
+    retriever: Optional[Callable[[str], List[str]]] = None,
+    enable_plan: bool = False,
+    enable_reflexion: bool = True,
+    enable_parallel: bool = True,
+    enable_summarize: bool = True,
+) -> AdvancedAgentLoop:
+    """获取 AdvancedAgentLoop 单例
+
+    Args:
+        model_key: 模型标识
+        max_steps: 最大步数
+        retriever: RAG 检索函数
+        enable_plan: 启用 Plan-and-Execute
+        enable_reflexion: 启用反思
+        enable_parallel: 启用并行
+        enable_summarize: 启用摘要
+
+    Returns:
+        AdvancedAgentLoop 实例
+    """
+    global _advanced_agent_loop_instance
+    if _advanced_agent_loop_instance is None or retriever is not None:
+        planner = ReActPlanner(model_key=model_key)
+        _advanced_agent_loop_instance = AdvancedAgentLoop(
+            planner=planner,
+            max_steps=max_steps,
+            retriever=retriever,
+            enable_plan=enable_plan,
+            enable_reflexion=enable_reflexion,
+            enable_parallel=enable_parallel,
+            enable_summarize=enable_summarize,
+        )
+    return _advanced_agent_loop_instance
+
+
+def reset_advanced_agent_loop() -> None:
+    """重置 AdvancedAgentLoop 单例"""
+    global _advanced_agent_loop_instance
+    _advanced_agent_loop_instance = None
+
+
+# ============================================================================
+# 多 Agent 协作机制（阶段 B.4）
+# ============================================================================
+
+@dataclass
+class AgentRole:
+    """Agent 角色定义"""
+    name: str
+    specialty: str  # 专长描述
+    system_prompt: str
+    model_key: str = "glm"
+    tools_whitelist: Optional[List[str]] = None  # None=全部工具，列表=仅允许这些工具
+
+
+class MultiAgentCollaborator:
+    """多 Agent 协作器 - 多个 Agent 分工合作完成复杂任务
+
+    工作模式：
+    1. 协调者（Orchestrator）分析任务，分配子任务给专家 Agent
+    2. 各专家 Agent 独立完成子任务（并行）
+    3. 协调者汇总各专家结果，生成最终答案
+
+    应用场景：
+    - 代码审查：coder 写代码 → reasoner 审查逻辑 → security 检查漏洞
+    - 文档生成：knowledge 收集资料 → chinese 撰写 → academic 校对引用
+    - 复杂调试：coder 复现 → reasoner 分析根因 → coder 修复
+
+    使用示例：
+        collab = MultiAgentCollaborator()
+        collab.add_role(AgentRole(
+            name="coder",
+            specialty="代码编写",
+            system_prompt="你是代码专家",
+            tools_whitelist=["read_file", "write_file", "run_command"],
+        ))
+        collab.add_role(AgentRole(
+            name="reviewer",
+            specialty="代码审查",
+            system_prompt="你是审查专家",
+            tools_whitelist=["read_file"],
+        ))
+        result = await collab.run("实现并审查一个排序算法", messages)
+    """
+
+    def __init__(
+        self,
+        orchestrator_model: str = "glm",
+        max_steps_per_agent: int = 5,
+    ):
+        self.orchestrator_model = orchestrator_model
+        self.max_steps_per_agent = max_steps_per_agent
+        self.roles: Dict[str, AgentRole] = {}
+
+        # 回调
+        self.on_agent_start: Optional[Callable[[str, str], Awaitable[None]]] = None
+        self.on_agent_done: Optional[Callable[[str, str, str], Awaitable[None]]] = None
+        self.on_orchestrator_thought: Optional[Callable[[str], Awaitable[None]]] = None
+
+    def add_role(self, role: AgentRole) -> None:
+        """添加一个 Agent 角色"""
+        self.roles[role.name] = role
+
+    def remove_role(self, name: str) -> None:
+        """移除一个角色"""
+        self.roles.pop(name, None)
+
+    async def _decompose_task(
+        self,
+        task: str,
+        messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """协调者分解任务为子任务
+
+        Returns:
+            [{"role": "agent_name", "subtask": "子任务描述"}, ...]
+        """
+        if not self.roles:
+            return []
+
+        roles_desc = "\n".join(
+            f"- {r.name}: {r.specialty}" for r in self.roles.values()
+        )
+
+        prompt = f"""你是任务协调者。请将以下任务分解为子任务，分配给合适的专家 Agent。
+
+可用专家：
+{roles_desc}
+
+任务：{task}
+
+请输出 JSON 数组，每个元素包含 role（专家名）和 subtask（子任务描述）：
+```json
+[{{"role": "expert_name", "subtask": "子任务描述"}}]
+```
+
+规则：
+1. 只分配给可用的专家
+2. 子任务应具体明确
+3. 最多分配 4 个子任务
+4. 如果任务简单，可以只分配 1 个专家"""
+
+        client = LLMClient(model_key=self.orchestrator_model)
+        msgs = [{"role": "user", "content": prompt}]
+        resp = await client.chat(msgs, temperature=0.3)
+
+        # 解析 JSON
+        try:
+            json_str = re.search(r'\[[\s\S]*?\]', resp)
+            if json_str:
+                tasks = json.loads(json_str.group())
+                # 过滤无效角色
+                valid = [
+                    t for t in tasks
+                    if isinstance(t, dict)
+                    and t.get("role") in self.roles
+                    and t.get("subtask")
+                ]
+                return valid[:4]  # 最多 4 个
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        # 回退：将整个任务分配给第一个专家
+        first_role = next(iter(self.roles), None)
+        if first_role:
+            return [{"role": first_role, "subtask": task}]
+        return []
+
+    async def _run_single_agent(
+        self,
+        role: AgentRole,
+        subtask: str,
+        messages: List[Dict[str, Any]],
+        shared_context: str = "",
+    ) -> str:
+        """运行单个专家 Agent 完成子任务"""
+        if self.on_agent_start:
+            try:
+                await self.on_agent_start(role.name, subtask)
+            except Exception:
+                pass
+
+        # 构造工具集（按白名单过滤）
+        try:
+            from zeroai.tools.registry import TOOLS, TOOL_MAP
+        except Exception:
+            TOOLS, TOOL_MAP = [], {}
+
+        if role.tools_whitelist:
+            tools_schema = [
+                t for t in TOOLS
+                if t.get("function", {}).get("name", "") in role.tools_whitelist
+            ]
+            tool_map = {
+                k: v for k, v in TOOL_MAP.items()
+                if k in role.tools_whitelist
+            }
+        else:
+            tools_schema = list(TOOLS)
+            tool_map = dict(TOOL_MAP)
+
+        # 创建 Agent Loop（阶段 K.4：通过构造函数注入角色 prompt）
+        planner = ReActPlanner(
+            model_key=role.model_key,
+            system_prompt=role.system_prompt,
+        )
+
+        loop = AdvancedAgentLoop(
+            planner=planner,
+            tool_map=tool_map,
+            tools_schema=tools_schema,
+            max_steps=self.max_steps_per_agent,
+            enable_reflexion=True,
+            enable_parallel=False,  # 单 Agent 内不并行，避免冲突
+            enable_summarize=True,
+        )
+
+        # 注入共享上下文
+        enhanced_subtask = subtask
+        if shared_context:
+            enhanced_subtask = f"{subtask}\n\n[其他专家的中间结果]\n{shared_context}"
+
+        # 运行
+        final_answer, _, _ = await loop.run_with_chain(
+            user_input=enhanced_subtask,
+            messages=list(messages),  # 副本，避免污染
+        )
+
+        if self.on_agent_done:
+            try:
+                await self.on_agent_done(role.name, subtask, final_answer)
+            except Exception:
+                pass
+
+        return final_answer
+
+    async def _synthesize_results(
+        self,
+        task: str,
+        results: Dict[str, str],
+        messages: List[Dict[str, Any]],
+    ) -> str:
+        """协调者汇总各专家结果"""
+        results_text = "\n\n".join(
+            f"## {role} 的结果\n{result}"
+            for role, result in results.items()
+            if result
+        )
+
+        prompt = f"""你是任务协调者。请汇总以下各专家的工作结果，生成最终答案。
+
+原始任务：{task}
+
+各专家结果：
+{results_text}
+
+请综合所有结果，生成完整、连贯的最终答案。如有冲突，请指出并给出最合理的结论。"""
+
+        client = LLMClient(model_key=self.orchestrator_model)
+        msgs = [{"role": "user", "content": prompt}]
+        final = await client.chat(msgs, temperature=0.5)
+
+        if self.on_orchestrator_thought:
+            try:
+                await self.on_orchestrator_thought("汇总各专家结果")
+            except Exception:
+                pass
+
+        return final
+
+    async def run(
+        self,
+        task: str,
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[str, Dict[str, str]]:
+        """运行多 Agent 协作
+
+        Args:
+            task: 用户任务
+            messages: 对话历史
+
+        Returns:
+            (final_answer, {role_name: subtask_result})
+        """
+        # 1. 协调者分解任务
+        if self.on_orchestrator_thought:
+            try:
+                await self.on_orchestrator_thought("分析任务并分配子任务")
+            except Exception:
+                pass
+
+        subtasks = await self._decompose_task(task, messages)
+
+        if not subtasks:
+            # 无法分解，直接用第一个专家处理
+            if self.roles:
+                first_role = next(iter(self.roles.values()))
+                result = await self._run_single_agent(first_role, task, messages)
+                return result, {first_role.name: result}
+            return "无可用的专家 Agent。", {}
+
+        # 2. 并行执行子任务（无依赖时）
+        # 检查是否有依赖（简单策略：如果子任务数<=2，并行；否则串行传递上下文）
+        results: Dict[str, str] = {}
+        shared_context = ""
+
+        if len(subtasks) <= 2:
+            # 并行执行
+            async def _run_one(sub: Dict[str, Any]) -> Tuple[str, str]:
+                role = self.roles[sub["role"]]
+                result = await self._run_single_agent(role, sub["subtask"], messages)
+                return sub["role"], result
+
+            tasks_list = [_run_one(s) for s in subtasks]
+            done = await asyncio.gather(*tasks_list, return_exceptions=True)
+            for item in done:
+                if isinstance(item, tuple) and len(item) == 2:
+                    results[item[0]] = item[1]
+        else:
+            # 串行执行，传递上下文
+            for sub in subtasks:
+                role = self.roles[sub["role"]]
+                result = await self._run_single_agent(
+                    role, sub["subtask"], messages, shared_context
+                )
+                results[role.name] = result
+                shared_context += f"\n[{role.name}]: {result[:500]}\n"
+
+        # 3. 协调者汇总
+        final = await self._synthesize_results(task, results, messages)
+
+        return final, results
+
+
+__all__ = [
+    # 基础（向后兼容）
+    "ReActPlanner",
+    "AgentLoop",
+    "PLANNER_SYSTEM_PROMPT",
+    "get_agent_loop",
+    "reset_agent_loop",
+    # 阶段 1 增强
+    "Thought",
+    "Plan",
+    "ReflexionEngine",
+    "ToolResultSummarizer",
+    "PlanAndExecutePlanner",
+    "AdvancedAgentLoop",
+    "REFLECTION_SYSTEM_PROMPT",
+    "SUMMARIZER_SYSTEM_PROMPT",
+    "PLANNER_PLAN_SYSTEM_PROMPT",
+    "get_advanced_agent_loop",
+    "reset_advanced_agent_loop",
+    # 阶段 B.4 多 Agent 协作
+    "AgentRole",
+    "MultiAgentCollaborator",
+]

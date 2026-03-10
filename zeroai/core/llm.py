@@ -1,0 +1,458 @@
+"""LLM client wrapper for ZeroAI"""
+import asyncio
+from typing import Optional, Dict, Any, List, AsyncGenerator
+from openai import OpenAI, AsyncOpenAI
+from .config import get_config
+from .constants import MODEL_CONFIGS
+
+
+class LLMClient:
+    """Wrapper for LLM API calls"""
+    
+    def __init__(self, model_key: str):
+        """Initialize LLM client with model configuration"""
+        self.config = get_config()
+        self.model_key = model_key
+        try:
+            self._model_config = self.config.get_model_config(model_key)
+            # 如果 config.yaml 中 api_key 为空，回退到 constants.MODEL_CONFIGS
+            if not self._model_config.get("api_key") and model_key in MODEL_CONFIGS:
+                self._model_config = MODEL_CONFIGS[model_key].copy()
+        except Exception:
+            # 配置读取失败时回退到内置常量配置
+            self._model_config = MODEL_CONFIGS.get(model_key, {}).copy()
+        self._client = None
+        self._async_client = None
+    
+    @property
+    def client(self) -> OpenAI:
+        """Get synchronous OpenAI client"""
+        if self._client is None:
+            self._client = OpenAI(
+                base_url=self._model_config["base_url"],
+                api_key=self._model_config["api_key"]
+            )
+        return self._client
+    
+    @property
+    def async_client(self) -> AsyncOpenAI:
+        """Get asynchronous OpenAI client"""
+        if self._async_client is None:
+            self._async_client = AsyncOpenAI(
+                base_url=self._model_config["base_url"],
+                api_key=self._model_config["api_key"]
+            )
+        return self._async_client
+    
+    @property
+    def model(self) -> str:
+        """Get model name"""
+        return self._model_config["model"]
+
+    # ========================================================================
+    # 阶段 V：模型降级策略（主模型限流时自动切换备用模型）
+    # ========================================================================
+
+    def _fallback_model_keys(self) -> List[str]:
+        """获取降级模型序列（主模型 -> glm-4 -> openrouter -> ollama）"""
+        keys = [self.model_key]
+        for key in ("glm-4", "openrouter", "ollama"):
+            if key != self.model_key and key in MODEL_CONFIGS:
+                keys.append(key)
+        return keys
+
+    def _is_fallback_eligible(self, exc: Exception) -> bool:
+        """判断异常是否适合触发模型降级"""
+        # 导入 openai 异常类型（兼容不同版本）
+        try:
+            from openai import (
+                RateLimitError,
+                APIConnectionError,
+                APITimeoutError,
+                InternalServerError,
+            )
+        except ImportError:
+            RateLimitError = APIConnectionError = APITimeoutError = InternalServerError = None
+
+        if RateLimitError and isinstance(
+            exc,
+            (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError),
+        ):
+            return True
+
+        msg = str(exc).lower()
+        for hint in (
+            "rate limit",
+            "429",
+            "too many requests",
+            "timeout",
+            "connection",
+            "temporarily unavailable",
+            "overloaded",
+            "server error",
+            "503",
+            "502",
+        ):
+            if hint in msg:
+                return True
+        return False
+
+    def _get_fallback_config(self, model_key: str) -> Dict[str, Any]:
+        """获取指定模型的配置（优先 config.yaml，否则 constants）"""
+        try:
+            cfg = self.config.get_model_config(model_key)
+            if cfg.get("api_key"):
+                return cfg
+        except Exception:
+            pass
+        return MODEL_CONFIGS.get(model_key, {}).copy()
+
+    def _get_sync_client_for(self, model_key: str) -> OpenAI:
+        """获取指定模型的同步客户端（主模型复用缓存）"""
+        if model_key == self.model_key:
+            return self.client
+        cfg = self._get_fallback_config(model_key)
+        return OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
+
+    def _get_async_client_for(self, model_key: str) -> AsyncOpenAI:
+        """获取指定模型的异步客户端（主模型复用缓存）"""
+        if model_key == self.model_key:
+            return self.async_client
+        cfg = self._get_fallback_config(model_key)
+        return AsyncOpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
+
+    def _get_model_name_for(self, model_key: str) -> str:
+        """获取指定模型的模型名"""
+        if model_key == self.model_key:
+            return self.model
+        return self._get_fallback_config(model_key).get("model", "")
+
+    def chat_sync(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        stream: bool = False
+    ) -> Optional[str]:
+        """Synchronous chat completion（支持模型降级）"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        last_error = None
+
+        for idx, model_key in enumerate(self._fallback_model_keys()):
+            try:
+                client = self._get_sync_client_for(model_key)
+                response = client.chat.completions.create(
+                    model=self._get_model_name_for(model_key),
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=stream,
+                )
+                if stream:
+                    return self._handle_stream_sync(response)
+                return response.choices[0].message.content
+            except Exception as e:
+                last_error = e
+                # 第一次失败且不符合降级条件时直接返回 None
+                if idx == 0 and not self._is_fallback_eligible(e):
+                    print(f"LLM call failed: {e}")
+                    return None
+                print(f"LLM [{model_key}] failed, trying fallback: {e}")
+                continue
+
+        print(f"All fallback models failed: {last_error}")
+        return None
+    
+    async def chat(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        stream: bool = False,
+        timeout: float = 30
+    ) -> Optional[str]:
+        """Asynchronous chat completion（支持模型降级）"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        last_error = None
+
+        for idx, model_key in enumerate(self._fallback_model_keys()):
+            try:
+                client = self._get_async_client_for(model_key)
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model=self._get_model_name_for(model_key),
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        stream=stream,
+                    ),
+                    timeout=timeout,
+                )
+                if stream:
+                    return self._handle_stream_async(response)
+                return response.choices[0].message.content
+            except asyncio.TimeoutError:
+                # 超时属于可降级异常
+                last_error = f"timed out after {timeout}s"
+                print(f"LLM [{model_key}] timed out after {timeout}s, trying fallback")
+                continue
+            except Exception as e:
+                last_error = e
+                if idx == 0 and not self._is_fallback_eligible(e):
+                    print(f"LLM call failed: {e}")
+                    return None
+                print(f"LLM [{model_key}] failed, trying fallback: {e}")
+                continue
+
+        print(f"All fallback models failed: {last_error}")
+        return None
+    
+    async def chat_with_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        stream: bool = False,
+        timeout: float = 60
+    ) -> Optional[str]:
+        """Chat completion with custom messages（支持模型降级）"""
+        last_error = None
+
+        for idx, model_key in enumerate(self._fallback_model_keys()):
+            try:
+                client = self._get_async_client_for(model_key)
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model=self._get_model_name_for(model_key),
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        stream=stream,
+                    ),
+                    timeout=timeout,
+                )
+                if stream:
+                    return self._handle_stream_async(response)
+                return response.choices[0].message.content
+            except asyncio.TimeoutError:
+                last_error = f"timed out after {timeout}s"
+                print(f"LLM [{model_key}] timed out after {timeout}s, trying fallback")
+                continue
+            except Exception as e:
+                last_error = e
+                if idx == 0 and not self._is_fallback_eligible(e):
+                    print(f"LLM call failed: {e}")
+                    return None
+                print(f"LLM [{model_key}] failed, trying fallback: {e}")
+                continue
+
+        print(f"All fallback models failed: {last_error}")
+        return None
+    
+    def _handle_stream_sync(self, response) -> str:
+        """Handle synchronous streaming response"""
+        content = ""
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                content += chunk.choices[0].delta.content
+        return content
+
+    async def _handle_stream_async(self, response) -> AsyncGenerator[str, None]:
+        """Handle asynchronous streaming response"""
+        async for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+    # ========================================================================
+    # 阶段 M.1：Embedding API 对接（GLM embedding-3）
+    # ========================================================================
+
+    async def embed(
+        self,
+        texts: List[str],
+        dimensions: int = 1024,
+        timeout: float = 30,
+    ) -> List[List[float]]:
+        """异步生成文本嵌入向量（阶段 M.1）
+
+        使用 GLM embedding-3 模型，支持 256/512/1024/2048 维。
+        自动批量处理（单次最多 64 条），避免 API 限流。
+
+        Args:
+            texts: 待嵌入的文本列表
+            dimensions: 输出维度（256/512/1024/2048）
+            timeout: 单次请求超时秒数
+
+        Returns:
+            嵌入向量列表，shape=(len(texts), dimensions)
+            失败时返回空列表
+
+        Raises:
+            RuntimeError: API 调用失败
+        """
+        if not texts:
+            return []
+
+        # 批量处理（单次最多 64 条，GLM 限制）
+        batch_size = 64
+        all_vectors: List[List[float]] = []
+
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            try:
+                resp = await asyncio.wait_for(
+                    self.async_client.embeddings.create(
+                        model="embedding-3",
+                        input=batch,
+                        dimensions=dimensions,
+                    ),
+                    timeout=timeout,
+                )
+                # 按 index 排序确保顺序正确
+                sorted_data = sorted(resp.data, key=lambda x: x.index)
+                for item in sorted_data:
+                    all_vectors.append(item.embedding)
+            except asyncio.TimeoutError:
+                raise RuntimeError(f"Embedding API 超时（{timeout}s）")
+            except Exception as e:
+                raise RuntimeError(f"Embedding API 调用失败: {e}")
+
+        return all_vectors
+
+    def embed_sync(
+        self,
+        texts: List[str],
+        dimensions: int = 1024,
+    ) -> List[List[float]]:
+        """同步生成文本嵌入向量（阶段 M.1）
+
+        同 embed() 的同步版本，用于无法 await 的场景。
+
+        Args:
+            texts: 待嵌入的文本列表
+            dimensions: 输出维度
+
+        Returns:
+            嵌入向量列表，失败时返回空列表
+        """
+        if not texts:
+            return []
+
+        batch_size = 64
+        all_vectors: List[List[float]] = []
+
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            try:
+                resp = self.client.embeddings.create(
+                    model="embedding-3",
+                    input=batch,
+                    dimensions=dimensions,
+                )
+                sorted_data = sorted(resp.data, key=lambda x: x.index)
+                for item in sorted_data:
+                    all_vectors.append(item.embedding)
+            except Exception as e:
+                print(f"Embedding API 调用失败: {e}")
+                return []
+
+        return all_vectors
+
+    async def embed_one(
+        self,
+        text: str,
+        dimensions: int = 1024,
+    ) -> List[float]:
+        """嵌入单条文本（便捷方法）
+
+        Args:
+            text: 待嵌入文本
+            dimensions: 输出维度
+
+        Returns:
+            嵌入向量，失败时返回空列表
+        """
+        vectors = await self.embed([text], dimensions=dimensions)
+        return vectors[0] if vectors else []
+
+
+class MultiModelClient:
+    """Client for multi-model expert collaboration"""
+    
+    def __init__(self):
+        self.config = get_config()
+        self._clients = {}
+    
+    def get_client(self, model_key: str) -> LLMClient:
+        """Get or create client for model"""
+        if model_key not in self._clients:
+            self._clients[model_key] = LLMClient(model_key)
+        return self._clients[model_key]
+    
+    async def call_expert(
+        self,
+        expert_key: str,
+        messages: List[Dict[str, Any]],
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        stream: bool = True
+    ) -> Optional[str]:
+        """Call a specific expert with messages"""
+        expert_config = self.config.get_expert_config(expert_key)
+        model_key = expert_config["model_key"]
+        client = self.get_client(model_key)
+        
+        return await client.chat_with_messages(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=stream
+        )
+    
+    async def call_experts_parallel(
+        self,
+        expert_keys: List[str],
+        messages: List[Dict[str, Any]],
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ) -> Dict[str, Optional[str]]:
+        """Call multiple experts in parallel"""
+        tasks = {}
+        for expert_key in expert_keys:
+            tasks[expert_key] = self.call_expert(
+                expert_key=expert_key,
+                messages=messages.copy(),
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False
+            )
+        
+        results = {}
+        for expert_key, task in tasks.items():
+            try:
+                results[expert_key] = await task
+            except Exception as e:
+                print(f"Expert {expert_key} failed: {e}")
+                results[expert_key] = None
+        
+        return results
+
+
+# Global multi-model client instance
+_multi_model_client: Optional[MultiModelClient] = None
+
+
+def get_multi_model_client() -> MultiModelClient:
+    """Get global multi-model client instance"""
+    global _multi_model_client
+    if _multi_model_client is None:
+        _multi_model_client = MultiModelClient()
+    return _multi_model_client
