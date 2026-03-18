@@ -1,0 +1,504 @@
+"""网络与应用工具
+
+迁移来源：tui_agent.py 行 2753-3091（APP_PATHS + 网络工具集）
+
+提供以下纯函数：
+- _search_executable：搜索可执行文件或文档
+- open_app：打开桌面应用程序或任意文件
+- web_search：网络搜索（Bing 优先 → DuckDuckGo → 百度）
+- web_fetch：抓取网页（含 SSRF 防护）
+- git_status：git 状态查询
+
+依赖：
+- zeroai.core.constants：PERMISSION_LEVEL
+- 标准库：os, re, subprocess, urllib, pathlib
+"""
+import os
+import re
+import subprocess
+import urllib.request
+import urllib.parse
+import urllib.error
+from pathlib import Path
+
+from zeroai.core.constants import PERMISSION_LEVEL
+
+
+# 应用路径硬编码映射（快速命中已知应用）
+# 迁移来源：tui_agent.py 行 2753-2789
+APP_PATHS = {
+    # 通讯类
+    "微信": r"D:\WeiXin\Weixin.exe",
+    "wechat": r"D:\WeiXin\Weixin.exe",
+    "weixin": r"D:\WeiXin\Weixin.exe",
+    "qq": r"D:\QQ\QQ.exe",
+    # 开发工具
+    "vscode": r"D:\Microsoft VS Code\Code.exe",
+    "vs code": r"D:\Microsoft VS Code\Code.exe",
+    "code": r"D:\Microsoft VS Code\Code.exe",
+    "pycharm": r"D:\pycharm\PyCharm 2025.3.2.1\bin\pycharm64.exe",
+    # 浏览器
+    "edge": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    "浏览器": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    # 系统自带应用
+    "记事本": "notepad.exe",
+    "notepad": "notepad.exe",
+    "计算器": "calc.exe",
+    "calc": "calc.exe",
+    "资源管理器": "explorer.exe",
+    "explorer": "explorer.exe",
+    "文件资源管理器": "explorer.exe",
+    "画图": "mspaint.exe",
+    "mspaint": "mspaint.exe",
+    "写字板": "write.exe",
+    "write": "write.exe",
+    "任务管理器": "taskmgr.exe",
+    "taskmgr": "taskmgr.exe",
+    "控制面板": "control.exe",
+    "control": "control.exe",
+    "注册表": "regedit.exe",
+    "regedit": "regedit.exe",
+    "cmd": "cmd.exe",
+    "命令提示符": "cmd.exe",
+    "powershell": "powershell.exe",
+    "终端": "powershell.exe",
+}
+
+
+def _search_executable(name: str) -> str:
+    """在本地自动搜索可执行文件或文档，返回找到的完整路径
+    搜索顺序：
+    1. APP_PATHS 硬编码映射（快速命中已知应用）
+    2. 系统 PATH 环境变量
+    3. Windows 注册表（App Paths / uninstall / exe 找到安装路径）
+    4. 常见安装目录递归搜索（D:/ C:/Program Files 等）
+
+    迁移来源：tui_agent.py 行 2792-2913
+    """
+    key = name.lower().strip()
+
+    # 1. 硬编码映射
+    path = APP_PATHS.get(key) or APP_PATHS.get(name)
+    if path:
+        if "\\" not in path or Path(path).exists():
+            return path
+
+    # 2. 系统 PATH
+    for dir_path in os.environ.get("PATH", "").split(os.pathsep):
+        for ext in ("", ".exe", ".bat", ".cmd", ".msi", ".lnk"):
+            candidate = Path(dir_path) / f"{name}{ext}"
+            if candidate.exists():
+                return str(candidate)
+
+    # 3. 注册表搜索（App Paths）
+    try:
+        import winreg
+        # HKLM App Paths
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(hive, rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{name}.exe") as k:
+                    val, _ = winreg.QueryValueEx(k, "")
+                    if val and Path(val).exists():
+                        return val
+            except (FileNotFoundError, OSError):
+                pass
+        # HKLM Uninstall：搜索 DisplayName 匹配的应用，找 InstallLocation
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(hive, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall") as k:
+                    i = 0
+                    while True:
+                        try:
+                            sub_name = winreg.EnumKey(k, i)
+                            i += 1
+                            with winreg.OpenKey(k, sub_name) as sk:
+                                try:
+                                    display, _ = winreg.QueryValueEx(sk, "DisplayName")
+                                    if key in display.lower() or display.lower() in key:
+                                        try:
+                                            loc, _ = winreg.QueryValueEx(sk, "InstallLocation")
+                                            if loc:
+                                                # 在安装目录中搜索 exe
+                                                for p in Path(loc).rglob("*.exe"):
+                                                    if key in p.stem.lower():
+                                                        return str(p)
+                                                # 返回安装目录的第一个 exe
+                                                for p in Path(loc).rglob("*.exe"):
+                                                    return str(p)
+                                        except (FileNotFoundError, OSError):
+                                            pass
+                                except (FileNotFoundError, OSError):
+                                    pass
+                        except OSError:
+                            break
+            except (FileNotFoundError, OSError):
+                pass
+    except ImportError:
+        pass
+
+    # 4. 常见安装目录搜索
+    search_dirs = [
+        r"C:\Program Files",
+        r"C:\Program Files (x86)",
+        r"D:\\",
+        r"D:\Program Files",
+        r"D:\Program Files (x86)",
+        r"D:\Microsoft VS Code",
+        r"D:\Weixin",
+        r"D:\QQ",
+        r"D:\pycharm",
+        os.path.expanduser("~\\AppData\\Local"),
+        os.path.expanduser("~\\AppData\\Roaming"),
+        os.path.expanduser("~\\Desktop"),
+    ]
+    # 去重
+    seen = set()
+    unique_dirs = []
+    for d in search_dirs:
+        if d not in seen and Path(d).exists():
+            seen.add(d)
+            unique_dirs.append(d)
+
+    for dir_path in unique_dirs:
+        # 限制搜索深度 3 层，避免太慢
+        try:
+            base = Path(dir_path)
+            for p in base.glob("*"):
+                # 直接匹配文件名
+                if p.is_file():
+                    stem_lower = p.stem.lower()
+                    name_lower = name.lower().replace(".exe", "").replace(".lnk", "")
+                    if name_lower == stem_lower or name_lower in stem_lower:
+                        return str(p)
+                elif p.is_dir():
+                    # 搜索子目录（1层）
+                    try:
+                        for sub in p.glob("*.exe"):
+                            stem_lower = sub.stem.lower()
+                            name_lower = name.lower().replace(".exe", "")
+                            if name_lower in stem_lower or stem_lower in name_lower:
+                                return str(sub)
+                        for sub in p.glob("*.lnk"):
+                            stem_lower = sub.stem.lower()
+                            name_lower = name.lower().replace(".lnk", "")
+                            if name_lower in stem_lower or stem_lower in name_lower:
+                                return str(sub)
+                    except (PermissionError, OSError):
+                        pass
+        except (PermissionError, OSError):
+            continue
+
+    return ""
+
+
+def open_app(name: str) -> str:
+    """打开桌面应用程序或任意文件
+    自动在本地搜索后打开，保证能打开任何文件：
+    1. 先查 APP_PATHS 硬编码映射
+    2. 再查系统 PATH 环境变量
+    3. 再查注册表 App Paths / Uninstall
+    4. 最后在常见安装目录递归搜索
+    如果 name 是已存在的文件路径，直接用系统默认程序打开
+
+    迁移来源：tui_agent.py 行 2916-2948
+    """
+    # 如果 name 是已存在的文件路径，直接打开
+    direct_path = Path(name)
+    if direct_path.exists():
+        try:
+            os.startfile(str(direct_path))
+            return f"已打开文件：{name}"
+        except Exception as e:
+            return f"打开失败：{e}"
+
+    # 自动搜索
+    found_path = _search_executable(name)
+    if not found_path:
+        return f"未在本地找到「{name}」。已搜索：APP_PATHS → PATH → 注册表 → 常见安装目录。请提供完整路径。"
+
+    try:
+        subprocess.Popen(found_path)
+        return f"已启动：{name}\n路径：{found_path}"
+    except Exception as e:
+        # 尝试用 os.startfile 作为后备
+        try:
+            os.startfile(found_path)
+            return f"已打开：{name}\n路径：{found_path}"
+        except Exception:
+            return f"启动失败：{e}"
+
+
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36"
+
+
+def _strip_tags(html_text: str) -> str:
+    """去除 HTML 标签并清理空白"""
+    text = re.sub(r"<[^>]+>", "", html_text)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&quot;", '"', text)
+    text = re.sub(r"&#39;", "'", text)
+    text = re.sub(r"&nbsp;", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _bing_search(query: str, num_results: int = 5) -> list:
+    """Bing 搜索（国内可用，返回结构化结果含摘要）
+
+    Bing 在中国大陆可直连，且 HTML 结构相对稳定。
+    返回 [{"title": ..., "url": ..., "snippet": ...}, ...]
+    """
+    results = []
+    q_bp = urllib.parse.quote_plus(query)
+    for url_template in (
+        f"https://cn.bing.com/search?q={q_bp}&count={num_results * 2}",
+        f"https://www.bing.com/search?q={q_bp}&count={num_results * 2}&setlang=zh-CN&cc=cn",
+    ):
+        req = urllib.request.Request(url_template, headers={
+            "User-Agent": _UA,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Referer": "https://cn.bing.com/",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                html = resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        # Bing 结果块：<li class="b_algo">...</li>
+        for block in re.findall(r'<li class="b_algo"[^>]*>([\s\S]*?)</li>', html):
+            if len(results) >= num_results:
+                break
+            # 标题：第一个 <h2><a href="URL">标题</a></h2>
+            h2_m = re.search(r'<h2[^>]*>\s*<a[^>]+href="(https?://[^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL)
+            if not h2_m:
+                continue
+            link = h2_m.group(1)
+            title = _strip_tags(h2_m.group(2))
+            if not title or len(title) < 3:
+                continue
+            # 摘要：b_caption / b_paractr / p 标签
+            snippet = ""
+            # 尝试 b_caption 块
+            cap_m = re.search(r'<div class="b_caption[^"]*"[^>]*>([\s\S]*?)</div>', block)
+            if cap_m:
+                # b_paractr 包含摘要文本
+                par_m = re.search(r'<p[^>]*>(.*?)</p>', cap_m.group(1), re.DOTALL)
+                if par_m:
+                    snippet = _strip_tags(par_m.group(1))
+            # 兜底：块内任意 <p> 标签
+            if not snippet:
+                p_m = re.search(r'<p[^>]*>(.*?)</p>', block, re.DOTALL)
+                if p_m:
+                    snippet = _strip_tags(p_m.group(1))
+            results.append({
+                "title": title,
+                "url": link,
+                "snippet": snippet[:200] if snippet else "",
+            })
+        if results:
+            break
+    return results
+
+
+def _ddg_search(query: str, num_results: int = 5) -> list:
+    """DuckDuckGo Lite 搜索（完全免费、无需 API Key）
+
+    返回结构化结果列表：[{"title": ..., "url": ..., "snippet": ...}, ...]
+    使用 lite.duckduckgo.com 端点（更轻量），超时 5 秒快速失败。
+    """
+    q = urllib.parse.quote_plus(query)
+    results = []
+    # 尝试 Lite 端点（更简洁的 HTML 结构）
+    for ddg_url in (
+        f"https://lite.duckduckgo.com/lite/?q={q}",
+        f"https://html.duckduckgo.com/html/?q={q}",
+    ):
+        req = urllib.request.Request(ddg_url, headers={
+            "User-Agent": _UA,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                html = resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        # Lite 端点结构：<a rel="nofollow" class="result-link" href="...">title</a>
+        # 摘要在 <td class="result-snippet">...</td>
+        blocks = re.findall(
+            r'<a[^>]+rel="nofollow"[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
+            r'[\s\S]*?<td[^>]*class="result-snippet"[^>]*>(.*?)</td>',
+            html, re.DOTALL
+        )
+        if not blocks:
+            # HTML 端点结构：<a class="result__a" href="...">title</a>
+            blocks = re.findall(
+                r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
+                r'[\s\S]*?<a[^>]+class="result__snippet"[^>]*>(.*?)</a>',
+                html, re.DOTALL
+            )
+        for link_raw, title_raw, snippet_raw in blocks[:num_results]:
+            if "uddg=" in link_raw:
+                uddg = re.search(r'uddg=([^&]+)', link_raw)
+                if uddg:
+                    link = urllib.parse.unquote(uddg.group(1))
+                else:
+                    link = link_raw
+            else:
+                link = link_raw
+            if link.startswith("//"):
+                link = "https:" + link
+            title = _strip_tags(title_raw)
+            snippet = _strip_tags(snippet_raw)
+            if title and link.startswith("http") and len(title) > 2:
+                results.append({
+                    "title": title,
+                    "url": link,
+                    "snippet": snippet[:200] if snippet else "",
+                })
+        if results:
+            break
+    return results
+
+
+def web_search(query: str, num_results: int = 5) -> str:
+    """网络搜索（Bing 优先 → DuckDuckGo → 百度，返回标题+URL+摘要）
+
+    搜索引擎优先级（v1.1.3+ 优化）：
+    1. Bing（国内可直连、返回摘要、速度快）
+    2. DuckDuckGo Lite（免费无 Key、超时 5s 快速失败）
+    3. 百度（反爬严格，作为兜底）
+
+    返回结构化文本：每条结果含标题、URL、摘要。
+    """
+    # ── 方案1：Bing（国内可用、含摘要）──
+    bing_results = _bing_search(query, num_results)
+    if bing_results:
+        lines = []
+        for i, r in enumerate(bing_results, 1):
+            line = f"{i}. {r['title']}\n   URL: {r['url']}"
+            if r['snippet']:
+                line += f"\n   摘要: {r['snippet']}"
+            lines.append(line)
+        return "\n\n".join(lines)
+
+    # ── 方案2：DuckDuckGo Lite（免费、超时 5s）──
+    ddg_results = _ddg_search(query, num_results)
+    if ddg_results:
+        lines = []
+        for i, r in enumerate(ddg_results, 1):
+            line = f"{i}. {r['title']}\n   URL: {r['url']}"
+            if r['snippet']:
+                line += f"\n   摘要: {r['snippet']}"
+            lines.append(line)
+        return "\n\n".join(lines)
+
+    # ── 方案3：百度（兜底，反爬严格）──
+    q = urllib.parse.quote(query)
+    _FILTERS_BAIDU = ("baidu.com", "baidustatic", "bdstatic", "baiduimg",
+                      "baidupcs", "bcebos", "baiducontent")
+
+    def _extract_baidu_results(html, max_results):
+        results = []
+        blocks = re.findall(r'<div class="c-container[^"]*"[^>]*>([\s\S]*?)</div>', html)
+        for block in blocks[:max_results * 3]:
+            h3_m = re.search(r'<h3[^>]*>.*?href="([^"]*)"[^>]*>(.*?)</a>', block, re.DOTALL)
+            if h3_m:
+                title = _strip_tags(h3_m.group(2))
+                # 去除标题开头的域名前缀（如 "python.orgPython官网" → "Python官网"）
+                title = re.sub(r'^[a-z0-9.\-]+\.(com|cn|org|net|io|dev|edu|gov)\s*', '', title, flags=re.IGNORECASE)
+                link = h3_m.group(1)
+                if not link.startswith("http"):
+                    mu = re.search(r'mu="([^"]*)"', block)
+                    if mu:
+                        link = mu.group(1)
+                # 摘要：c-abstract / content-right_8ZK8E 等
+                snippet = ""
+                abs_m = re.search(r'class="c-abstract[^"]*"[^>]*>([\s\S]*?)</(?:div|span)>', block)
+                if abs_m:
+                    snippet = _strip_tags(abs_m.group(1))
+                if link.startswith("http") and title and len(title) > 2 and not any(f in link for f in _FILTERS_BAIDU):
+                    entry = f"{title}\n  {link}"
+                    if snippet:
+                        entry += f"\n  摘要: {snippet[:200]}"
+                    results.append(entry)
+                    if len(results) >= max_results:
+                        break
+        return results
+
+    try:
+        url = f"https://www.baidu.com/s?wd={q}&rn={num_results * 2}"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": _UA,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        })
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+        r = _extract_baidu_results(html, num_results)
+        if r:
+            return "\n\n".join(r)
+    except Exception:
+        pass
+
+    return "(搜索失败：所有搜索引擎均不可达，请检查网络连接或稍后重试)"
+
+def web_fetch(url: str, max_length: int = 4000) -> str:
+    """全权限模式：可访问内网/任意 URL，无 SSRF 限制
+
+    迁移来源：tui_agent.py 行 3044-3077
+    """
+    # SSRF 防护（仅受限模式生效）
+    if PERMISSION_LEVEL != "full":
+        import ipaddress
+        import socket
+        try:
+            # 解析域名获取 IP
+            host = urllib.parse.urlparse(url).hostname
+            if host:
+                try:
+                    ip = socket.gethostbyname(host)
+                    ip_obj = ipaddress.ip_address(ip)
+                    # 拦截内网/本地地址
+                    if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved:
+                        return f"SSRF 防护：禁止访问内网地址 {ip}"
+                except (socket.gaierror, ValueError):
+                    pass
+        except Exception:
+            pass
+    # 全权限：max_length 默认放大到 16000
+    if PERMISSION_LEVEL == "full" and max_length == 4000:
+        max_length = 16000
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+        text = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html)
+        text = re.sub(r'<style[^>]*>[\s\S]*?</style>', '', text)
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text[:max_length] if len(text) > max_length else text
+    except Exception as e:
+        return f"抓取错误：{e}"
+
+
+def git_status(repo_path: str = ".") -> str:
+    """git 状态查询
+
+    迁移来源：tui_agent.py 行 3080-3091
+    """
+    try:
+        r = subprocess.run(["git", "status", "--short", "--branch"],
+                          capture_output=True, text=True, timeout=10, cwd=repo_path)
+        branch = subprocess.run(["git", "branch", "--show-current"],
+                               capture_output=True, text=True, timeout=5, cwd=repo_path)
+        out = f"分支: {branch.stdout.strip()}\n{r.stdout.strip()}"
+        return out if out.strip() else "(无变更)"
+    except FileNotFoundError:
+        return "错误：git 未安装"
+    except Exception as e:
+        return f"错误：{e}"
