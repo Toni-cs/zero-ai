@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# ZeroAI 运行时生成
+.zeroai/
+.zeroai_config.json
+logs/
+*.log
+
+# 语音模型（体积大，不入库）
+models/
+libs/
+
+# 代理服务敏感配置（含真实 API Key）
+zeroai-proxy/.env
+zeroai-proxy/.venv/
+zeroai-proxy/logs/
+zeroai-proxy/__pycache__/
+
+# Zig 构建缓存与产物（zeroai-tui）
+zeroai-tui/.zig-cache/
+zeroai-tui/zig-out/
+zeroai-tui/zeroai_tui/zig_render.dll
+zeroai-tui/zeroai_tui/libzig_render.so
+zeroai-tui/zeroai_tui/libzig_render.dylib
+zeroai-tui/zeroai_tui/_renderer*.pyd
+zeroai-tui/zeroai_tui/_terminal*.pyd
+zeroai-tui/zeroai_tui/*.obj
+zeroai-tui/zeroai_tui/*.pdb
+zeroai-tui/zeroai_tui/*.lib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 构建产物
+*.whl
+*.tar.gz
+*.spec.bak
+
+# 备份文件
+*.bak_*
+*.bak
+
+# 临时调试文件
+_tmp_*.py
+_tmp_*/
+
+# ���� bak ���壨�� .bak.xxx ������
+*.bak.*
+*.bak
