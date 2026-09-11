@@ -150,6 +150,12 @@ def smart_truncate(content: str, max_chars: int) -> str:
         total += len(line) + 1
         prev_idx = idx
 
+    if not result_lines:
+        # 回退（实测踩坑：单行超长内容——如压缩成一行的 JSON——会使 selected
+        # 循环一行都选不中，之前直接返回空串，observation 整体丢失）。
+        # 绝不返回空串：保底保留头部 max_chars。
+        return content[:max_chars] + f"\n... [已智能截断，原 {len(content)} 字符]"
+
     return "\n".join(result_lines)
 
 
@@ -774,6 +780,8 @@ class AgentLoop:
         enable_action_fusion: bool = False,
         enable_observation_pack: bool = False,
         observation_pack_threshold: int = 2000,
+        enable_context_compact: bool = False,
+        context_compact_threshold: int = 24000,
     ):
         """初始化 Agent Loop
 
@@ -922,6 +930,11 @@ class AgentLoop:
         self.enable_observation_pack = enable_observation_pack
         self.observation_pack_threshold = max(200, int(observation_pack_threshold))
         self._observation_seq = 0
+        # Online Context Compact（SoL-Pi 对标，2026-09）：opt-in 默认关闭。
+        # 窗口压力（工具结果总字符超阈值）触发时，把较旧的工具结果消息
+        # 压缩为收据；完整原文保留在 executed_steps / session 记录中。
+        self.enable_context_compact = enable_context_compact
+        self.context_compact_threshold = max(1000, int(context_compact_threshold))
 
     def _check_stopped(self) -> bool:
         """检查是否被用户中断
@@ -1160,6 +1173,50 @@ class AgentLoop:
             logger.debug("ObservationPack 归档失败，回退原始结果: %s", e, exc_info=True)
             return result
 
+    def _maybe_compact_context(self, messages: List[Dict[str, Any]]) -> None:
+        """Online Context Compact（SoL-Pi 对标，机制③）：窗口压力触发的
+        上下文压缩。每步工具完成边界都是一个候选完成点；当工具结果消息
+        总字符超过 context_compact_threshold 时，把较旧（保留最近 4 条
+        消息）的工具结果压缩为收据。
+
+        红线（照抄 SoL-Pi）：
+        - opt-in 默认关闭；
+        - 完整原文保留在 executed_steps / session 记录中，不丢证据；
+        - 最近 4 条消息（两轮对话）永不压缩；
+        - 压缩失败静默回退（不阻断主循环）。
+        """
+        try:
+            if not self.enable_context_compact:
+                return
+
+            def _is_tool_result(m: Dict[str, Any]) -> bool:
+                c = m.get("content")
+                return (m.get("role") == "user"
+                        and isinstance(c, str)
+                        and c.startswith("[工具结果")
+                        and "[ContextCompact]" not in c)
+
+            tool_chars = sum(len(m["content"]) for m in messages if _is_tool_result(m))
+            if tool_chars <= self.context_compact_threshold:
+                return
+
+            keep = 4  # 最近两轮（assistant 提问 + user 结果）不动
+            compacted = 0
+            for m in messages[:max(0, len(messages) - keep)]:
+                if not _is_tool_result(m):
+                    continue
+                original_len = len(m["content"])
+                m["content"] = (
+                    f"[ContextCompact] 该步工具结果已压缩（原 {original_len} 字符）。"
+                    f"完整原文保留于 executed_steps / session 记录，可按步号回溯。"
+                )
+                compacted += 1
+            if compacted:
+                logger.info("ContextCompact: 压缩 %d 条旧工具结果（压力 %d > %d 字符）",
+                            compacted, tool_chars, self.context_compact_threshold)
+        except Exception as e:
+            logger.debug("ContextCompact 失败，不阻断主循环: %s", e, exc_info=True)
+
     async def run(
         self,
         user_input: str,
@@ -1183,9 +1240,14 @@ class AgentLoop:
         final_answer = ""
 
         # 阶段 V：进入循环前先压缩上下文，防止上下文爆炸
+        # 注意：cleanup_and_compress 可能返回新 list；必须写回调用方传入的
+        # 对象（messages[:] = ...），否则调用方永远看不到循环内的追加/压缩
+        # （实测踩坑：重新绑定局部名导致外部 list 恒为空）。
         try:
             context_limit = get_model_context_limit(self.planner.llm.model) or 8000
-            messages = await cleanup_and_compress(messages, context_limit)
+            compacted_messages = await cleanup_and_compress(messages, context_limit)
+            if compacted_messages is not messages:
+                messages[:] = compacted_messages
         except Exception as e:
             logger.warning("循环前上下文压缩失败，使用原始消息: %s", e, exc_info=True)
 
@@ -1369,6 +1431,10 @@ class AgentLoop:
                         self._streaming_emitter.append_chunk(f" → {tool_name} 完成")
                     except Exception as e:
                         logger.debug("流式追加工具结果失败: %s", e, exc_info=True)
+
+                # Online Context Compact（SoL-Pi 对标）：窗口压力触发时压缩
+                # 较旧的工具结果消息为收据（每步边界都是一个候选完成点）
+                self._maybe_compact_context(messages)
 
             elif action_type == "ask_user":
                 question = action.get("question", "需要更多信息")
@@ -2545,6 +2611,8 @@ class AdvancedAgentLoop(AgentLoop):
         enable_action_fusion: bool = False,
         enable_observation_pack: bool = False,
         observation_pack_threshold: int = 2000,
+        enable_context_compact: bool = False,
+        context_compact_threshold: int = 24000,
     ):
         """初始化增强版 Agent Loop
 
@@ -2581,6 +2649,8 @@ class AdvancedAgentLoop(AgentLoop):
             enable_action_fusion=enable_action_fusion,
             enable_observation_pack=enable_observation_pack,
             observation_pack_threshold=observation_pack_threshold,
+            enable_context_compact=enable_context_compact,
+            context_compact_threshold=context_compact_threshold,
         )
         self.enable_plan = enable_plan
         self.enable_reflexion = enable_reflexion

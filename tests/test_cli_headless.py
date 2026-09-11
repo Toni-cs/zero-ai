@@ -454,3 +454,66 @@ def test_observation_pack_disabled_by_default(tmp_path):
     assert answer == "done"
     assert all("[ObservationPack]" not in str(s.get("result", "")) for s in steps)
     assert not (tmp_path / ".zeroai" / "observation_pack").exists()
+
+
+def test_context_compact_compresses_old_results():
+    """compact 开启 + 窗口压力：旧工具结果被压缩为收据，完整原文留在 executed_steps"""
+    big = "M" * 4000
+    plans = [
+        {"thought": "跑命令1", "task_complete": False,
+         "next_action": {"type": "tool_call", "tool": "run_command",
+                         "args": {"command": "dump1"}}},
+        {"thought": "跑命令2", "task_complete": False,
+         "next_action": {"type": "tool_call", "tool": "run_command",
+                         "args": {"command": "dump2"}}},
+        {"thought": "跑命令3", "task_complete": False,
+         "next_action": {"type": "tool_call", "tool": "run_command",
+                         "args": {"command": "dump3"}}},
+        {"thought": "完成", "task_complete": True,
+         "next_action": {"type": "final_answer", "answer": "done"}},
+    ]
+    loop = _make_loop(_make_fake_planner(plans),
+                      {"run_command": lambda command, skip_translate=False: big},
+                      enable_context_compact=True,
+                      context_compact_threshold=3000)
+
+    async def _scenario():
+        messages = []
+        return await loop.run("跑三条命令", messages), messages
+
+    (answer, steps), messages = asyncio.run(_scenario())
+    assert answer == "done"
+    tool_steps = [s for s in steps if s.get("action_type") == "tool_call"]
+    assert len(tool_steps) == 3
+    # 完整原文在 executed_steps 中（证据红线）
+    assert all(s["result"] == big for s in tool_steps), "executed_steps 必须保留完整原文"
+    # messages 中较旧结果被压缩，最近 4 条不动
+    receipt = [m for m in messages if "[ContextCompact]" in str(m.get("content", ""))]
+    assert receipt, "旧工具结果未被压缩"
+    full_kept = [m for m in messages if str(m.get("content", "")) == f"[工具结果 run_command] {big}"]
+    assert len(full_kept) <= 2, "最近 4 条消息之外不应保留完整结果"
+
+
+def test_context_compact_disabled_by_default():
+    """compact 默认关闭：无压缩收据"""
+    big = "M" * 4000
+    plans = [
+        {"thought": "跑命令1", "task_complete": False,
+         "next_action": {"type": "tool_call", "tool": "run_command",
+                         "args": {"command": "dump1"}}},
+        {"thought": "跑命令2", "task_complete": False,
+         "next_action": {"type": "tool_call", "tool": "run_command",
+                         "args": {"command": "dump2"}}},
+        {"thought": "完成", "task_complete": True,
+         "next_action": {"type": "final_answer", "answer": "done"}},
+    ]
+    loop = _make_loop(_make_fake_planner(plans),
+                      {"run_command": lambda command, skip_translate=False: big})
+
+    async def _scenario():
+        messages = []
+        return await loop.run("跑两条命令", messages), messages
+
+    (answer, steps), messages = asyncio.run(_scenario())
+    assert answer == "done"
+    assert all("[ContextCompact]" not in str(m.get("content", "")) for m in messages)

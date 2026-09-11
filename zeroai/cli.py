@@ -220,7 +220,8 @@ def _resolve_credentials(model_key: str, require_key: bool = True) -> Optional[s
 
 async def _run_agent(task: str, model_key: str, max_steps: int, workspace_root: str,
                      quiet: bool, json_mode: bool, diff_review: bool = False,
-                     action_fusion: bool = False, observation_pack: bool = False) -> Dict[str, Any]:
+                     action_fusion: bool = False, observation_pack: bool = False,
+                     context_compact: bool = False) -> Dict[str, Any]:
     """真正驱动 AgentLoop。导入放在函数内，保证 --check / --dry-run 不被拖慢。"""
     # 通过模块属性延迟取值：既保持懒加载，也让测试可以 monkeypatch
     # （monkeypatch zeroai.core.agent.ReActPlanner 后，这里取到的就是新值）
@@ -245,6 +246,7 @@ async def _run_agent(task: str, model_key: str, max_steps: int, workspace_root: 
         diff_review_callback=(_make_diff_review_callback(quiet) if diff_review else None),
         enable_action_fusion=action_fusion,
         enable_observation_pack=observation_pack,
+        enable_context_compact=context_compact,
     )
 
     async def _on_thought(text: str) -> None:
@@ -346,7 +348,8 @@ def _execute_with_hard_timeout(task: str, model_key: str, max_steps: int,
                                workspace_root: str, quiet: bool,
                                timeout: float, diff_review: bool = False,
                                action_fusion: bool = False,
-                               observation_pack: bool = False) -> Dict[str, Any]:
+                               observation_pack: bool = False,
+                               context_compact: bool = False) -> Dict[str, Any]:
     """在独立线程里跑 Agent，用 join(timeout) 实现**硬超时**。
 
     为什么不用 asyncio.wait_for：
@@ -365,7 +368,8 @@ def _execute_with_hard_timeout(task: str, model_key: str, max_steps: int,
             box["result"] = asyncio.run(
                 _run_agent(task, model_key, max_steps, workspace_root, quiet, False,
                            diff_review=diff_review, action_fusion=action_fusion,
-                           observation_pack=observation_pack))
+                           observation_pack=observation_pack,
+                           context_compact=context_compact))
         except BaseException as exc:  # noqa: BLE001
             box["error"] = exc
 
@@ -415,7 +419,8 @@ def run_task(args: argparse.Namespace) -> int:
                                             workspace_root, args.quiet, args.timeout,
                                             diff_review=bool(getattr(args, "diff_review", False)),
                                             action_fusion=bool(getattr(args, "action_fusion", False)),
-                                            observation_pack=bool(getattr(args, "observation_pack", False)))
+                                            observation_pack=bool(getattr(args, "observation_pack", False)),
+                                            context_compact=bool(getattr(args, "context_compact", False)))
     except _TaskTimeout:
         _fail("timeout", f"任务在 {args.timeout}s 内未完成，已中止。", args.json,
               EXIT_TIMEOUT, extra={"task": task, "model": model_key})
@@ -515,6 +520,9 @@ def build_parser(prog: str = "zeroai") -> argparse.ArgumentParser:
     parser.add_argument("--observation-pack", action="store_true", dest="observation_pack",
                         help="启用 ObservationPack：工具输出超过 2000 字符时完整落盘归档，"
                              "observation 替换为预览+归档路径（原始结果零截断，可分页召回）")
+    parser.add_argument("--context-compact", action="store_true", dest="context_compact",
+                        help="启用 Online Context Compact：工具结果总量超阈值时把较旧结果"
+                             "压缩为收据（完整原文保留在步记录/session 中）")
     parser.add_argument("--check", action="store_true",
                         help="环境自检（依赖/凭据/模型），秒级返回且不触网")
     return parser
