@@ -31,7 +31,10 @@ const Allocator = mem.Allocator;
  //    8 = BRIGHT_BLACK 9 = BRIGHT_RED  10 = BRIGHT_GREEN 11 = BRIGHT_YELLOW
  //   12 = BRIGHT_BLUE 13 = BRIGHT_MAGENTA 14 = BRIGHT_CYAN 15 = BRIGHT_WHITE
 pub const StyleStruct = extern struct {
-    bold: u8 = 0,
+    // align(8)：使结构体整体对齐为 8 字节，与 zig_simd_find_style_diff 中
+    // "按 u64 视图比较" 的 @ptrCast 对齐要求匹配。
+    // 布局不变：size 仍为 8，字段偏移 0/1/2/3/4/6，与 C 扩展及 ctypes 镜像一致。
+    bold: u8 align(8) = 0,
     dim: u8 = 0,
     italic: u8 = 0,
     underline: u8 = 0,
@@ -696,23 +699,37 @@ export fn zig_fill_styles(
 // 单元测试 - R 阶段新增函数
 // ============================================================================
 
+// 测试辅助：按模式循环填充字节数组（避免使用 ** 运算符，
+// 兼容 Zig 0.17-dev 的对称空格词法规则）
+fn repBytes(comptime n: usize, pattern: []const u8) [n]u8 {
+    var out: [n]u8 = undefined;
+    for (&out, 0..) |*e, i| e.* = pattern[i % pattern.len];
+    return out;
+}
+
+fn repStyle(comptime n: usize, s: StyleStruct) [n]StyleStruct {
+    var out: [n]StyleStruct = undefined;
+    for (&out) |*e| e.* = s;
+    return out;
+}
+
 test "zig_simd_find_diff identical" {
-    const a = [_]u8{ 'a', 'b', 'c', 'd' } ** 8; // 32 字节
-    const b = [_]u8{ 'a', 'b', 'c', 'd' } ** 8;
+    const a = repBytes(32, "abcd"); // 32 字节
+    const b = repBytes(32, "abcd");
     const idx = zig_simd_find_diff(&a, &b, a.len);
     try std.testing.expectEqual(@as(usize, 32), idx);
 }
 
 test "zig_simd_find_diff first_byte" {
-    var a = [_]u8{'x'} ** 32;
-    var b = [_]u8{'y'} ** 32;
+    const a = repBytes(32, "x");
+    const b = repBytes(32, "y");
     const idx = zig_simd_find_diff(&a, &b, a.len);
     try std.testing.expectEqual(@as(usize, 0), idx);
 }
 
 test "zig_simd_find_diff middle" {
-    var a = [_]u8{'x'} ** 32;
-    var b = [_]u8{'x'} ** 32;
+    var a = repBytes(32, "x");
+    var b = repBytes(32, "x");
     b[15] = 'y';
     const idx = zig_simd_find_diff(&a, &b, a.len);
     try std.testing.expectEqual(@as(usize, 15), idx);
@@ -726,15 +743,15 @@ test "zig_simd_find_diff small_buffer" {
 }
 
 test "zig_simd_find_style_diff identical" {
-    const a = [_]StyleStruct{.{}} ** 16;
-    const b = [_]StyleStruct{.{}} ** 16;
+    const a = repStyle(16, .{});
+    const b = repStyle(16, .{});
     const idx = zig_simd_find_style_diff(&a, &b, a.len);
     try std.testing.expectEqual(@as(usize, 16), idx);
 }
 
 test "zig_simd_find_style_diff difference" {
-    var a = [_]StyleStruct{.{}} ** 16;
-    var b = [_]StyleStruct{.{}} ** 16;
+    var a = repStyle(16, .{});
+    var b = repStyle(16, .{});
     b[7] = .{ .bold = 1 };
     const idx = zig_simd_find_style_diff(&a, &b, a.len);
     try std.testing.expectEqual(@as(usize, 7), idx);
@@ -766,7 +783,7 @@ test "zig_fill_chars" {
 }
 
 test "zig_fill_styles" {
-    var buf = [_]StyleStruct{ .{ .bold = 1 }, .{ .fg_id = 5 } } ** 4;
+    var buf = repStyle(8, .{ .bold = 1, .fg_id = 5 });
     zig_fill_styles(&buf, buf.len, .{});
     try std.testing.expectEqual(@as(u8, 0), buf[0].bold);
     try std.testing.expectEqual(@as(i16, -1), buf[1].fg_id);

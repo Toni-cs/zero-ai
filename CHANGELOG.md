@@ -32,12 +32,34 @@
 - **中文标识符提取**：从中文问句中提取代码标识符（支持引号/点号分隔/驼峰）
 - **工具注册**：`code_graph_index`/`code_graph_query`/`code_graph_stats` 注册到 TOOL_MAP
 
-### 新增 - 阶段 R（Zig 加速层深度优化）
-- **SIMD 字符比较**：`zig_simd_find_diff` 使用 @Vector(32, u8) 并行比较，大缓冲区 32 字节/周期
-- **SIMD 样式比较**：`zig_simd_find_style_diff` 将 StyleStruct 视为 u64，4x u64 向量比较
-- **UTF-8 字符计数**：`zig_utf8_char_count` 零拷贝计算 UTF-8 字符数（支持中文/混合）
-- **批量填充**：`zig_fill_chars`/`zig_fill_styles` 批量填充缓冲区
-- **Python 绑定**：`_zig_bindings.py` 配置 R 阶段 5 个新函数的 ctypes 签名，失败回退到 Python
+### 新增 - 阶段 R（Zig 加速层）【2026-09-11 更正】
+
+> **更正声明**：本节初版（2026-07-29）声称实现了 `zig_simd_find_diff` 等 5 个
+> SIMD/批量函数。经 2026-09-11 对全部 5 份已发布 `zig_render.dll`（249,344 字节，
+> 位置：build/bdist、build/lib、zeroai-tui/zeroai_tui、zig-out/bin、zig-out/zeroai_tui）
+> 做二进制符号复核：**所有 DLL 均只导出 `zig_diff_buffers` 与 `zig_render` 两个符号，
+> 上述 5 个函数仅存在于 .zig 源码声明中，从未编入任何已发布产物**。
+> 且本机基准（benchmark_results.json）显示 Zig 后端耗时为纯 Python 的 0.25-0.29x
+> （即反而更慢），C 扩展后端为 2.3-2.6x 加速。以下为与产物一致的如实描述：
+
+- **缓冲区差分**：`zig_diff_buffers`（唯一编入 DLL 的差分函数），源码中的 SIMD 版本
+  `zig_simd_find_diff`/`zig_simd_find_style_diff` 未编译进任何产物（需 ReleaseFast
+  构建并验证符号后方可重新声明）
+- **UTF-8 字符计数 / 批量填充**：`zig_utf8_char_count`/`zig_fill_chars`/`zig_fill_styles`
+  同样仅存在于源码，产物中不可用
+- **Python 绑定**：`_zig_bindings.py` 对缺失符号做运行时探测，探测失败自动回退纯 Python
+  （实际部署中 Zig 后端始终回退或走未优化符号）
+- **性能实测（2026-09-11 两次基准）**：
+  - 旧 DLL（Debug、无 R 阶段符号）：Zig 0.25-0.29x
+  - **ReleaseFast 重编、5 个 R 阶段符号全部编入后**：Zig 仍为 0.27-0.39x
+    （慢于纯 Python 2.5-3.7 倍）；同场 C 扩展 2.23-3.66x
+  - 微基准补充：`zig_simd_find_diff` 本体（含 ctypes 边界）20KB 比较 1.0µs/次，
+    而 Python 内置 `bytes ==`（C memcmp）0.6µs/次 —— **Zig SIMD 本体也输给
+    CPython 内置 C 实现**。根因：渲染基线"纯 Python"实为 CPython 内置 C
+    优化 + ctypes 边界开销叠加，Zig 层在此场景无胜出空间
+  - **裁决（预注册规则：赢过 C 扩展则替换，输过则归档）**：输 → Zig 渲染层
+    归档为 experimental，不再维护；C 扩展（2.2-3.7x）保留为推荐原生后端
+- C 扩展 2.3-2.6x（最新基准 2.23-3.66x）真实加速，为当前推荐原生后端
 
 ### 新增 - 阶段 S（工具调用并行化）
 - **ParallelToolScheduler**：并行工具调度器，asyncio.Semaphore 并发控制，单工具超时隔离
