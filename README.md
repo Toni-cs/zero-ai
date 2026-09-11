@@ -2,9 +2,11 @@
 
 # ZeroAI
 
-### 面向科研与工程的终端 AI 协作平台
+**English** | [简体中文](README.zh-CN.md)
 
-**多专家协同 · 学术文献检索 · 国标文档生成 · 安全审计 · SSH 跨平台运维 · 本地运维**
+### A Terminal AI Collaboration Platform for Research and Engineering
+
+**Multi-expert collaboration · Academic literature search · National-standard document generation · Security audit · Cross-platform SSH operations · Local system operations**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
@@ -16,277 +18,283 @@
 
 ---
 
-## 摘要
+## Abstract
 
-ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系统采用多专家协同架构，将任务规划、代码生成、深度推理、学术写作、文献检索、文档生成、安全审计、远程运维等能力集成于单一终端环境，旨在降低科研与工程协作中的工具切换成本，提升研究产出效率。
+ZeroAI is a terminal AI collaboration platform built for researchers and developers. It uses a multi-expert collaboration architecture that brings task planning, code generation, deep reasoning, academic writing, literature search, document generation, security auditing, and remote operations into a single terminal environment — cutting down the cost of switching between tools and improving research throughput.
 
-系统针对科研场景进行了针对性设计：集成 Semantic Scholar 学术数据库（2 亿+ 论文），支持按引用数、影响力、年份智能筛选；内置 LaTeX 公式渲染引擎，支持分数、根号、矩阵、极限、求和、积分等学术公式的 Unicode 化与 PDF 高清图片输出；按 GB/T 7713.1-2025 国标格式生成 Word/PDF 学术文档；离线语音识别引擎保障科研数据隐私；代理服务器架构实现 API Key 零泄露，支持团队安全协作。
-
----
-
-## 科研价值
-
-### 1. 学术文献检索与综述辅助
-
-集成 Semantic Scholar 学术数据库（覆盖 2 亿+ peer-reviewed 论文），支持：
-- 按关键词、作者、DOI 检索文献
-- 按引用数、影响力、发表年份智能排序
-- 自动生成文献综述初稿，辅助研究者快速了解领域全貌
-- 免费无 API Key 限制，适合科研经费有限的课题组
-
-### 2. 学术公式推导与渲染
-
-内置 LaTeX 公式渲染引擎，支持：
-- 行内公式 `$...$` 与独立公式 `$$...$$` 双模式
-- 分数、根号、上下标、希腊字母、矩阵、极限、求和、积分、偏导数等学术符号
-- 独立公式通过 matplotlib mathtext 渲染为高清图片，可直接嵌入 PDF/Word
-- Unicode 化输出，兼容终端显示与文档排版
-
-### 3. 国标学术文档生成
-
-按 GB/T 7713.1-2025《科学技术报告、学位论文和学术论文的编写格式》生成：
-- 四级标题层级结构（`#` ~ `####`）
-- 自动参考文献格式化
-- 学术公式、表格、图片混排
-- 输出 .docx / .pdf 双格式，符合学术出版规范
-
-### 4. 多专家协同研究
-
-7 位专家协同处理同一研究问题，项目经理统一调度：
-- 学术研究专家：负责文献调研、公式推导、论文写作
-- 推理专家：负责数学证明、逻辑分析、复杂度分析
-- 编程专家：负责算法实现、实验代码、数据处理
-- 项目经理：负责任务分解、结果汇总、多模态分析
-- 适用于跨学科研究场景（如计算语言学、生物信息学、计算社会科学）
-
-### 5. 离线语音识别与数据隐私
-
-- 基于 SenseVoice（阿里达摩院）的离线语音识别引擎
-- 中英日韩粤 5 语言支持，适用于国际协作
-- 完全离线运行，科研数据不出本机，符合涉密科研项目数据安全要求
-- 无需 API Key，无云端调用，无数据泄露风险
-
-### 6. 团队协作与 API Key 隔离
-
-代理服务器架构实现 API Key 零泄露：
-- 真实 API Key 仅存于服务器端 `.env` 文件
-- 客户端仅持有访问 Token，与上游 Key 完全分离
-- 支持多用户 Token 分配，便于课题组多成员协作
-- 限流与审计日志，防止滥用与可追溯
-
-### 7. 科研代码安全审计
-
-针对科研代码（尤其是数据处理、统计分析代码）提供：
-- 硬编码密钥扫描（防止数据集访问凭据泄露）
-- 路径遍历检测（防止实验数据误删）
-- 依赖包已知漏洞检查
-- 非侵入式扫描，不进行渗透测试
+The system is purpose-built for research workflows: it integrates the Semantic Scholar academic database (200M+ papers) with intelligent filtering by citation count, influence, and year; it ships a LaTeX formula rendering engine that converts fractions, radicals, matrices, limits, summations, and integrals into Unicode and high-resolution PDF images; it generates Word/PDF academic documents that follow the GB/T 7713.1-2025 national standard; it provides an offline speech recognition engine to keep research data private; and its proxy server architecture delivers zero API key exposure for secure team collaboration.
 
 ---
 
-## 系统架构
+## Research Value
 
-### 多专家协同架构
+### 1. Academic Literature Search and Review Assistance
 
-| 专家 | 职责 | 适用场景 |
+Integrates the Semantic Scholar academic database (200M+ peer-reviewed papers) and supports:
+
+- Literature search by keyword, author, or DOI
+- Intelligent ranking by citation count, influence, and publication year
+- Automatic generation of a literature review draft, helping researchers grasp a field quickly
+- Free, no API key required, suitable for research groups with limited funding
+
+### 2. Academic Formula Derivation and Rendering
+
+Built-in LaTeX formula rendering engine, supporting:
+
+- Inline formulas `$...$` and display formulas `$$...$$` in dual mode
+- Academic symbols including fractions, radicals, super/subscripts, Greek letters, matrices, limits, summations, integrals, and partial derivatives
+- Display formulas rendered to high-resolution images via matplotlib mathtext, ready to embed in PDF/Word
+- Unicode output compatible with both terminal display and document typesetting
+
+### 3. National-Standard Academic Document Generation
+
+Generated in accordance with GB/T 7713.1-2025, *Presentation of scientific and technical reports, dissertations and scientific papers*:
+
+- Four-level heading hierarchy (`#` through `####`)
+- Automatic reference formatting
+- Mixed layout of academic formulas, tables, and images
+- Dual-format output (.docx / .pdf) conforming to academic publishing conventions
+
+### 4. Multi-Expert Collaborative Research
+
+Seven experts collaborate on a single research question, coordinated by the project manager:
+
+- Academic Research Expert: literature review, formula derivation, paper writing
+- Reasoning Expert: mathematical proof, logical analysis, complexity analysis
+- Coding Expert: algorithm implementation, experiment code, data processing
+- Project Manager: task decomposition, result aggregation, multimodal analysis
+- Well suited to cross-disciplinary research (e.g. computational linguistics, bioinformatics, computational social science)
+
+### 5. Offline Speech Recognition and Data Privacy
+
+- Offline speech recognition engine based on SenseVoice (Alibaba DAMO Academy)
+- Support for five languages — Chinese, English, Japanese, Korean, and Cantonese — for international collaboration
+- Runs fully offline; research data never leaves the machine, meeting data-security requirements of confidential research projects
+- No API key, no cloud calls, no data-leak risk
+
+### 6. Team Collaboration and API Key Isolation
+
+The proxy server architecture achieves zero API key exposure:
+
+- Real API keys live only in the server-side `.env` file
+- Clients hold only an access token, fully separated from the upstream keys
+- Per-user token assignment for multi-member research groups
+- Rate limiting and audit logging to prevent abuse and enable traceability
+
+### 7. Research Code Security Audit
+
+For research code — especially data-processing and statistical-analysis code — the system provides:
+
+- Hardcoded secret scanning (to prevent dataset access credential leaks)
+- Path traversal detection (to prevent accidental deletion of experiment data)
+- Known-vulnerability checks for dependency packages
+- Non-intrusive scanning; no penetration testing is performed
+
+---
+
+## System Architecture
+
+### Multi-Expert Collaboration Architecture
+
+| Expert | Responsibility | Typical Use |
 |------|------|---------|
-| 项目经理 | 任务分析、调度、多模态 | 跨学科问题分解、图文分析 |
-| 编程 | 代码生成、调试、重构 | 算法实现、实验代码 |
-| 推理 | 深度推理、数学、逻辑 | 数学证明、复杂度分析 |
-| 通用知识 | 通用问答、翻译、百科 | 跨语言文献翻译、概念查询 |
-| 中文写作 | 中文写作、文案、报告 | 中文学术写作、研究报告 |
-| 多模态 | 图片理解、图文分析 | 图表分析、实验结果可视化 |
-| 学术研究 | 学术研究、公式推导、论文写作 | 文献综述、论文撰写 |
+| Project Manager | Task analysis, scheduling, multimodal | Cross-disciplinary decomposition, image-text analysis |
+| Coding | Code generation, debugging, refactoring | Algorithm implementation, experiment code |
+| Reasoning | Deep reasoning, mathematics, logic | Mathematical proof, complexity analysis |
+| General Knowledge | General Q&A, translation, encyclopedia | Cross-language literature translation, concept lookup |
+| Chinese Writing | Chinese writing, copywriting, reports | Chinese academic writing, research reports |
+| Multimodal | Image understanding, image-text analysis | Chart analysis, experiment result visualization |
+| Academic Research | Academic research, formula derivation, paper writing | Literature review, paper authoring |
 
-### 混合路由机制（零延迟 + 语义精准）
+### Hybrid Routing (Zero Latency + Semantic Precision)
 
-ZeroAI 采用**两级混合路由**，兼顾速度与精准度：
+ZeroAI uses **two-tier hybrid routing** that balances speed and precision:
 
-| 层级 | 触发条件 | 延迟 | 实现方式 |
+| Tier | Trigger Condition | Latency | Implementation |
 |------|---------|------|---------|
-| **L1 关键词快速路由** | 短消息（<10 字）或关键词命中明确专家 | 0 ms | 本地关键词匹配 + LRU 缓存 |
-| **L2 GLM 语义路由** | L1 未命中（返回 knowledge 兜底） | 1-2 s | GLM-4V 语义分类 + MD5 缓存 |
+| **L1 Keyword fast routing** | Short messages (<10 characters) or an unambiguous expert keyword hit | 0 ms | Local keyword matching + LRU cache |
+| **L2 GLM semantic routing** | L1 misses (falls back to `knowledge`) | 1-2 s | GLM-4V semantic classification + MD5 cache |
 
-**工作流程**：
-1. 用户输入 → 关键词匹配（coder/academic/chinese/reasoner 等明确领域）
-2. 命中 → 直接路由到对应专家（零延迟，大部分场景走此路径）
-3. 未命中 → 调用 GLM-4V 做语义分类（1-2 秒），结果缓存到 LRU（256 条）
-4. GLM 失败 → 降级到通用知识专家（永不阻塞）
+**Workflow**:
+1. User input → keyword matching (clear domains such as coder/academic/chinese/reasoner)
+2. Hit → route directly to the corresponding expert (zero latency; most scenarios take this path)
+3. Miss → call GLM-4V for semantic classification (1-2 seconds), caching the result in an LRU (256 entries)
+4. GLM failure → degrade to the General Knowledge expert (never blocks)
 
-**性能优势**：代码、论文、写作等关键词明确的问题零延迟路由，只有模糊问题（如"帮我看看这个"）才走语义路由。LRU 缓存避免重复判断，MD5 摘要做 key 防止长文本前缀冲突。
+**Performance advantage**: questions with unambiguous keywords — code, papers, writing — are routed with zero latency; only vague questions (such as "take a look at this for me") go through semantic routing. The LRU cache avoids repeated classification, and MD5 digests are used as keys to prevent long-text prefix collisions.
 
-**熔断保护**：OpenRouter 专家连续失败 3 次自动熔断，跳过该专家直接降级到 GLM，避免用户卡在"思考中…"。
+**Circuit breaker**: an OpenRouter expert that fails three times in a row is automatically tripped, skipping that expert and degrading to GLM so users are not left stuck on "Thinking…".
 
-### 自动路由示例
+### Automatic Routing Examples
 
-- "证明..." → 推理专家（关键词命中）
-- "实现..." → 编程专家（关键词命中）
-- "论文..." → 学术研究专家（关键词命中）
-- "翻译..." → 通用知识专家（关键词命中）
-- "帮我看看这个方案怎么样" → GLM 语义路由（关键词未命中）
+- "Prove …" → Reasoning expert (keyword hit)
+- "Implement …" → Coding expert (keyword hit)
+- "Paper …" → Academic Research expert (keyword hit)
+- "Translate …" → General Knowledge expert (keyword hit)
+- "Take a look at whether this approach is any good" → GLM semantic routing (no keyword hit)
 
-### 混合思考模式（多专家协作）
+### Hybrid Thinking Mode (Multi-Expert Collaboration)
 
-多专家协作处理同一问题，项目经理汇总各专家结论，适用于复杂研究问题（如"设计实验验证假设并分析统计显著性"）。混合模式下通过 MessageBus（发布/订阅）+ Blackboard（共享状态）实现专家间通信，支持流水线、角色依赖图、共识投票三种协作策略。
+Multiple experts work on the same problem while the project manager consolidates their conclusions — useful for complex research questions such as "design an experiment to validate the hypothesis and analyze statistical significance". In hybrid mode, inter-expert communication runs over a MessageBus (publish/subscribe) plus a Blackboard (shared state), supporting three collaboration strategies: pipeline, role dependency graph, and consensus voting.
 
 ---
 
-## 核心功能
+## Core Features
 
-### SSH 远程部署（7 个工具）
+### SSH Remote Deployment (7 tools)
 
-- 多服务器并行连接，通过 `conn_id` 区分，支持密码/密钥认证
-- 远程命令执行，危险命令（rm -rf /、mkfs、dd 等 11 类）二次确认
-- SFTP 文件传输，上传/下载文件，自动设置权限
-- 一键自动化部署 `ssh_deploy`（pre_check → mkdir → upload → install → restart → health_check → post_cmds）
-- 审计日志（最多 200 条），可追溯
-- 主机地址校验、危险命令黑名单、内网IP可选阻断、输出截断保护
+- Parallel connections to multiple servers, distinguished by `conn_id`, with password/key authentication
+- Remote command execution, with second-confirmation for dangerous commands (11 categories including `rm -rf /`, `mkfs`, `dd`)
+- SFTP file transfer — upload/download files with automatic permission handling
+- One-click automated deployment with `ssh_deploy` (pre_check → mkdir → upload → install → restart → health_check → post_cmds)
+- Audit log (up to 200 entries), fully traceable
+- Host address validation, dangerous-command blacklist, optional internal-IP blocking, and output truncation protection
 
-### AI 远程运维（8 个语义化工具，跨平台）
+### AI Remote Operations (8 semantic tools, cross-platform)
 
-将"AI 拼命令"升级为"AI 调用语义化工具"，减少幻觉、统一错误处理、自动分析结果。8 个工具全部支持 **Linux + Windows Server 跨平台自动适配**：
+Turns "AI stringing commands together" into "AI invoking semantic tools", reducing hallucination, unifying error handling, and automatically analyzing results. All 8 tools support **automatic adaptation across Linux and Windows Server**:
 
-| 工具 | 功能 |
+| Tool | Function |
 |------|------|
-| `ssh_service_manage` | systemd 封装（status/start/stop/restart/enable） |
-| `ssh_log_view` | journalctl 封装，自动统计错误密度 |
-| `ssh_process_check` | 按 CPU/内存排序 Top N |
-| `ssh_disk_analyze` | df + du Top10，自动标注危急/警告 |
-| `ssh_network_diag` | 端口/连接/ping/统计 |
-| `ssh_docker_manage` | 容器/镜像/日志/资源 |
-| `ssh_firewall_manage` | 自动识别 ufw/firewalld/iptables |
-| `ssh_health_check` | 综合报告 + AI 健康分析 + 异常项标注 |
+| `ssh_service_manage` | systemd wrapper (status/start/stop/restart/enable) |
+| `ssh_log_view` | journalctl wrapper with automatic error-density statistics |
+| `ssh_process_check` | Top N sorted by CPU/memory |
+| `ssh_disk_analyze` | `df` + `du` Top 10, with automatic critical/warning annotation |
+| `ssh_network_diag` | Ports/connections/ping/statistics |
+| `ssh_docker_manage` | Containers/images/logs/resources |
+| `ssh_firewall_manage` | Automatic detection of ufw/firewalld/iptables |
+| `ssh_health_check` | Comprehensive report + AI health analysis + anomaly annotation |
 
-### AI 运维决策链
+### AI Operations Decision Chain
 
-- 模糊问题处理："服务器卡了" → 先体检 → 再深入 → 定位 → 给建议
-- 明确故障排错："nginx 挂了" → 看 status → 若 failed → 查 error 日志 → 定位根因
-- AI 主动分析：体检报告自动识别负载/磁盘/Swap/失败服务/错误日志异常项
+- Vague problem handling: "the server is slow" → run a health check first → drill down → localize → give recommendations
+- Explicit troubleshooting: "nginx is down" → check status → if failed → inspect the error log → isolate the root cause
+- Proactive AI analysis: the health report automatically identifies anomalies in load, disk, swap, failed services, and error logs
 
-### SSH 跨平台运维（Linux + Windows Server）
+### Cross-Platform SSH Operations (Linux + Windows Server)
 
-8 个 AI 远程运维工具全部支持**跨平台自动适配**，连接后自动检测远程操作系统，无需用户指定命令语法：
+All 8 AI remote operations tools support **automatic cross-platform adaptation**; on connecting they detect the remote operating system, so users never specify command syntax:
 
-| 工具 | Linux 实现 | Windows 实现 |
+| Tool | Linux Implementation | Windows Implementation |
 |------|-----------|-------------|
 | `ssh_service_manage` | `systemctl` | `sc.exe` / `Get-Service` |
-| `ssh_log_view` | `journalctl` | `Get-WinEvent`（事件日志） |
+| `ssh_log_view` | `journalctl` | `Get-WinEvent` (event log) |
 | `ssh_process_check` | `ps aux` | `Get-Process` |
-| `ssh_disk_analyze` | `df` + `du` | `Get-CimInstance` + `Get-ChildItem` Top10 |
+| `ssh_disk_analyze` | `df` + `du` | `Get-CimInstance` + `Get-ChildItem` Top 10 |
 | `ssh_network_diag` | `ss` / `netstat` | `Get-NetTCPConnection` |
-| `ssh_docker_manage` | 原生 Docker CLI | Docker Desktop（`docker.exe`） |
+| `ssh_docker_manage` | Native Docker CLI | Docker Desktop (`docker.exe`) |
 | `ssh_firewall_manage` | `ufw` / `firewalld` / `iptables` | `netsh advfirewall` |
-| `ssh_health_check` | 综合体检（自动检测 OS） | 综合体检（Windows Server 指标） |
+| `ssh_health_check` | Comprehensive health check (auto-detects OS) | Comprehensive health check (Windows Server metrics) |
 
-**跨平台价值**：
-- 同一套自然语言指令可管理 Linux 和 Windows 服务器："看 nginx 状态" 在两端都能正确执行
-- 运维人员无需记忆两套命令语法，降低跨平台运维门槛
-- 工具内部处理命令差异，AI 无需拼命令，减少幻觉
+**Why cross-platform matters**:
+- The same natural-language instruction manages both Linux and Windows servers: "check nginx status" executes correctly on either side
+- Operators do not need to memorize two sets of command syntax, lowering the barrier to cross-platform operations
+- Command differences are handled inside the tools, so the AI never assembles commands by hand and hallucinates less
 
-### 本地运维工具（4 个语义化工具，跨平台）
+### Local Operations Tools (4 semantic tools, cross-platform)
 
-将常用的本地电脑运维操作封装为语义化工具，自动适配 Windows/Linux，**优先于 `run_command` 手拼命令调用**：
+Common local machine operations are wrapped as semantic tools that adapt automatically to Windows/Linux, and are **preferred over hand-assembled `run_command` calls**:
 
-| 工具 | 功能 | 典型场景 |
+| Tool | Function | Typical Scenario |
 |------|------|---------|
-| `local_port_check` | 端口/网络检查 | "看看打开了哪些端口"、"80 端口被占了吗"、"ping 一下 192.168.1.1" |
-| `local_process_check` | 进程查看/管理 | "电脑卡不卡"、"查 chrome 进程"、"结束 PID 1234" |
-| `local_disk_check` | 磁盘空间分析 | "磁盘还剩多少"、"哪个目录占空间最大"、"C 盘满了" |
-| `local_service_check` | 服务管理 | "查看运行的服务"、"MySQL 状态"、"重启 docker 服务" |
+| `local_port_check` | Port/network check | "what ports are open", "is port 80 taken", "ping 192.168.1.1" |
+| `local_process_check` | Process inspection/management | "is the machine bogged down", "find the chrome process", "kill PID 1234" |
+| `local_disk_check` | Disk space analysis | "how much disk is left", "which directory is largest", "the C: drive is full" |
+| `local_service_check` | Service management | "list running services", "MySQL status", "restart the docker service" |
 
-**安全设计**：
-- 防注入白名单：进程名/服务名仅允许字母、数字、`.`、`_`、`-`，拒绝 `nginx; rm -rf /` 类注入
-- 端口检查用 socket 连接探测，不依赖外部命令
-- 危险操作（kill/stop）需明确参数
+**Security design**:
+- Anti-injection whitelist: process names/service names may contain only letters, digits, `.`, `_`, and `-`, rejecting injections such as `nginx; rm -rf /`
+- Port checks probe via socket connections rather than external commands
+- Dangerous operations (kill/stop) require explicit parameters
 
-### 跨平台命令兼容性（run_command 自动翻译）
+### Cross-Platform Command Compatibility (automatic translation in `run_command`)
 
-`run_command` 工具内置 **Linux ↔ Windows 命令翻译引擎**，用户可输入任意平台命令，系统自动适配当前操作系统：
+The `run_command` tool embeds a **Linux ↔ Windows command translation engine**, so users can type a command from any platform and the system adapts it to the current operating system:
 
 ```
-用户在 Windows 上输入 'ls -la'      → 自动执行 'dir -la'
-用户在 Windows 上输入 'cat file'    → 自动执行 'type file'
-用户在 Windows 上输入 'rm -rf /tmp' → 自动执行 'rmdir /s /q /tmp'
-用户在 Windows 上输入 'grep x file' → 自动执行 'findstr x file'
-用户在 Windows 上输入 'ps aux'      → 自动执行 'tasklist aux'
+User on Windows types 'ls -la'      -> automatically executes 'dir -la'
+User on Windows types 'cat file'    -> automatically executes 'type file'
+User on Windows types 'rm -rf /tmp' -> automatically executes 'rmdir /s /q /tmp'
+User on Windows types 'grep x file' -> automatically executes 'findstr x file'
+User on Windows types 'ps aux'      -> automatically executes 'tasklist aux'
 ```
 
-**翻译特性**：
-- **50+ 命令映射**：覆盖文件操作、网络、服务、进程、包管理等常用命令
-- **最长匹配优先**：`rm -rf` 优先于 `rm` 匹配，避免误翻译
-- **智能跳过**：原命令已是目标平台格式（如 `netstat -ano`）时自动跳过翻译，避免重复
-- **翻译提示**：翻译后输出 `[跨平台] 已将 'ls' 翻译为 'dir'` 提示用户
+**Translation characteristics**:
+- **50+ command mappings** covering file operations, networking, services, processes, and package management
+- **Longest-match first**: `rm -rf` matches before `rm`, preventing mistranslation
+- **Smart skip**: when the original command is already in the target platform's format (e.g. `netstat -ano`), translation is skipped to avoid duplication
+- **Translation notice**: after translating, the system prints a notice such as `[cross-platform] translated 'ls' to 'dir'`
 
-### 语音对话
+### Voice Conversation
 
-- 离线语音识别：SenseVoice（阿里达摩院），中英日韩粤 5 语言，无需 API Key
-- 语音合成：Edge TTS，男女声切换、语速调节
-- 实时字幕：对话模式下显示实时字幕
-- 快捷操作：Ctrl+T 单次语音输入，Ctrl+D 持续对话模式
+- Offline speech recognition: SenseVoice (Alibaba DAMO Academy), five languages (Chinese/English/Japanese/Korean/Cantonese), no API key required
+- Speech synthesis: Edge TTS with male/female voice switching and adjustable speaking rate
+- Live subtitles: real-time subtitles in conversation mode
+- Shortcuts: `Ctrl+T` for single-shot voice input, `Ctrl+D` for continuous conversation mode
 
-### 安全审计
+### Security Audit
 
-- 漏洞扫描：SQL 注入、XSS、硬编码密钥、路径遍历等
-- 依赖检查：扫描依赖包已知漏洞
-- 配置审计：检查配置文件安全问题
-- 非侵入式：仅扫描自身项目，不进行渗透测试
+- Vulnerability scanning: SQL injection, XSS, hardcoded secrets, path traversal, and more
+- Dependency checks: scan dependency packages for known vulnerabilities
+- Configuration audit: inspect configuration files for security issues
+- Non-intrusive: only scans the project itself; no penetration testing
 
-### ReAct Agent Loop（推理-行动循环）
+### ReAct Agent Loop (Reasoning-Action Cycle)
 
-阶段 1 引入的 Agent 框架，超越传统的单次工具调用：
+The agent framework introduced in Phase 1 goes beyond conventional single-shot tool calls:
 
-- **思维链可视化**：展示 Thought → Action → Observation → Thought 全过程
-- **Plan-and-Execute 规划**：复杂任务自动分解为多步计划，逐步执行
-- **Reflexion 自反思**：工具调用失败时自动分析原因并调整策略
-- **并行工具调用**：独立子任务可并行执行，提升效率
-- **工具结果摘要**：长输出自动压缩，避免上下文溢出
-- **TUI 命令**：`/react` 进入 Agent 模式，`/索引` 构建项目索引，`/记忆` 查看向量记忆
+- **Chain-of-thought visualization**: shows the full Thought → Action → Observation → Thought process
+- **Plan-and-Execute planning**: complex tasks are decomposed into multi-step plans and executed incrementally
+- **Reflexion self-critique**: when a tool call fails, the agent analyzes the cause and adjusts its strategy
+- **Parallel tool calling**: independent subtasks can run in parallel for higher efficiency
+- **Tool result summarization**: long outputs are compressed automatically to avoid context overflow
+- **TUI commands**: `/react` enters Agent mode, `/index` builds the project index, `/memory` shows vector memory
 
-### 向量记忆与 RAG（检索增强生成）
+### Vector Memory and RAG (Retrieval-Augmented Generation)
 
-阶段 2 引入的长期记忆系统，支持基于语义的上下文召回：
+The long-term memory system introduced in Phase 2 supports semantic context recall:
 
-- **GLM embedding-3 集成**：使用智谱 GLM embedding-3 模型生成向量
-- **混合检索**：向量相似度（0.7 权重）+ BM25 关键词（0.3 权重）融合排序
-- **对话历史向量化**：自动将历史对话分块、向量化、入库
-- **记忆衰减**：长期未访问的记忆自动降权，避免噪声干扰
-- **文件背景监视**：项目文件变更时自动重新索引，保持记忆新鲜度
-- **零依赖回退**：无 embedding API 时自动降级为纯 TF-IDF 检索
+- **GLM embedding-3 integration**: generates vectors with Zhipu's GLM embedding-3 model
+- **Hybrid retrieval**: vector similarity (0.7 weight) fused with BM25 keywords (0.3 weight)
+- **Conversation history vectorization**: historical conversations are chunked, vectorized, and stored automatically
+- **Memory decay**: memories not accessed for a long time are automatically down-weighted to avoid noise
+- **File background watching**: project files are re-indexed automatically when they change, keeping memory fresh
+- **Zero-dependency fallback**: when no embedding API is available, it degrades to pure TF-IDF retrieval
 
-### MCP 协议支持（Model Context Protocol）
+### MCP Support (Model Context Protocol)
 
-阶段 3 引入的 MCP 双向支持，使 ZeroAI 可作为 MCP Server 暴露工具给外部客户端，也可作为 Client 接入外部 MCP 服务器：
+The bidirectional MCP support introduced in Phase 3 lets ZeroAI act either as an MCP Server exposing its tools to external clients, or as a Client connecting to external MCP servers:
 
-- **JSON-RPC 2.0 核心**：完整实现 MCP 协议规范
-- **stdio / SSE 双传输**：支持本地子进程（stdio）和远程服务（SSE）两种传输方式
-- **自动工具注册**：接入外部 MCP Server 后，其工具自动注册到 ZeroAI 工具表
-- **58 个工具暴露**：作为 MCP Server 时，将全部 58 个内置工具暴露给 Claude Desktop 等客户端
-- **Claude Desktop 配置示例**：`zeroai/mcp/examples/claude_desktop_config.json` 提供即用配置
-- **启动方式**：`python -m zeroai.mcp` 启动 MCP Server
+- **JSON-RPC 2.0 core**: a complete implementation of the MCP specification
+- **stdio / SSE dual transport**: supports both local subprocesses (stdio) and remote services (SSE)
+- **Automatic tool registration**: after connecting to an external MCP Server, its tools are registered into the ZeroAI tool table automatically
+- **58 tools exposed**: as an MCP Server, it exposes all 58 built-in tools to clients such as Claude Desktop
+- **Claude Desktop configuration example**: a ready-to-use configuration is provided at `zeroai/mcp/examples/claude_desktop_config.json`
+- **Launching**: start the MCP Server with `python -m zeroai.mcp`
 
-### C/Zig 加速层（高性能终端渲染）
+### C/Zig Acceleration Layer (high-performance terminal rendering)
 
-阶段 D 引入的混合语言加速层，为 TUI 渲染提供性能保障：
+The mixed-language acceleration layer introduced in Phase D provides performance headroom for TUI rendering:
 
-- **三层降级**：Zig 共享库 → C 扩展 → 纯 Python，自动选择最快可用路径
-- **跨平台构建**：`scripts/build_extensions.py` 支持 Windows / macOS / Linux
-- **ABI 一致性**：`StyleStruct` 8 字节结构在 C/Zig/Python 三端布局完全一致
-- **ctypes 加载**：Zig 库通过 ctypes 加载，无需编译 Python 扩展即可使用
-- **多层路径搜索**：环境变量 → 包内 → 项目根 → zig-out → site-packages → 系统库
-- **诊断函数**：`_diagnose_zig_load_failure()` 提供详细的加载失败原因分析
-- **ABI 测试套件**：`tests/test_abi.py` 验证字段偏移、颜色映射、大缓冲区 stress 测试
+- **Three-tier fallback**: Zig shared library → C extension → pure Python, automatically selecting the fastest available path
+- **Cross-platform builds**: `scripts/build_extensions.py` supports Windows / macOS / Linux
+- **ABI consistency**: the 8-byte `StyleStruct` has an identical layout across C, Zig, and Python
+- **ctypes loading**: the Zig library is loaded via ctypes, usable without compiling a Python extension
+- **Multi-path search**: environment variable → inside the package → project root → zig-out → site-packages → system libraries
+- **Diagnostic function**: `_diagnose_zig_load_failure()` gives a detailed analysis of load failures
+- **ABI test suite**: `tests/test_abi.py` verifies field offsets, color mapping, and large-buffer stress tests
 
 ---
 
-## 安装
+## Installation
 
-### 方式一：pip 安装（推荐）
+### Option 1: pip install (recommended)
 
 ```bash
 pip install zero-ai-cli
 ```
 
-### 方式二：从源码安装
+### Option 2: Install from source
 
 ```bash
 git clone https://github.com/gt17641001169-design/zero-ai.git
@@ -294,177 +302,192 @@ cd zero-ai-cli
 pip install -e .
 ```
 
-### 可选：安装语音功能
+### Optional: install voice support
 
 ```bash
 pip install zero-ai-cli[voice]
 ```
 
-语音功能包含：sherpa-onnx（语音识别）、faster-whisper（备用识别）、av（音频处理）。
+Voice support includes sherpa-onnx (speech recognition), faster-whisper (fallback recognition), and av (audio processing).
 
-首次使用语音功能时，会自动从 HuggingFace 镜像下载 SenseVoice 模型（约 220MB），下载后离线运行。
+On first use, the SenseVoice model (~220 MB) is downloaded automatically from the HuggingFace mirror; after that it runs offline.
 
 ---
 
-## 使用
+## Usage
 
-安装后在任意终端输入：
+After installation, type this in any terminal:
 
 ```bash
 zeroai
 ```
 
-或使用 Python 模块入口（推荐）：
+Or use the Python module entry point (recommended):
 
 ```bash
-python -m zeroai                    # 默认 Textual UI（推荐）
-python -m zeroai --ui textual       # 显式指定 Textual UI
-python -m zeroai --ui zeroai-tui    # C/Zig 加速 TUI
-python -m zeroai --expert coder     # 直接指定专家
-python -m zeroai --version          # 查看版本号
+python -m zeroai                    # default Textual UI (recommended)
+python -m zeroai --ui textual       # explicitly select the Textual UI
+python -m zeroai --ui zeroai-tui    # C/Zig-accelerated TUI
+python -m zeroai --expert coder     # specify an expert directly
+python -m zeroai --version          # print the version
 ```
 
-> **架构变更说明**：自 v1.1.3 起，项目从单文件 `tui_agent.py` 重构为模块化 `zeroai` 包。
-> `python -m zeroai` 为推荐入口，`python tui_agent.py` 仍可用（向后兼容，已添加弃用提示）。
+> **Architecture change note**: as of v1.1.3 the project was refactored from the single-file `tui_agent.py` into the modular `zeroai` package.
+> `python -m zeroai` is the recommended entry point; `python tui_agent.py` still works (backward compatible, with a deprecation notice).
 
-### 首次使用配置
+### First-Time Configuration
 
-**方式 A：直连模式（个人使用）**
+**Option A: Direct mode (personal use)**
 
-1. 获取 GLM API Key（免费）：访问 https://open.bigmodel.cn/ 注册并创建 Key
-2. 启动 ZeroAI 后按 `Ctrl+P` 打开设置面板
-3. 填入 GLM API Key 并保存
-4. 或设置环境变量：`ZEROAI_API_KEY_GLM=你的Key`
+1. Get a GLM API key (free): sign up at https://open.bigmodel.cn/ and create a key
+2. After launching ZeroAI, press `Ctrl+P` to open the settings panel
+3. Enter your GLM API key and save
+4. Alternatively, set the environment variable: `ZEROAI_API_KEY_GLM=your_key`
 
-**方式 B：代理模式（团队协作，推荐）**
+**Option B: Proxy mode (team collaboration, recommended)**
 
-通过代理服务器访问 AI 模型，客户端零 API Key 泄露：
+Access AI models through a proxy server, with zero API key exposure on the client:
 
-1. 部署代理服务器（见下文"代理服务器部署"章节）
-2. 启动 ZeroAI 后按 `Ctrl+P` 打开设置面板
-3. 在"代理服务器"段配置：
-   - 代理地址：`http://<服务器IP>:8000/v1`
-   - 访问 Token：由管理员分配
-   - 代理模式：启用
-4. 所有请求自动经代理转发，真实 Key 仅存于服务器端
+1. Deploy the proxy server (see "Proxy Server Deployment" below)
+2. After launching ZeroAI, press `Ctrl+P` to open the settings panel
+3. In the "Proxy Server" section, configure:
+   - Proxy address: `http://<server-ip>:8000/v1`
+   - Access token: assigned by the administrator
+   - Proxy mode: enabled
+4. All requests are forwarded through the proxy automatically; the real key stays on the server
 
-### 命令列表
+### Command Reference
 
-#### 基础命令
+Every command also accepts a Chinese alias, and both aliases work at any time. The table below lists the English form; the Chinese aliases are documented in the [Chinese README](README.zh-CN.md).
 
-| 命令 | 说明 |
+#### Basic Commands
+
+| Command | Description |
 |------|------|
-| `/帮助` | 显示帮助 |
-| `/清屏` | 清空屏幕 |
-| `/新对话` | 开始新对话 |
-| `/退出` | 退出程序 |
+| `/help` | Show help |
+| `/clear` | Clear the screen |
+| `/new` | Start a new conversation |
+| `/exit`, `/quit` | Exit the program |
 
-#### 模式切换
+#### Mode Switching
 
-| 命令 | 说明 |
+| Command | Description |
 |------|------|
-| `/专家` | 切换到专家模式（自动路由） |
-| `/混合` | 切换到混合思考（多专家协作） |
-| `/手动` | 切换到手动模式（指定模型） |
-| `/模型` | 查看当前模型和专家团队 |
-| `/模型 glm` | 切换到智谱 GLM |
-| `/模型 glm-v` | 切换到智谱 GLM-4V（多模态） |
-| `/模型 openrouter` | 切换到 OpenRouter |
-| `/模型 ollama` | 切换到 Ollama（本地模型） |
+| `/expert` | Switch to expert mode (automatic routing) |
+| `/hybrid` | Switch to hybrid thinking (multi-expert collaboration) |
+| `/manual` | Switch to manual mode (specify a model) |
+| `/model` | Show the current model and expert team |
+| `/model glm` | Switch to Zhipu GLM |
+| `/model glm-v` | Switch to Zhipu GLM-4V (multimodal) |
+| `/model openrouter` | Switch to OpenRouter |
+| `/model ollama` | Switch to Ollama (local model) |
 
-#### 语音交互
+#### Agent, Index and Memory
 
-| 命令 | 说明 |
+| Command | Description |
 |------|------|
-| `/语音` | 开启/关闭 AI 回复自动朗读 |
-| `/对话` | 开启语音对话模式 |
-| `/停止` | 停止语音对话模式 |
-| `/女声` | 切换为女声（晓晓） |
-| `/男声` | 切换为男声（云希） |
-| `/语速 +10%` | 设置语速 |
-| `Ctrl+T` | 单次语音输入 |
-| `Ctrl+D` | 语音对话模式 |
+| `/react` | Switch to ReAct Agent mode |
+| `/init` | Analyze the project structure and generate `AGENTS.md` |
+| `/index` | Build the project vector index (enables RAG retrieval) |
+| `/memory` | Show vector memory statistics |
+| `/mcp` | MCP protocol management (list/install/connect/tools) |
 
-#### 其他功能
+#### Voice Interaction
 
-| 命令 | 说明 |
+| Command | Description |
 |------|------|
-| `/图片` | 粘贴剪贴板图片 |
-| `/复制` | 复制最近回复 |
-| `/安全` | 安全审计 |
-| `/ssh` | 查看 SSH 远程部署 + AI 运维工具集（15 个工具） |
-| `Ctrl+G` | 粘贴图片快捷键 |
-| `Ctrl+N` | 新对话 |
-| `Ctrl+P` | 设置面板 |
-| `Ctrl+W` | 伴随模式 |
-| `Ctrl+Y` | 复制 |
+| `/voice` | Toggle automatic reading of AI replies |
+| `/dialog` | Enter voice conversation mode |
+| `/stop` | Stop voice conversation mode |
+| `/voice_female` | Switch to a female voice (Xiaoxiao) |
+| `/voice_male` | Switch to a male voice (Yunxi) |
+| `/voice_rate +10%` | Set the speaking rate |
+| `Ctrl+T` | Single-shot voice input |
+| `Ctrl+D` | Voice conversation mode |
+
+#### Other Features
+
+| Command | Description |
+|------|------|
+| `/image`, `/img` | Paste an image from the clipboard |
+| `/copy` | Copy the most recent reply |
+| `/copy N` | Copy the Nth code block from the most recent reply |
+| `/audit` | Security audit |
+| `/ssh` | Show the SSH remote deployment + AI operations toolset (15 tools) |
+| `Ctrl+G` | Paste-image shortcut |
+| `Ctrl+N` | New conversation |
+| `Ctrl+P` | Settings panel |
+| `Ctrl+W` | Companion mode |
+| `Ctrl+Y` | Copy |
+
+> **Language note**: the CLI ships both English and Chinese command aliases, and both work at any time. The AI's replies follow the language configuration of the selected expert (Chinese by default). The Chinese command aliases are listed in the [Chinese README](README.zh-CN.md).
 
 ---
 
-## 代理服务器部署（团队协作）
+## Proxy Server Deployment (Team Collaboration)
 
-代理服务器实现 API Key 零泄露，适用于课题组、实验室、企业团队协作场景。
+The proxy server achieves zero API key exposure and is designed for research groups, laboratories, and enterprise teams.
 
-### 架构
+### Architecture
 
 ```
-客户端（zeroai）  ──Token 鉴权──>  代理服务器  ──真实Key──>  上游AI（GLM/OpenRouter）
-                                    │
-                                    ├─ 限流（30次/分钟/IP）
-                                    ├─ 模型白名单
-                                    ├─ 流式 SSE 透传
-                                    └─ 审计日志
+Client (zeroai)  --token auth-->  Proxy server  --real key-->  Upstream AI (GLM/OpenRouter)
+                                       |
+                                       +- Rate limiting (30 req/min/IP)
+                                       +- Model allowlist
+                                       +- Streaming SSE pass-through
+                                       +- Audit logging
 ```
 
-### 部署步骤
+### Deployment Steps
 
-1. 上传 `zeroai-proxy/` 目录到服务器
-2. 安装依赖：`pip install -r requirements.txt`
-3. 配置 `.env`（从 `.env.example` 复制）：
+1. Upload the `zeroai-proxy/` directory to the server
+2. Install dependencies: `pip install -r requirements.txt`
+3. Configure `.env` (copy from `.env.example`, which lists every available option):
    ```bash
-   GLM_API_KEY=你的智谱Key
-   OR_API_KEY=你的OpenRouter Key
-   CLIENT_TOKENS=为每个成员生成的访问Token
+   GLM_API_KEY=your_zhipu_key
+   OR_API_KEY=your_openrouter_key
+   CLIENT_TOKENS=access_tokens_generated_for_each_member
    ALLOWED_MODELS=glm-4.7-flash,glm-4-flash,glm-4v-flash
    ```
-4. 启动服务（Linux systemd / Windows NSSM / Docker 任选）
-5. 防火墙放行 8000 端口（仅内网）
-6. 客户端配置代理地址 + Token 即可使用
+4. Start the service (choose Linux systemd / Windows NSSM / Docker)
+5. Open port 8000 in the firewall (internal network only)
+6. Configure the proxy address and token on the client and it is ready to use
 
-### 安全特性
+### Security Features
 
-| 特性 | 说明 |
+| Feature | Description |
 |------|------|
-| API Key 隔离 | 真实 Key 只在服务器 `.env`，客户端永远拿不到 |
-| Token 鉴权 | 客户端用独立 Token，与上游 Key 完全分离 |
-| 限流 | 每 IP 滑动窗口 30 次/分钟（可配置） |
-| 模型白名单 | 防止客户端调用昂贵模型 |
-| 流式透传 | 完整支持 SSE，流式输出不受影响 |
-| OpenAI 兼容 | 客户端无需改造 SDK，只需改 base_url |
-| 日志审计 | 记录 IP/Token/模型/状态，便于追溯 |
+| API key isolation | The real key lives only in the server `.env`; clients can never obtain it |
+| Token authentication | Clients use independent tokens, fully separated from upstream keys |
+| Rate limiting | Sliding window of 30 requests/minute per IP (configurable) |
+| Model allowlist | Prevents clients from invoking expensive models |
+| Streaming pass-through | Full SSE support; streaming output is unaffected |
+| OpenAI compatibility | No SDK changes on the client; only the base URL changes |
+| Log auditing | Records IP/token/model/status for traceability |
 
-### IP 安全设计（v1.2.0 安全加固）
+### IP Security Design (v1.2.0 security hardening)
 
-针对代理服务器在团队/内网部署场景下的安全威胁，v1.2.0 版本进行了系统性的 IP 与 Token 安全加固：
+In response to the security threats a proxy server faces in team/internal deployments, v1.2.0 introduces systematic IP and token hardening:
 
-#### 1. Token 归属与生命周期管理
+#### 1. Token Ownership and Lifecycle Management
 
-| 能力 | 说明 |
+| Capability | Description |
 |------|------|
-| Token 归属 | 每个 Token 绑定用户名、团队、备注，便于审计追溯 |
-| 用量统计 | 自动记录调用次数、最后使用时间 |
-| 过期时间 | 支持永久 Token 或指定过期时间（ISO 8601 格式） |
-| 即时吊销 | 修改 `tokens.json` 后**热重载生效**，无需重启服务 |
-| 状态恢复 | 已吊销的 Token 可恢复使用 |
-| 统计重置 | 可重置 Token 的用量计数 |
-| 管理端点 | `/admin/tokens` 查看、`/admin/revoke` 吊销（需 ADMIN_TOKEN） |
+| Token ownership | Each token is bound to a user name, team, and note for audit traceability |
+| Usage statistics | Automatically records call count and last-used time |
+| Expiry | Supports permanent tokens or a specified expiry (ISO 8601) |
+| Instant revocation | Editing `tokens.json` takes effect via **hot reload**, with no service restart |
+| State restoration | A revoked token can be reinstated |
+| Statistics reset | A token's usage counters can be reset |
+| Management endpoints | `/admin/tokens` to view, `/admin/revoke` to revoke (requires `ADMIN_TOKEN`) |
 
-Token 文件格式（`tokens.json`）：
+Token file format (`tokens.json`):
 ```json
 {
   "abc123def456...": {
-    "user": "张三",
-    "team": "开发团队",
+    "user": "alice",
+    "team": "dev-team",
     "revoked": false,
     "expires": null,
     "usage_count": 0,
@@ -474,57 +497,57 @@ Token 文件格式（`tokens.json`）：
 }
 ```
 
-#### 2. 暴力破解防护
+#### 2. Brute-Force Protection
 
-| 参数 | 默认值 | 说明 |
+| Parameter | Default | Description |
 |------|--------|------|
-| `MAX_FAILURES` | 5 | 同一 IP 连续失败 N 次触发封禁 |
-| `BAN_MINUTES` | 30 | 封禁时长（分钟） |
-| `BAN_WINDOW_MINUTES` | 10 | 失败计数窗口（分钟） |
+| `MAX_FAILURES` | 5 | Consecutive failures from the same IP before a ban is triggered |
+| `BAN_MINUTES` | 30 | Ban duration (minutes) |
+| `BAN_WINDOW_MINUTES` | 10 | Failure-counting window (minutes) |
 
-- 同一 IP 在 10 分钟窗口内连续失败 5 次 → 自动封禁 30 分钟
-- 验证成功后自动清除该 IP 的失败记录
-- 封禁列表可通过 `/admin/banned` 查看（需 ADMIN_TOKEN）
+- An IP that fails 5 times within a 10-minute window is banned automatically for 30 minutes
+- A successful verification clears that IP's failure record
+- The ban list can be viewed at `/admin/banned` (requires `ADMIN_TOKEN`)
 
-#### 3. HTTPS 加密传输（自签证书）
+#### 3. HTTPS Encrypted Transport (self-signed certificate)
 
-- 生成自签证书：`python generate_cert.py`（基于 `cryptography` 库）
-- 启用后 Token 加密传输，防中间人嗅探
-- 客户端配置 `verify_ssl=false` 接受自签证书（内网部署场景）
-- 证书文件（`cert.pem` / `cert.key`）通过 `.gitignore` 排除，不入版本库
+- Generate a self-signed certificate: `python generate_cert.py` (based on the `cryptography` library)
+- Once enabled, tokens are transported encrypted, preventing man-in-the-middle sniffing
+- Clients set `verify_ssl=false` to accept the self-signed certificate (internal deployment scenario)
+- Certificate files (`cert.pem` / `cert.key`) are excluded via `.gitignore` and never enter version control
 
-#### 4. API 文档端点关闭
+#### 4. API Documentation Endpoints Disabled
 
-| 端点 | 状态 | 说明 |
+| Endpoint | Status | Description |
 |------|------|------|
-| `/docs` | 关闭 | Swagger UI 不暴露 |
-| `/redoc` | 关闭 | ReDoc 不暴露 |
-| `/openapi.json` | 关闭 | OpenAPI schema 不泄露接口结构 |
+| `/docs` | Disabled | Swagger UI is not exposed |
+| `/redoc` | Disabled | ReDoc is not exposed |
+| `/openapi.json` | Disabled | The OpenAPI schema does not leak the interface structure |
 
-防止攻击者通过 API 文档探测系统接口与参数。
+This prevents attackers from probing system interfaces and parameters through the API documentation.
 
-#### 5. IP 脱敏审计日志
+#### 5. IP-Masked Audit Logging
 
-所有日志中的 IP 地址自动脱敏，仅保留前两段：
+All IP addresses in logs are masked automatically, keeping only the first two octets:
 ```
-原 IP：192.168.10.66  →  日志：192.168.xxx.xxx
+Original IP: 192.168.10.66  ->  Log: 192.168.xxx.xxx
 ```
-- 保护用户隐私，便于内部审计
-- 封禁/解封日志同样脱敏
+- Protects user privacy while preserving internal auditability
+- Ban/unban log entries are masked as well
 
-#### 6. 管理端点鉴权
+#### 6. Management Endpoint Authentication
 
-`/admin/*` 端点需 `ADMIN_TOKEN` 鉴权（独立于客户端 Token）：
-- `/admin/tokens`：列出所有 Token（脱敏）
-- `/admin/revoke`：吊销指定 Token
-- `/admin/reinstate`：恢复已吊销 Token
-- `/admin/banned`：查看当前封禁 IP 列表
-- `/admin/unban`：解封指定 IP
+`/admin/*` endpoints require `ADMIN_TOKEN` authentication (independent of client tokens):
+- `/admin/tokens`: list all tokens (masked)
+- `/admin/revoke`: revoke a specified token
+- `/admin/reinstate`: reinstate a revoked token
+- `/admin/banned`: view the currently banned IP list
+- `/admin/unban`: unban a specified IP
 
-#### 7. .gitignore 安全排除
+#### 7. .gitignore Security Exclusions
 
 ```gitignore
-# 安全相关（证书和 Token 文件，绝不进 Git）
+# Security-related (certificates and token files — never commit)
 *.pem
 *.key
 *.crt
@@ -534,350 +557,352 @@ cert.key
 *.bak.*
 ```
 
-确保敏感文件不会误提交到版本库。
+This ensures sensitive files are never committed to version control by accident.
 
-详细部署文档见 [zeroai-proxy/README.md](zeroai-proxy/README.md)。
+For detailed deployment documentation, see [zeroai-proxy/README.md](zeroai-proxy/README.md).
 
 ---
 
-## 系统要求
+## System Requirements
 
 - Python >= 3.10
-- 操作系统：Windows / macOS / Linux
-- 网络：需访问智谱 GLM API（`open.bigmodel.cn`）或代理服务器
-- 语音功能：需麦克风（仅语音对话模式）
-- 多模态：支持 png/jpg/jpeg/gif/bmp/webp 格式图片
+- Operating system: Windows / macOS / Linux
+- Network: access to the Zhipu GLM API (`open.bigmodel.cn`) or a proxy server
+- Voice features: a microphone (voice conversation mode only)
+- Multimodal: supports png/jpg/jpeg/gif/bmp/webp images
 
 ---
 
-## 配置
+## Configuration
 
-### 配置文件位置
+### Configuration File Location
 
-- Windows：`%USERPROFILE%\.zeroai\config.json`
-- macOS/Linux：`~/.zeroai/config.json`
+- Windows: `%USERPROFILE%\.zeroai\config.json`
+- macOS/Linux: `~/.zeroai/config.json`
 
-### 环境变量
+### Environment Variables
 
-| 环境变量 | 说明 |
+| Environment Variable | Description |
 |---------|------|
-| `ZEROAI_API_KEY_GLM` | 智谱 GLM API Key（直连模式） |
-| `ZEROAI_API_KEY_OPENROUTER` | OpenRouter API Key（直连模式） |
-| `ZEROAI_HOME` | ZeroAI 资源目录（libs/models 所在位置） |
+| `ZEROAI_API_KEY_GLM` | Zhipu GLM API key (direct mode) |
+| `ZEROAI_API_KEY_OPENROUTER` | OpenRouter API key (direct mode) |
+| `ZEROAI_HOME` | ZeroAI resource directory (where `libs`/`models` live) |
 
-### 资源目录查找顺序
+### Resource Directory Lookup Order
 
-1. 脚本所在目录（开发模式）
-2. `ZEROAI_HOME` 环境变量指定的目录
-3. 用户主目录 `~/.zeroai/`（pip 安装模式）
+1. The directory containing the script (development mode)
+2. The directory specified by the `ZEROAI_HOME` environment variable
+3. The user home directory `~/.zeroai/` (pip install mode)
 
 ---
 
-## 技术栈
+## Tech Stack
 
-| 组件 | 技术 |
+| Component | Technology |
 |------|------|
-| UI 框架 | Textual TUI |
-| AI 接口 | OpenAI SDK（兼容 GLM API） |
-| SSH 远程 | asyncssh（纯 Python 异步 SSH） |
-| 语音识别 | sherpa-onnx + SenseVoice（离线） |
-| 语音合成 | Edge TTS |
-| 文档生成 | python-docx + reportlab + matplotlib |
-| 学术公式 | LaTeX → Unicode + matplotlib mathtext |
-| 文献检索 | Semantic Scholar API |
-| 代理服务 | FastAPI + httpx |
+| UI framework | Textual TUI |
+| AI interface | OpenAI SDK (compatible with the GLM API) |
+| SSH remote | asyncssh (pure-Python asynchronous SSH) |
+| Speech recognition | sherpa-onnx + SenseVoice (offline) |
+| Speech synthesis | Edge TTS |
+| Document generation | python-docx + reportlab + matplotlib |
+| Academic formulas | LaTeX → Unicode + matplotlib mathtext |
+| Literature search | Semantic Scholar API |
+| Proxy service | FastAPI + httpx |
 
 ---
 
-## 功能演示
+## Feature Demos
 
-### 多专家协作
+> The transcripts below are illustrative and written in English for readability. The built-in interface labels and the default expert replies are in Chinese (several expert system prompts explicitly instruct "answer in Chinese").
 
-```
-用户：帮我写一个 Python 函数计算斐波那契数列，并分析时间复杂度
-
-→ 项目经理·GLM-4V 分析任务
-→ 编程·GLM-4.7 生成代码
-→ 推理·内置 分析复杂度
-→ 项目经理·GLM-4V 汇总结果
-```
-
-### 学术文献检索
+### Multi-Expert Collaboration
 
 ```
-用户：检索近三年关于 Transformer 加速的论文，按引用数排序
+User: Write a Python function that computes the Fibonacci sequence, and analyze its time complexity
 
-→ 学术研究专家调用 Semantic Scholar API
-→ 返回 10 篇高引论文（标题/作者/年份/引用数/摘要）
-→ 自动生成文献综述初稿
+-> Project Manager · GLM-4.7 analyzes the task
+-> Coding · GLM-4.7 generates the code
+-> Reasoning · GLM-4.7 analyzes the complexity
+-> Project Manager · GLM-4.7 aggregates the results
 ```
 
-### 学术文档生成
+### Academic Literature Search
 
 ```
-用户：请生成一份关于机器学习的学术报告，Word 格式，包含公式
+User: Search for papers on Transformer acceleration from the last three years, ranked by citations
 
-→ 学术研究·GLM-4.7 生成内容
-→ LaTeX 公式渲染：$$E = mc^2$$ → 高清图片嵌入
-→ 自动按 GB/T 7713.1-2025 格式排版
-→ 保存为 .docx 文件
+-> Academic Research expert calls the Semantic Scholar API
+-> Returns 10 highly cited papers (title/author/year/citations/abstract)
+-> Automatically generates a literature review draft
 ```
 
-### SSH 远程部署
+### Academic Document Generation
 
 ```
-用户：连接到 192.168.10.20，用户 root，密码 xxx，把 D:/项目/myapp 部署到 /opt/myapp
+User: Generate an academic report on machine learning in Word format, including formulas
 
-→ ssh_connect 建立连接（conn_id=default）
-→ ssh_deploy 一键部署：
-  1. pre_check  → 检查磁盘空间/Python版本
-  2. mkdir      → 创建 /opt/myapp 目录
-  3. upload     → SFTP 上传项目文件
-  4. install    → pip install -r requirements.txt
-  5. restart    → systemctl restart myapp
-  6. health_check → curl localhost:8080/health
-  7. post_cmds  → 清理临时文件
-→ 生成部署报告
+-> Academic Research · GLM-4.7 generates the content
+-> LaTeX formula rendering: $$E = mc^2$$ -> high-resolution image embedded
+-> Automatically typeset per the GB/T 7713.1-2025 format
+-> Saved as a .docx file
 ```
 
-### AI 远程运维
+### SSH Remote Deployment
 
 ```
-用户：服务器卡了，看看怎么回事
+User: Connect to 192.168.10.20 as root with password xxx, and deploy D:/projects/myapp to /opt/myapp
 
-→ ssh_health_check 一键体检
-  → 系统信息、CPU、内存、磁盘、网络、负载、失败服务、错误日志
-  → AI 分析：发现 3 个问题
-    1. 1分钟负载 5.2 偏高
-    2. 磁盘使用率 92%（危急）
-    3. 最近1小时有 15 条错误日志
-  建议深入排查
+-> ssh_connect establishes the connection (conn_id=default)
+-> ssh_deploy one-click deployment:
+  1. pre_check    -> check disk space / Python version
+  2. mkdir        -> create the /opt/myapp directory
+  3. upload       -> SFTP the project files
+  4. install      -> pip install -r requirements.txt
+  5. restart      -> systemctl restart myapp
+  6. health_check -> curl localhost:8080/health
+  7. post_cmds    -> clean up temporary files
+-> Generates a deployment report
+```
 
-用户：mysql 状态怎么样
-→ ssh_service_manage(action=status, service=mysql)
-→ 自动状态解读：服务运行中 / 服务未运行 / 异常退出
+### AI Remote Operations
 
-用户：查 nginx 的 error 日志
-→ ssh_log_view(service=nginx, keyword=error)
-→ 返回日志 + 自动统计：错误密度高，建议深入排查
+```
+User: The server is slow, take a look at what is going on
 
-用户：开放 8080 端口
-→ ssh_firewall_manage(action=open, port=8080)
-→ 自动识别防火墙类型（ufw/firewalld/iptables）并执行
+-> ssh_health_check one-click health check
+  -> system info, CPU, memory, disk, network, load, failed services, error logs
+  -> AI analysis: 3 issues found
+    1. 1-minute load 5.2 is high
+    2. Disk usage 92% (critical)
+    3. 15 error log entries in the last hour
+  Recommends drilling down
+
+User: How is mysql doing
+-> ssh_service_manage(action=status, service=mysql)
+-> Automatic status interpretation: running / not running / exited abnormally
+
+User: Check the nginx error log
+-> ssh_log_view(service=nginx, keyword=error)
+-> Returns the log + automatic statistics: high error density, recommends drilling down
+
+User: Open port 8080
+-> ssh_firewall_manage(action=open, port=8080)
+-> Automatically detects the firewall type (ufw/firewalld/iptables) and executes
 ```
 
 ---
 
-## 开发
+## Development
 
-### 开发模式安装
+### Development Mode Installation
 
 ```bash
 git clone https://github.com/gt17641001169-design/zero-ai.git
 cd zero-ai-cli
-pip install -e .           # 主包（开发模式）
-pip install -e ".[dev]"    # 开发依赖（build、pyinstaller）
-pip install -e ".[voice]"  # 可选：语音依赖
+pip install -e .           # main package (development mode)
+pip install -e ".[dev]"    # development dependencies (build, pyinstaller)
+pip install -e ".[voice]"  # optional: voice dependencies
 ```
 
-开发模式下修改 `zeroai/` 包或 `tui_agent.py` 即时生效，无需重新安装。
+In development mode, changes to the `zeroai/` package or `tui_agent.py` take effect immediately with no reinstall.
 
-### 构建
+### Building
 
 ```bash
 pip install build
 python -m build
 ```
 
-生成的包在 `dist/` 目录（`.whl` 与 `.tar.gz`）。
+The generated packages appear in `dist/` (`.whl` and `.tar.gz`).
 
-### 构建 C/Zig 加速层（可选）
+### Building the C/Zig Acceleration Layer (optional)
 
 ```bash
 cd zeroai-tui
-python setup.py build_ext --inplace            # 同时构建 Zig 和 C 扩展
-python setup.py build_ext --inplace --skip-zig # 仅构建 C 扩展（跳过 Zig）
+python setup.py build_ext --inplace            # build both the Zig and C extensions
+python setup.py build_ext --inplace --skip-zig # build only the C extension (skip Zig)
 ```
 
-加速层架构：Python → C → Zig（失败自动回退到 C 标量实现）。
+Acceleration layer architecture: Python → C → Zig (falling back automatically to the C scalar implementation on failure).
 
-### 运行测试
+### Running Tests
 
 ```bash
-# 阶段3 切换块回归测试
+# Phase 3 switch-block regression test
 python test_phase3_regression.py
 
-# v1.1.3 发布集成测试
+# v1.1.3 release integration test
 python test_v1_1_3_release.py
 
-# C/Zig 加速层测试套件
+# C/Zig acceleration layer test suite
 python -m pytest zeroai-tui/test_zeroai_tui.py zeroai-tui/tests/ -v -p no:xonsh
 ```
 
-### 项目结构
+### Project Structure
 
 ```
 zero-ai-cli/
-├── zeroai/                   # 模块化包（推荐入口，v1.1.3+）
-│   ├── core/                 # 核心层（8 个子模块）
-│   │   ├── paths.py          # 路径管理
-│   │   ├── runtime.py        # 运行时缓存与中断控制
-│   │   ├── secrets.py        # 密钥与配置持久化
-│   │   ├── constants.py      # 常量与专家团队
-│   │   ├── expert_route.py   # 专家路由（含 LRUCache）
-│   │   ├── context_compress.py # 上下文压缩
-│   │   ├── model_manager.py  # 模型管理
-│   │   └── response_utils.py # 响应处理工具
-│   ├── tools/                # 工具层（10 个子模块，56 个工具）
-│   │   ├── file_manager.py   # 文件操作
-│   │   ├── command_exec.py   # 命令执行
-│   │   ├── network.py        # 网络操作
-│   │   ├── system_check.py   # 系统检查
-│   │   ├── security.py       # 安全审计
-│   │   ├── doc_gen.py        # 文档生成
-│   │   ├── academic.py       # 学术研究
-│   │   ├── window_mgr.py     # 窗口管理
-│   │   ├── ssh_ops.py        # SSH 远程运维
-│   │   └── registry.py       # 工具注册中心（TOOLS + TOOL_MAP）
-│   ├── tui/                  # TUI 包装层（7 个子模块）
-│   │   ├── colors.py         # 配色常量
-│   │   ├── markdown.py       # Markdown/LaTeX 渲染
-│   │   ├── identity.py       # 身份泄露过滤
-│   │   ├── widgets.py        # 自定义组件
-│   │   ├── screens.py        # 模态对话框
-│   │   ├── app.py            # ZeroAI 主应用类
-│   │   └── icons.py          # 图标加载
-│   ├── main.py               # 统一入口
-│   └── __main__.py           # 模块入口（支持 python -m zeroai）
-├── tui_agent.py              # 原始实现（保留备份，向后兼容，已弃用）
-├── zeroai-tui/               # C/Zig 加速 TUI 框架
-│   ├── zeroai_tui/           # TUI 组件包
-│   │   ├── src/_renderer.c   # C 渲染核心（动态加载 Zig）
-│   │   ├── src/_terminal.c   # C 终端控制
-│   │   └── components.py     # TUI 组件框架
-│   ├── src/zig_render.zig    # Zig 渲染加速
-│   ├── build.zig             # Zig 构建脚本
-│   ├── setup.py              # C/Zig 扩展构建
-│   └── tests/                # 测试套件
-├── zeroai-proxy/             # 代理服务器（API Key 保护）
-│   ├── main.py               # FastAPI 代理主程序
-│   ├── requirements.txt      # 依赖清单
-│   ├── .env.example          # 配置模板
-│   ├── Dockerfile            # Docker 部署
+├── zeroai/                   # Modular package (recommended entry point, v1.1.3+)
+│   ├── core/                 # Core layer (8 submodules)
+│   │   ├── paths.py          # Path management
+│   │   ├── runtime.py        # Runtime cache and interrupt control
+│   │   ├── secrets.py        # Secret and configuration persistence
+│   │   ├── constants.py      # Constants and expert team
+│   │   ├── expert_route.py   # Expert routing (with LRUCache)
+│   │   ├── context_compress.py # Context compression
+│   │   ├── model_manager.py  # Model management
+│   │   └── response_utils.py # Response handling utilities
+│   ├── tools/                # Tool layer (10 submodules, 56 tools)
+│   │   ├── file_manager.py   # File operations
+│   │   ├── command_exec.py   # Command execution
+│   │   ├── network.py        # Network operations
+│   │   ├── system_check.py   # System checks
+│   │   ├── security.py       # Security audit
+│   │   ├── doc_gen.py        # Document generation
+│   │   ├── academic.py       # Academic research
+│   │   ├── window_mgr.py     # Window management
+│   │   ├── ssh_ops.py        # SSH remote operations
+│   │   └── registry.py       # Tool registry (TOOLS + TOOL_MAP)
+│   ├── tui/                  # TUI wrapper layer (7 submodules)
+│   │   ├── colors.py         # Color constants
+│   │   ├── markdown.py       # Markdown/LaTeX rendering
+│   │   ├── identity.py       # Identity-leak filtering
+│   │   ├── widgets.py        # Custom widgets
+│   │   ├── screens.py        # Modal dialogs
+│   │   ├── app.py            # ZeroAI main application class
+│   │   └── icons.py          # Icon loading
+│   ├── main.py               # Unified entry point
+│   └── __main__.py           # Module entry point (supports python -m zeroai)
+├── tui_agent.py              # Original implementation (kept as backup, backward compatible, deprecated)
+├── zeroai-tui/               # C/Zig-accelerated TUI framework
+│   ├── zeroai_tui/           # TUI component package
+│   │   ├── src/_renderer.c   # C rendering core (dynamically loads Zig)
+│   │   ├── src/_terminal.c   # C terminal control
+│   │   └── components.py     # TUI component framework
+│   ├── src/zig_render.zig    # Zig rendering acceleration
+│   ├── build.zig             # Zig build script
+│   ├── setup.py              # C/Zig extension build
+│   └── tests/                # Test suite
+├── zeroai-proxy/             # Proxy server (API key protection)
+│   ├── main.py               # FastAPI proxy entry point
+│   ├── requirements.txt      # Dependency list
+│   ├── .env.example          # Configuration template
+│   ├── Dockerfile            # Docker deployment
 │   ├── docker-compose.yml
-│   ├── start.sh              # systemd 部署脚本
-│   └── README.md             # 部署文档
-├── assets/icons/             # 图标资源
-├── pyproject.toml            # 包配置
-├── README.md                 # 说明文档
-├── CHANGELOG.md              # 更新日志
-├── CONTRIBUTING.md           # 贡献指南
-├── LICENSE                   # 专有软件许可证
-├── AUTHORS                   # 作者列表
-├── install.bat               # Windows 一键安装脚本
-└── libs/ models/             # 语音依赖（开发模式，不入库）
+│   ├── start.sh              # systemd deployment script
+│   └── README.md             # Deployment documentation
+├── assets/icons/             # Icon assets
+├── pyproject.toml            # Package configuration
+├── README.md                 # This documentation
+├── CHANGELOG.md              # Changelog
+├── CONTRIBUTING.md           # Contribution guide
+├── LICENSE                   # Proprietary license
+├── AUTHORS                   # Author list
+├── install.bat               # Windows one-click installer
+└── libs/ models/             # Voice dependencies (development mode, not versioned)
 ```
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
-## 常见问题
+## FAQ
 
-### Q: 启动后提示"请配置 GLM API Key"？
+### Q: It says "please configure the GLM API key" on startup?
 
-A: 按 `Ctrl+P` 打开设置面板，填入智谱 GLM API Key。免费获取：https://open.bigmodel.cn/
+A: Press `Ctrl+P` to open the settings panel and enter your Zhipu GLM API key. Get one free at https://open.bigmodel.cn/
 
-### Q: 语音功能无法使用？
-
-A:
-1. 确认已安装语音依赖：`pip install zero-ai-cli[voice]`
-2. 首次使用会自动下载模型（约 220MB）
-3. 确认麦克风权限已开启
-
-### Q: 提示 RateLimitError（限流）？
-
-A: GLM 免费额度有限，系统会自动降级到其他模型。如频繁限流，可：
-- 在智谱平台升级额度
-- 配置 OpenRouter 作为备用
-- 使用自己的 GLM API Key
-- 部署代理服务器统一管理额度
-
-### Q: 支持 macOS / Linux 吗？
-
-A: 核心功能支持。语音功能在 macOS/Linux 上可能需要额外配置音频驱动。
-
-### Q: SSH 远程运维怎么使用？
+### Q: Voice features are not working?
 
 A:
-1. 直接用自然语言告诉 AI："连接到 192.168.10.20，用户 root，密码 xxx"
-2. AI 会自动调用 `ssh_connect` 建立连接
-3. 之后可以这样说："看 nginx 状态"、"服务器卡了体检一下"、"查 mysql 错误日志"、"开放 8080 端口"、"重启 web 容器"
-4. AI 会自动调用对应的语义化运维工具（`ssh_service_manage` / `ssh_health_check` / `ssh_log_view` / `ssh_firewall_manage` / `ssh_docker_manage` 等）
-5. 输入 `/ssh` 查看完整的 15 个 SSH/运维工具列表
+1. Make sure the voice dependencies are installed: `pip install zero-ai-cli[voice]`
+2. On first use the model is downloaded automatically (~220 MB)
+3. Make sure microphone permission is granted
 
-### Q: SSH 操作安全吗？
+### Q: I get a RateLimitError (rate limiting)?
 
-A: 设计了多重安全保障：
-- **危险命令黑名单**：rm -rf /、mkfs、dd、shutdown 等 11 类必须 `confirm_dangerous=true` 二次确认
-- **注入防护**：服务名/容器名白名单校验，拒绝 `nginx; rm -rf /` 这类命令注入
-- **审计日志**：所有 SSH 操作自动记录（最多 200 条），可通过 `ssh_list` 查询
-- **主机校验**：IP/域名格式校验，可选阻断内网 IP
-- **输出截断**：命令输出超 8000 字符自动截断，防止刷屏
+A: The GLM free tier is limited, and the system degrades to other models automatically. If rate limiting happens frequently, you can:
+- Upgrade your quota on the Zhipu platform
+- Configure OpenRouter as a fallback
+- Use your own GLM API key
+- Deploy a proxy server to manage quota centrally
 
-### Q: 一键部署 `ssh_deploy` 怎么用？
+### Q: Are macOS / Linux supported?
 
-A: 直接告诉 AI 部署需求，AI 会自动构造 deploy_config：
+A: The core functionality is. Voice features may need additional audio driver configuration on macOS/Linux.
+
+### Q: How do I use SSH remote operations?
+
+A:
+1. Simply tell the AI in natural language: "connect to 192.168.10.20 as root with password xxx"
+2. The AI calls `ssh_connect` to establish the connection
+3. From there you can say things like "check nginx status", "the server is slow, run a health check", "check the mysql error log", "open port 8080", "restart the web container"
+4. The AI automatically calls the corresponding semantic operations tool (`ssh_service_manage` / `ssh_health_check` / `ssh_log_view` / `ssh_firewall_manage` / `ssh_docker_manage`, etc.)
+5. Type `/ssh` to see the full list of 15 SSH/operations tools
+
+### Q: Are SSH operations safe?
+
+A: Multiple safeguards are in place:
+- **Dangerous command blacklist**: 11 categories including `rm -rf /`, `mkfs`, `dd`, and `shutdown` require `confirm_dangerous=true` as a second confirmation
+- **Injection protection**: service name/container name whitelist validation rejects command injections such as `nginx; rm -rf /`
+- **Audit log**: all SSH operations are recorded automatically (up to 200 entries), queryable via `ssh_list`
+- **Host validation**: IP/domain format validation with optional internal-IP blocking
+- **Output truncation**: command output longer than 8000 characters is truncated automatically to prevent screen flooding
+
+### Q: How do I use one-click deployment (`ssh_deploy`)?
+
+A: Just tell the AI what you need deployed and it constructs the `deploy_config` automatically:
 
 ```
-把 D:/项目/myapp 部署到 192.168.10.20 的 /opt/myapp，
-安装依赖 pip install -r requirements.txt，
-重启命令 systemctl restart myapp，
-健康检查 curl localhost:8080/health
+Deploy D:/projects/myapp to /opt/myapp on 192.168.10.20,
+install dependencies with pip install -r requirements.txt,
+restart with systemctl restart myapp,
+health check with curl localhost:8080/health
 ```
 
-AI 会自动执行 7 步骤并生成部署报告。
+The AI executes the 7 steps automatically and produces a deployment report.
 
-### Q: 代理服务器如何保护 API Key？
+### Q: How does the proxy server protect API keys?
 
-A: 代理服务器架构下：
-- 真实 API Key 仅存于服务器端 `.env` 文件（不入 Git，不入客户端）
-- 客户端仅持有访问 Token，与上游 Key 完全分离
-- 客户端抓包只能看到 Token，无法获取真实 Key
-- 支持多用户 Token 分配，便于团队协作
-- 支持随时撤销 Token 而不影响真实 Key
+A: Under the proxy server architecture:
+- The real API key lives only in the server-side `.env` file (never committed to Git, never present on the client)
+- The client holds only an access token, fully separated from the upstream key
+- A packet capture on the client reveals only the token, never the real key
+- Per-user token assignment supports team collaboration
+- Tokens can be revoked at any time without affecting the real key
 
 ---
 
-## 许可证
+## License
 
-专有软件（Proprietary）。未经授权不得商用。详见 [LICENSE](LICENSE)。
+Proprietary software. Commercial use without authorization is prohibited. See [LICENSE](LICENSE).
 
-## 作者
+## Author
 
-ZeroAI Team。详见 [AUTHORS](AUTHORS)。
+ZeroAI Team. See [AUTHORS](AUTHORS).
 
-## 更新日志
+## Changelog
 
-详见 [CHANGELOG.md](CHANGELOG.md)。
+See [CHANGELOG.md](CHANGELOG.md).
 
-## 贡献指南
+## Contributing
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## 致谢
+## Acknowledgements
 
-- [智谱 AI](https://open.bigmodel.cn/) - GLM 系列模型
-- [Textual](https://textual.textualize.io/) - TUI 框架
-- [asyncssh](https://asyncssh.readthedocs.io/) - 异步 SSH 客户端
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - 语音识别
-- [Semantic Scholar](https://www.semanticscholar.org/) - 学术文献数据
-- [FastAPI](https://fastapi.tiangolo.com/) - 代理服务框架
+- [Zhipu AI](https://open.bigmodel.cn/) - GLM family models
+- [Textual](https://textual.textualize.io/) - TUI framework
+- [asyncssh](https://asyncssh.readthedocs.io/) - asynchronous SSH client
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - speech recognition
+- [Semantic Scholar](https://www.semanticscholar.org/) - academic literature data
+- [FastAPI](https://fastapi.tiangolo.com/) - proxy service framework
 
 ---
 
 <div align="center">
 
-**ZeroAI — 让科研协作更高效**
+**ZeroAI — Research collaboration, made efficient**
 
 </div>
