@@ -26,20 +26,30 @@ def _ensure_project_root_in_path():
 
 
 def _get_version() -> str:
-    """获取版本号"""
+    """获取版本号。
+
+    唯一来源是 `zeroai.__version__`（pyproject.toml 的 version 也是从它动态
+    读取的，见 [tool.setuptools.dynamic]）。
+
+    历史实现读 pyproject.toml 的 `project.version`：装到 site-packages 后
+    那里根本没有 pyproject.toml，于是落到硬编码回退值 —— 实测安装 1.1.4 后
+    `--version` 仍然打印 "ZeroAI v1.1.3"。现改为三级来源，全部失败才
+    返回 "unknown"，不再硬编码任何版本号。
+    """
+    # 1. 包内 __version__（权威来源）
     try:
-        # 优先从 pyproject.toml 读取
-        import tomllib  # Python 3.11+
-        _script_dir = os.path.dirname(os.path.abspath(__file__))
-        _project_root = os.path.dirname(_script_dir)
-        pyproject_path = os.path.join(_project_root, "pyproject.toml")
-        if os.path.exists(pyproject_path):
-            with open(pyproject_path, "rb") as f:
-                data = tomllib.load(f)
-                return data.get("project", {}).get("version", "unknown")
+        from . import __version__ as _v
+        if _v:
+            return _v
     except Exception:
         pass
-    return "1.1.3"  # 回退版本号
+    # 2. 已安装发行版的元数据
+    try:
+        from importlib.metadata import version as _pkg_version
+        return _pkg_version("zero-ai-cli")
+    except Exception:
+        pass
+    return "unknown"
 
 
 def _is_console_stream(stream) -> bool:

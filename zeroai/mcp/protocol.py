@@ -264,11 +264,21 @@ def make_text_result(text: str, is_error: bool = False) -> Dict[str, Any]:
 # ============================================================================
 # MCP 初始化握手
 # ============================================================================
+
+# 客户端/服务端对外声明的版本号：唯一来源是 zeroai.__version__。
+# 历史实现把 "1.1.3" 硬编码在 protocol/server/client 三处，与包版本脱节，
+# 导致装 1.1.4 之后 MCP 握手仍对外声称 1.1.3。现统一引用此常量。
+try:
+    from .. import __version__ as ZEROAI_MCP_VERSION
+except Exception:  # pragma: no cover - 仅在包被非常规加载时兜底
+    ZEROAI_MCP_VERSION = "unknown"
+
+
 @dataclass
 class ClientInfo:
     """MCP 客户端信息"""
     name: str = "zeroai"
-    version: str = "1.1.3"
+    version: str = ZEROAI_MCP_VERSION
 
     def to_dict(self) -> Dict[str, Any]:
         return {"name": self.name, "version": self.version}

@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .protocol import (
     MCP_PROTOCOL_VERSION,
+    ZEROAI_MCP_VERSION,
     METHOD_INITIALIZE, METHOD_INITIALIZED,
     METHOD_LIST_TOOLS, METHOD_CALL_TOOL,
     METHOD_LIST_RESOURCES, METHOD_READ_RESOURCE,
@@ -353,7 +354,7 @@ class MCPClient:
     # ========================================================================
     async def _do_initialize(self) -> None:
         """完成 initialize 握手"""
-        client_info = ClientInfo(name="zeroai", version="1.1.3")
+        client_info = ClientInfo(name="zeroai", version=ZEROAI_MCP_VERSION)
         capabilities = ClientCapabilities()
         params = build_initialize_params(client_info, capabilities)
 

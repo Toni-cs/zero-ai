@@ -50,6 +50,10 @@ _LAZY_EXPORTS = {
     "ToolValidationError": ("zeroai.tools.base", "ToolValidationError"),
 }
 
+# 惰性子模块（PEP 562）：`zeroai.memory` / `zeroai.tui` 等首次访问时才 import，
+# 避免 `import zeroai` 就把 Textual / numpy 全家拖起来。
+_LAZY_SUBMODULES = ("core", "memory", "mcp", "tools", "tui", "utils")
+
 
 def __getattr__(name: str):
     if name in _LAZY_EXPORTS:
@@ -58,16 +62,25 @@ def __getattr__(name: str):
         val = getattr(importlib.import_module(mod_name), attr)
         globals()[name] = val  # 缓存，后续访问不再走 __getattr__
         return val
-    # MCP 模块（阶段 3）：延迟导入，避免启动时连接 MCP 服务器
-    if name == "mcp":
-        from . import mcp as _mcp
-        globals()["mcp"] = _mcp
-        return _mcp
+    # 子模块惰性解析（core/memory/mcp/tools/tui/utils）。
+    #
+    # 必须用 importlib.import_module，不能用 `from . import X`：后者内部的
+    # _handle_fromlist 会先做 hasattr(本模块, X) 探测，而该属性此刻尚未写入
+    # globals，于是又绕回本 __getattr__，形成无限递归（实测
+    # `hasattr(zeroai, "mcp")` 直接抛 RecursionError）。
+    #
+    # 注意 core / utils 已在文件顶部被 config/platform 连带导入，因此
+    # 它们的属性访问不会走到这里；其余子模块首次访问时才真正 import。
+    if name in _LAZY_SUBMODULES:
+        import importlib
+        mod = importlib.import_module(__name__ + "." + name)
+        globals()[name] = mod
+        return mod
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def __dir__() -> list:
-    return sorted(set(globals()) | set(_LAZY_EXPORTS) | {"mcp"})
+    return sorted(set(globals()) | set(_LAZY_EXPORTS) | set(_LAZY_SUBMODULES))
 
 
 __version__ = "1.1.4"

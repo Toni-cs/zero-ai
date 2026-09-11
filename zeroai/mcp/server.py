@@ -35,6 +35,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .protocol import (
     MCP_PROTOCOL_VERSION,
+    ZEROAI_MCP_VERSION,
     METHOD_INITIALIZE, METHOD_INITIALIZED,
     METHOD_LIST_TOOLS, METHOD_CALL_TOOL,
     METHOD_LIST_RESOURCES, METHOD_READ_RESOURCE,
@@ -68,7 +69,7 @@ class MCPServer:
     def __init__(
         self,
         server_name: str = "zeroai",
-        server_version: str = "1.1.3",
+        server_version: str = ZEROAI_MCP_VERSION,
     ):
         self.server_info = ServerInfo(name=server_name, version=server_version)
         self.capabilities = ServerCapabilities(
@@ -463,7 +464,7 @@ def create_zeroai_server(register_builtin: bool = True) -> MCPServer:
     """
     server = MCPServer(
         server_name="zeroai",
-        server_version="1.1.3",
+        server_version=ZEROAI_MCP_VERSION,
     )
 
     if register_builtin:
