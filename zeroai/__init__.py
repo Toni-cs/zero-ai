@@ -70,7 +70,7 @@ def __dir__() -> list:
     return sorted(set(globals()) | set(_LAZY_EXPORTS) | {"mcp"})
 
 
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 __author__ = "ZeroAI"
 
 

@@ -5,6 +5,58 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.4] - 2026-09-11
+
+### 安全（信任层）
+- **内置代理改为显式 opt-in**：零配置时不再静默把所有 prompt 经第三方
+  proxy 转发（`zeroai/core/secrets.py` 与 `tui_agent.py` 两处副本同步修改）。
+  启用需显式设置配置文件 `proxy.enabled=true` 或 `ZEROAI_PROXY_URL`/
+  `ZEROAI_PROXY_TOKEN` 环境变量
+- **CHANGELOG 阶段 R 更正**：Zig SIMD 声明与实际产物不符（详见下方
+  "Zig 加速层" 条目），原描述已重写为实测结果
+
+### 性能（启动 51 倍提速）
+- **`import zeroai` 从 1.95s 降到 0.038s**（实测，`python -X importtime` 解剖）：
+  - `model_manager` 不再在 import 时立即构造 OpenAI 客户端（该构造实测
+    耗时 ~0.95s，此前 `--version`/`--check`/`--dry-run` 均被迫支付），
+    改为 PEP 562 模块级惰性属性
+  - `secrets` 的 openai 导入移入 `_make_openai_client` 函数体
+  - `zeroai/__init__.py` 与 `zeroai/core/__init__.py` 全部导出改惰性
+    （`__all__` 与 `from zeroai.core import X` 语义不变）
+  - `--check` 子进程全程 1.5s；测试套件 51s → 38s
+
+### 新增（SoL-Pi 对标 harness 机制，全部 opt-in 默认关闭）
+- **Action Fusion**（`--action-fusion`）：edit/write 工具调用携带显式
+  `follow_up_command` 参数时，同一步内执行该验证命令并合并进同一次
+  observation，省一个完整模型往返。harness 不猜测命令；失败仅追加标记
+- **ObservationPack**（`--observation-pack`）：工具输出超 2000 字符时
+  完整落盘 `.zeroai/observation_pack/`（零截断），observation 替换为
+  "预览 + 归档路径 + read_file 分页召回说明"。归档失败回退原文
+- **Online Context Compact**（`--context-compact`）：工具结果总量超阈值
+  时把较旧结果压缩为收据（保留最近 4 条消息），完整原文保留于
+  executed_steps / session。纯本地零模型调用
+- **diff 审批接线**（`--diff-review`）：headless 模式接通 AgentLoop 的
+  diff 审批闸门；交互终端逐个 y/N，非交互终端 fail-closed 自动拒绝
+- **AgentLoop.run 修复**：`cleanup_and_compress` 结果现在写回调用方传入
+  的 messages 对象（此前重新绑定局部名，外部 list 恒为空）
+- **smart_truncate 修复**：单行超长内容（如压缩成一行的 JSON）此前被
+  截断为空串，observation 整体丢失；现保底保留头部 max_chars
+
+### Zig 加速层（实测裁决：归档）
+- **阶段 R 的 SIMD 代码此前从未编译成功**（`**` 词法错误 + `@ptrCast`
+  对齐错误）。已修复并重编 ReleaseFast，5 个 R 阶段符号首次全部编入 DLL
+- **重编后实测仍输**：Zig 0.27-0.39x（慢于纯 Python 2.5-3.7 倍），C 扩展
+  2.23-3.66x；微基准显示 `zig_simd_find_diff` 本体（含 ctypes 边界）
+  1.0µs/次仍输给 Python 内置 `bytes ==`（C memcmp）0.6µs/次
+- **按预注册规则归档**：Zig 渲染层标记 experimental 停止维护，C 扩展
+  保留为推荐原生后端
+- `zig_render.zig`：`StyleStruct` 首字段 `align(8)`（布局不变）；
+  测试辅助函数替换 `**` 运算符（兼容 Zig 0.17 词法）
+
+### 测试
+- 全量 **61 passed**（55 基线 + 6 项 headless 新增：fusion 合并/默认关闭、
+  diff 审批 fail-closed/批准/拒绝、pack 归档/默认关闭、compact 压缩/默认关闭）
+
 ## [Unreleased] - 2026-07-29
 
 ### 新增 - 阶段 N（代码执行沙箱）
