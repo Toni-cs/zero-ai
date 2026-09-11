@@ -8,6 +8,15 @@
 ## [1.1.4] - 2026-09-11
 
 ### 安全（信任层）
+- **移除全部内置硬编码凭据（fail-closed）**：原内置 GLM Key、OpenRouter Key
+  （`zeroai/core/constants.py`）与第三方代理 URL + 访问 Token
+  （`zeroai/core/secrets.py`）此前以 base64 硬编码，并随 1.1.0–1.1.3 发布到
+  PyPI —— 任何下载者 `base64 -d` 即可还原，属**已公开泄露、不可撤回**。
+  1.1.4 起从源码中彻底删除这四个值（`zeroai/core/` 与 `tui_agent.py` 两处
+  副本同步），包内不再携带任何凭据。Key 改由用户提供
+  （`ZEROAI_API_KEY_GLM` / `ZEROAI_API_KEY_OPENROUTER` 环境变量，或配置文件
+  的 `api_key` 字段）；代理须显式配置。零配置时 API 调用将明确返回鉴权错误，
+  而**不再静默共用同一把密钥消耗账号额度**。原凭据须在服务商侧吊销
 - **内置代理改为显式 opt-in**：零配置时不再静默把所有 prompt 经第三方
   proxy 转发（`zeroai/core/secrets.py` 与 `tui_agent.py` 两处副本同步修改）。
   启用需显式设置配置文件 `proxy.enabled=true` 或 `ZEROAI_PROXY_URL`/

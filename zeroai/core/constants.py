@@ -3,7 +3,7 @@
 迁移来源：tui_agent.py 行 526-962, 1157-1172, 1426-1435, 1742-1747
 
 提供：
-- _BUILTIN_KEYS / _GLM_DEFAULT_KEY / _OR_DEFAULT_KEY：内置 API Key（混淆存储）
+- _BUILTIN_KEYS / _GLM_DEFAULT_KEY / _OR_DEFAULT_KEY：内置 API Key 占位符（v1.1.4 起恒为空，fail-closed）
 - MODEL_CONFIGS：模型后端配置（glm / glm-4 / glm-v / openrouter / ollama）
 - OR_BASE / OR_KEY：OpenRouter 基础配置
 - 混合思考模式参数：HYBRID_MAX_PARALLEL_EXPERTS 等
@@ -14,23 +14,31 @@
 - PERMISSION_LEVEL / MAX_FILE_SIZE：权限与文件大小限制
 
 依赖关系：
-- 本模块从 secrets.py 导入 _deobfuscate / _get_api_key / _load_config
+- 本模块从 secrets.py 导入 _get_api_key / _load_config
 - secrets.py 不在模块级导入本模块，故无循环依赖
 """
-from .secrets import _deobfuscate, _get_api_key, _load_config
+from .secrets import _get_api_key, _load_config
 
 
 # ====== 配置：模型后端（可切换）======
-# 内置免费模型 API Key（混淆存储，运行时自动解混淆）
-# 所有用户均可直接使用，无需自行配置
+# ⚠️ v1.1.4 安全硬化：原内置 GLM / OpenRouter Key 已从源码中彻底移除。
+#
+# 原因：这两个 Key 曾以 base64 硬编码随 1.1.0–1.1.3 发布到 PyPI，
+# 任何下载者 base64 -d 即可还原，属已公开泄露、不可撤回。硬编码共享
+# 凭据本身就是"零配置即所有用户共用一把密钥"的反模式，泄露后更是直接
+# 消耗账号额度。故改为 fail-closed：包内不再携带任何凭据。
+#
+# 现在必须由用户自行提供 Key（否则 API 调用会返回 401，而非静默用他人额度）：
+#   1. 环境变量：ZEROAI_API_KEY_GLM / ZEROAI_API_KEY_OPENROUTER
+#   2. 配置文件：零配置向导或 _save_config 写入的 api_key 字段
 _BUILTIN_KEYS = {
-    "glm": "YWY5MTJiYjI0NTQ5NDNhMGE2NGY1ZTJlZWU5YTRiZTQuZXVjOVgyd09DRWthTm5sQQ==",
-    "openrouter": "c2stb3ItdjEtYWEzNmMyYzJhMzc4NDVlNzliNTI3MDVhMWE1MzU1NDQ1ZDJkMWFjOTk2NzcwNzkzMGZkMTU3N2U1MTg0YzE4NQ==",
+    "glm": "",
+    "openrouter": "",
 }
 
-# 内置默认 Key（从混淆值解出，用户配置的 Key 优先级更高）
-_GLM_DEFAULT_KEY = _deobfuscate(_BUILTIN_KEYS["glm"])
-_OR_DEFAULT_KEY = _deobfuscate(_BUILTIN_KEYS["openrouter"])
+# 内置默认 Key（v1.1.4 起恒为空；用户配置的 Key 优先级仍然更高）
+_GLM_DEFAULT_KEY = ""
+_OR_DEFAULT_KEY = ""
 
 MODEL_CONFIGS = {
     "glm": {
@@ -71,7 +79,7 @@ if not MODEL_CONFIGS["glm"]["api_key"]:
     if "glm" in _old_config and _old_config["glm"].get("api_key"):
         MODEL_CONFIGS["glm"]["api_key"] = _old_config["glm"]["api_key"]
     else:
-        # 回退到内置 Key（确保打包后所有人都能用）
+        # v1.1.4 起无内置 Key（fail-closed）：保持为空，由调用方提示用户配置
         MODEL_CONFIGS["glm"]["api_key"] = _GLM_DEFAULT_KEY
 
 # glm-v 共用 glm 的 Key（同一个智谱账号）

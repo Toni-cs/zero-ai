@@ -462,13 +462,12 @@ def _get_api_key(key: str, default: str = "") -> str:
 _PROXY_URL_ENV = os.environ.get("ZEROAI_PROXY_URL", "").strip()
 _PROXY_TOKEN_ENV = os.environ.get("ZEROAI_PROXY_TOKEN", "").strip()
 
-# 内置默认代理配置（混淆存储，运行时解混淆）
-# 通过 Cloudflare Tunnel 暴露的 ZeroAI Proxy 公网入口
-# 仅作为"可选快速入口"保留：用户须显式配置（环境变量或配置文件 proxy.enabled=true）
-# 才会启用，零配置时默认直连各模型官方 API，绝不静默经第三方转发
+# 内置默认代理配置 —— v1.1.4 安全硬化：原 URL 与 Token 已从源码中彻底移除。
+# 原值以 base64 硬编码随发布产物公开，属已泄露、不可撤回的凭据，永久作废。
+# 需要代理的用户请显式配置环境变量或配置文件（见 _load_proxy_config 优先级）。
 _BUILTIN_PROXY = {
-    "base_url": _deobfuscate("aHR0cHM6Ly9wcm94eS5vbW5pdGVhbS5kcGRucy5vcmcvdjE="),
-    "token": _deobfuscate("d3EzYnlPVnNVeDZuTFJKWUJQN3pyZWJpU1FPUzRYNE1ZWDZ6aVV5bG9CVQ=="),
+    "base_url": "",
+    "token": "",
 }
 
 
@@ -565,16 +564,17 @@ def _make_openai_client(model_key: str):
 
 
 # ====== 配置：模型后端（可切换）======
-# 内置免费模型 API Key（混淆存储，运行时自动解混淆）
-# 所有用户均可直接使用，无需自行配置
+# ⚠️ v1.1.4 安全硬化：原内置 GLM / OpenRouter Key 已从源码中彻底移除。
+# 原值以 base64 硬编码随 1.1.0–1.1.3 发布产物公开，属已泄露、不可撤回。
+# 现为 fail-closed：包内不携带任何凭据，必须由用户提供（环境变量或配置文件）。
 _BUILTIN_KEYS = {
-    "glm": "YWY5MTJiYjI0NTQ5NDNhMGE2NGY1ZTJlZWU5YTRiZTQuZXVjOVgyd09DRWthTm5sQQ==",
-    "openrouter": "c2stb3ItdjEtYWEzNmMyYzJhMzc4NDVlNzliNTI3MDVhMWE1MzU1NDQ1ZDJkMWFjOTk2NzcwNzkzMGZkMTU3N2U1MTg0YzE4NQ==",
+    "glm": "",
+    "openrouter": "",
 }
 
-# 内置默认 Key（从混淆值解出，用户配置的 Key 优先级更高）
-_GLM_DEFAULT_KEY = _deobfuscate(_BUILTIN_KEYS["glm"])
-_OR_DEFAULT_KEY = _deobfuscate(_BUILTIN_KEYS["openrouter"])
+# 内置默认 Key（v1.1.4 起恒为空；用户配置的 Key 优先级仍然更高）
+_GLM_DEFAULT_KEY = ""
+_OR_DEFAULT_KEY = ""
 
 MODEL_CONFIGS = {
     "glm": {
@@ -615,7 +615,7 @@ if not MODEL_CONFIGS["glm"]["api_key"]:
     if "glm" in _old_config and _old_config["glm"].get("api_key"):
         MODEL_CONFIGS["glm"]["api_key"] = _old_config["glm"]["api_key"]
     else:
-        # 回退到内置 Key（确保打包后所有人都能用）
+        # v1.1.4 起无内置 Key（fail-closed）：保持为空，由调用方提示用户配置
         MODEL_CONFIGS["glm"]["api_key"] = _GLM_DEFAULT_KEY
 
 # glm-v 共用 glm 的 Key（同一个智谱账号）

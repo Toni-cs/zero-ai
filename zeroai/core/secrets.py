@@ -94,13 +94,14 @@ def _get_api_key(key: str, default: str = "") -> str:
 _PROXY_URL_ENV = os.environ.get("ZEROAI_PROXY_URL", "").strip()
 _PROXY_TOKEN_ENV = os.environ.get("ZEROAI_PROXY_TOKEN", "").strip()
 
-# 内置默认代理配置（混淆存储，运行时解混淆）
-# 通过 Cloudflare Tunnel 暴露的 ZeroAI Proxy 公网入口
-# 仅作为"可选快速入口"保留：用户须显式配置（环境变量或配置文件 proxy.enabled=true）
-# 才会启用，零配置时默认直连各模型官方 API，绝不静默经第三方转发
+# 内置默认代理配置 —— v1.1.4 安全硬化：原 URL 与 Token 已从源码中彻底移除。
+#
+# 原因：原值以 base64 硬编码随 1.1.0–1.1.3 发布到 PyPI，任何下载者均可还原，
+# 属已公开泄露、不可撤回的凭据，故永久作废。包内不再携带任何代理凭据。
+# 需要经代理转发的用户请显式配置（下方优先级第 1、2 档）。
 _BUILTIN_PROXY = {
-    "base_url": _deobfuscate("aHR0cHM6Ly9wcm94eS5vbW5pdGVhbS5kcGRucy5vcmcvdjE="),
-    "token": _deobfuscate("d3EzYnlPVnNVeDZuTFJKWUJQN3pyZWJpU1FPUzRYNE1ZWDZ6aVV5bG9CVQ=="),
+    "base_url": "",
+    "token": "",
 }
 
 
@@ -113,9 +114,10 @@ def _load_proxy_config() -> dict:
     2. 配置文件中的 proxy 字段（用户自定义开启/关闭）
     3. 默认关闭（安全优先：零配置时绝不静默启用第三方转发）
 
-    信任模型（v1.1.4 起变更）：内置代理信息仅作为"可选快速入口"保留，
-    用户须通过配置文件显式设置 {"proxy": {"enabled": true, ...}} 或设置
-    ZEROAI_PROXY_URL / ZEROAI_PROXY_TOKEN 环境变量才会启用。
+    信任模型（v1.1.4 起变更）：包内不再携带任何内置代理凭据。用户须通过
+    配置文件显式设置 {"proxy": {"enabled": true, "base_url": ..., "token": ...}}
+    或设置 ZEROAI_PROXY_URL / ZEROAI_PROXY_TOKEN 环境变量才会启用代理。
+    零配置时默认直连各模型官方 API，绝不静默经第三方转发。
     """
     # 1. 环境变量优先
     if _PROXY_URL_ENV and _PROXY_TOKEN_ENV:
