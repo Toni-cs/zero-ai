@@ -196,9 +196,10 @@ async def test_c3_end_to_end_zeroai_mcp_server():
         await client.connect()
         assert client.is_connected, "连接失败"
 
-        # 2. 验证服务器信息
+        # 2. 验证服务器信息（版本对比握手常量，不硬编码具体版本号）
+        from zeroai.mcp.protocol import ZEROAI_MCP_VERSION
         assert client.server_info.name == "zeroai"
-        assert client.server_info.version == "1.1.3"
+        assert client.server_info.version == ZEROAI_MCP_VERSION
 
         # 3. 验证服务器能力
         assert client.server_capabilities.supports_tools(), "服务器不支持 tools"

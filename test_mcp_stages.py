@@ -151,7 +151,7 @@ def test_protocol_initialize_params():
         build_initialize_params, parse_initialize_result,
     )
 
-    client_info = ClientInfo(name="zeroai", version="1.1.3")
+    client_info = ClientInfo(name="zeroai")  # version 用默认值（= zeroai.__version__）
     caps = ClientCapabilities()
     params = build_initialize_params(client_info, caps)
 
@@ -658,7 +658,8 @@ def test_integration_mcp_imports():
 def test_integration_zeroai_package():
     """测试 ZeroAI 顶层包可正常导入"""
     import zeroai
-    assert zeroai.__version__ == "1.1.3"
+    # 不硬编码具体版本：只要求是形如 x.y[.z] 的合法版本串
+    assert isinstance(zeroai.__version__, str) and len(zeroai.__version__.split(".")) >= 2
     assert hasattr(zeroai, "mcp")
     assert hasattr(zeroai, "core")
     assert hasattr(zeroai, "memory")

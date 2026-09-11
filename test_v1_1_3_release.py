@@ -1,7 +1,7 @@
-"""v1.1.3 发布测试：完整集成验证
+"""发布测试：完整集成验证
 
 测试目标：
-1. 版本号正确（1.1.3）
+1. 版本号正确（动态对比 zeroai.__version__，不再硬编码具体版本）
 2. 统一入口 zeroai.main 可用
 3. python -m zeroai 支持
 4. zeroai.core 全部子模块可导入
@@ -19,23 +19,26 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_version():
-    """测试 1：版本号验证"""
+    """测试 1：版本号验证（与包内 __version__ 动态比对）"""
     print("[Test 1] 版本号验证...")
+    import zeroai
     result = subprocess.run(
         [sys.executable, "-m", "zeroai", "--version"],
         capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__))
     )
     assert result.returncode == 0, f"zeroai --version 失败: {result.stderr}"
-    assert "1.1.3" in result.stdout, f"版本号不是 1.1.3: {result.stdout}"
+    assert zeroai.__version__ in result.stdout, \
+        f"--version 输出 {result.stdout!r} 与包版本 {zeroai.__version__} 不一致"
     print(f"  OK: {result.stdout.strip()}")
 
 
 def test_main_entry():
     """测试 2：统一入口"""
     print("\n[Test 2] 统一入口验证...")
+    import zeroai
     from zeroai.main import main, _get_version
     assert callable(main), "zeroai.main.main 不可调用"
-    assert _get_version() == "1.1.3", f"版本号错误: {_get_version()}"
+    assert _get_version() == zeroai.__version__, f"版本号错误: {_get_version()}"
     print(f"  OK: zeroai.main.main 可调用，版本 {_get_version()}")
 
 
@@ -135,7 +138,7 @@ def test_real_calls():
 
     # read_file
     result = tui_agent.read_file(__file__, max_length=50)
-    assert isinstance(result, str) and "v1.1.3" in result or "test" in result.lower()
+    assert isinstance(result, str) and result
     print(f"  OK: read_file 成功（{len(result)} 字符）")
 
     # system_info
