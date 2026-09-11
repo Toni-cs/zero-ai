@@ -151,6 +151,17 @@ def set_current_model_key(key: str):
         CURRENT_MODEL_KEY = key
 
 
-# 兼容旧代码：初始化全局 client 和 MODEL（与 tui_agent.py 行 1738-1739 一致）
-client = get_client()
-MODEL = get_model_name()
+# 兼容旧代码：client / MODEL 曾在 import 时立即初始化（tui_agent.py 行 1738-1739）。
+# 实测代价：OpenAI() 构造 ~0.95s，导致 --version/--check/--dry-run 等完全不碰
+# LLM 的路径也每次白付 1 秒。改为 PEP 562 模块级惰性属性：首次访问时才构造，
+# 对外属性名与语义不变。
+def __getattr__(name: str):
+    if name == "client":
+        val = get_client()
+        globals()["client"] = val
+        return val
+    if name == "MODEL":
+        val = get_model_name()
+        globals()["MODEL"] = val
+        return val
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
