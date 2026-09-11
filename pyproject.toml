@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zero-ai-cli"
-version = "1.1.3"
+# 版本号唯一来源：zeroai/__init__.py 的 __version__（动态读取）。
+# 此前 pyproject 与 __init__ 各自硬编码，实测已发生漂移（__init__ 升到
+# 1.1.4 而此处仍写 1.1.3，构建产物版本错误），故改为单点定义。
+dynamic = ["version"]
 description = "ZeroAI - 终端 AI 编程助手（多专家协作·语音对话·文档生成·安全审计）"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -79,6 +82,11 @@ zeroai = "zeroai.main:main"
 # （真正的配置在 zeroai/core/config.py）。setuptools 会容忍这个悬空声明，
 # 但它纯粹是误导，已移除。
 py-modules = ["tui_agent"]
+
+[tool.setuptools.dynamic]
+# 版本号从 zeroai/__init__.py 的 __version__ 读取（setuptools 优先做 AST
+# 静态解析，必要时回退 import；该包 __init__ 为惰性导入，import 成本 ~0.04s）
+version = { attr = "zeroai.__version__" }
 
 [tool.setuptools.packages.find]
 # zeroai-tui/ 目录名含连字符，不是合法 Python 包名，默认发现器扫不到它，
