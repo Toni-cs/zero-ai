@@ -464,7 +464,8 @@ _PROXY_TOKEN_ENV = os.environ.get("ZEROAI_PROXY_TOKEN", "").strip()
 
 # 内置默认代理配置（混淆存储，运行时解混淆）
 # 通过 Cloudflare Tunnel 暴露的 ZeroAI Proxy 公网入口
-# 所有用户开箱即用，无需手动配置；用户自定义后优先使用用户的配置
+# 仅作为"可选快速入口"保留：用户须显式配置（环境变量或配置文件 proxy.enabled=true）
+# 才会启用，零配置时默认直连各模型官方 API，绝不静默经第三方转发
 _BUILTIN_PROXY = {
     "base_url": _deobfuscate("aHR0cHM6Ly9wcm94eS5vbW5pdGVhbS5kcGRucy5vcmcvdjE="),
     "token": _deobfuscate("d3EzYnlPVnNVeDZuTFJKWUJQN3pyZWJpU1FPUzRYNE1ZWDZ6aVV5bG9CVQ=="),
@@ -476,12 +477,13 @@ def _load_proxy_config() -> dict:
     返回 {"enabled": bool, "base_url": str, "token": str}
 
     优先级：
-    1. 环境变量（最高，自动启用）
-    2. 配置文件中的 proxy 字段（用户自定义/关闭）
-    3. 内置默认值（首次启动自动启用，开箱即用）
+    1. 环境变量（最高，显式设置即视为用户主动启用）
+    2. 配置文件中的 proxy 字段（用户自定义开启/关闭）
+    3. 默认关闭（安全优先：零配置时绝不静默启用第三方转发）
 
-    注意：配置文件中若显式设置 enabled=False，则按用户意愿关闭，
-    不再被内置默认值覆盖。仅当配置文件完全没有 proxy 字段时才回退到内置默认值。
+    信任模型（v1.1.4 起变更）：内置代理信息仅作为"可选快速入口"保留，
+    用户须通过配置文件显式设置 {"proxy": {"enabled": true, ...}} 或设置
+    ZEROAI_PROXY_URL / ZEROAI_PROXY_TOKEN 环境变量才会启用。
     """
     # 1. 环境变量优先
     if _PROXY_URL_ENV and _PROXY_TOKEN_ENV:
@@ -503,9 +505,10 @@ def _load_proxy_config() -> dict:
     except Exception:
         pass
 
-    # 3. 内置默认值（首次启动，开箱即用）
+    # 3. 默认关闭（安全优先：零配置不静默启用第三方转发；
+    #    如需开箱即用的代理，显式设置环境变量或配置文件 proxy.enabled=true）
     return {
-        "enabled": True,
+        "enabled": False,
         "base_url": _BUILTIN_PROXY["base_url"],
         "token": _BUILTIN_PROXY["token"],
     }
