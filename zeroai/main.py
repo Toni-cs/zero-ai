@@ -42,9 +42,58 @@ def _get_version() -> str:
     return "1.1.3"  # 回退版本号
 
 
+def _is_console_stream(stream) -> bool:
+    """判断某个标准流是否真的连着一个控制台/终端。
+
+    为什么不能只用 sys.stdin.isatty()：
+        Windows 上 `NUL` 设备会被 CPython 的 isatty() **误判为 True**。
+        因此这里在 Windows 上额外用 GetConsoleMode 二次确认——它对
+        NUL、管道、文件重定向一律失败，只有真控制台才成功。
+    """
+    if stream is None:
+        return False
+    try:
+        if not stream.isatty():
+            return False
+    except Exception:
+        return False
+
+    if os.name != "nt":
+        return True
+
+    try:
+        import ctypes
+        import msvcrt
+        handle = msvcrt.get_osfhandle(stream.fileno())
+        mode = ctypes.c_uint()
+        return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
+    except Exception:
+        return False
+
+
+def _has_interactive_terminal() -> bool:
+    """stdin 与 stdout **都**真的连着控制台，才认为处于交互式终端。
+
+    为什么两个流都要检查：Textual 既要读键盘（stdin）也要写屏幕（stdout），
+    任何一个被重定向（`< nul`、`| tee`、`> out.txt`、CI 里的管道）都会让它
+    永久挂起。实测：stdin 重定向到 nul 时 `python -m zeroai` 挂死 >20s。
+    逃生舱：设置 ZEROAI_FORCE_TUI=1 可跳过本检查强制启动 UI。
+    """
+    return _is_console_stream(sys.stdin) and _is_console_stream(sys.stdout)
+
+
 def main():
     """ZeroAI 主入口"""
     _ensure_project_root_in_path()
+
+    # ---- 无头模式分流 ----
+    # 命中这些开关时把控制权交给 zeroai.cli，完全不启动 TUI。
+    # 这样在 CI / 管道 / cron / 非交互 SSH 里也能用，且不会挂死。
+    _argv = sys.argv[1:]
+    _headless = {"-t", "--task", "--check", "--dry-run"}
+    if any(a in _headless or a.startswith("--task=") for a in _argv):
+        from zeroai.cli import main as _cli_main
+        return _cli_main(_argv)
 
     version = _get_version()
     parser = argparse.ArgumentParser(
@@ -56,6 +105,16 @@ def main():
     parser.add_argument("--expert", type=str, help="Direct expert mode (skip routing)")
     parser.add_argument("--version", action="version", version=f"ZeroAI v{version}")
     args, unknown = parser.parse_known_args()
+
+    # ---- 非交互环境保护 ----
+    # 与其让 app.run() 永久挂起，不如明确报错并告诉用户正确用法。
+    if not _has_interactive_terminal() and not os.environ.get("ZEROAI_FORCE_TUI"):
+        print("ZeroAI: 检测到非交互环境（stdin/stdout 不是真正的终端），"
+              "已拒绝启动终端 UI 以避免挂起。", file=sys.stderr)
+        print("  无头执行任务：  zeroai --task \"你的任务\" [--json]", file=sys.stderr)
+        print("  环境自检：      zeroai --check", file=sys.stderr)
+        print("  确实要启动 UI： 设置环境变量 ZEROAI_FORCE_TUI=1", file=sys.stderr)
+        return 2
 
     try:
         if args.ui == "zeroai-tui":

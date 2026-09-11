@@ -1,5 +1,6 @@
 """Configuration loader for ZeroAI"""
 import os
+import sys
 import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -23,10 +24,12 @@ class Config:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f) or {}
         except FileNotFoundError:
-            print(f"Warning: Config file not found at {self.config_path}")
+            # 警告必须走 stderr：这是库代码，把诊断信息打到 stdout 会污染
+            # 调用方的输出（例如 `zeroai --task ... --json` 的单行 JSON 契约）。
+            print(f"Warning: Config file not found at {self.config_path}", file=sys.stderr)
             return self._get_default_config()
         except yaml.YAMLError as e:
-            print(f"Warning: Error parsing config file: {e}")
+            print(f"Warning: Error parsing config file: {e}", file=sys.stderr)
             return self._get_default_config()
     
     def _get_default_config(self) -> Dict[str, Any]:

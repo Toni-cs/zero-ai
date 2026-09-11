@@ -75,15 +75,32 @@ zeroai = "zeroai.main:main"
 
 [tool.setuptools]
 # 包含模块
-py-modules = ["tui_agent", "config"]
+# 注意：原来这里写了 "config"，但仓库根目录并不存在 config.py
+# （真正的配置在 zeroai/core/config.py）。setuptools 会容忍这个悬空声明，
+# 但它纯粹是误导，已移除。
+py-modules = ["tui_agent"]
 
 [tool.setuptools.packages.find]
-# 包含 zeroai 包及其全部子包（core/tools/tui）
-include = ["zeroai*", "zeroai_tui*"]
+# zeroai-tui/ 目录名含连字符，不是合法 Python 包名，默认发现器扫不到它，
+# 因此把该目录也加入 where 搜索路径，让 zeroai_tui 包能被正确安装。
+#
+# namespaces = false 很关键：pyproject 模式下 setuptools 默认开启命名空间包
+# 发现，会把 zeroai-proxy/、zeroai-tui/ 这类"名字以 zeroai 开头"的目录
+# 当成命名空间包塞进 wheel（实测确实被塞进去了）。这里关掉，并且用
+# "zeroai" / "zeroai.*" 这种精确模式（注意 "zeroai-proxy" 不含点，
+# 因此不会被 "zeroai.*" 匹配），确保客户端包里只有真正的代码。
+where = [".", "zeroai-tui"]
+include = ["zeroai", "zeroai.*", "zeroai_tui", "zeroai_tui.*"]
+namespaces = false
 
 [tool.setuptools.package-data]
 # 包含图标资源
 "*" = ["assets/icons/*"]
+# zeroai/config.yaml 是默认配置，必须随包一起发布。
+# 之前漏了这条，实测后果：全新的 pip 安装每次启动都会打印
+# "Warning: Config file not found ..."，而且那行警告走的是 stdout，
+# 会直接污染 --json 的单行输出契约。
+"zeroai" = ["config.yaml"]
 # zeroai_tui 包含 Zig 共享库和 C 源码
 "zeroai_tui" = ["*.dll", "*.so", "*.dylib", "src/*.c"]
 
