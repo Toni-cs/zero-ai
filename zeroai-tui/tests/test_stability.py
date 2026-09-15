@@ -40,11 +40,10 @@ def test_terminal_basic():
         color = Terminal.supports_color()
         print(f"  [OK] Color support: {color}")
         
-        return True
     except Exception as e:
         print(f"  [FAIL] {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_terminal_raw_mode():
@@ -70,11 +69,10 @@ def test_terminal_raw_mode():
         Terminal.set_raw_mode(False)
         print("  [OK] Raw mode disabled")
         
-        return True
     except Exception as e:
         print(f"  [FAIL] {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_renderer():
@@ -106,11 +104,10 @@ def test_renderer():
         renderer.flush()
         print("  [OK] Renderer write/flush")
         
-        return True
     except Exception as e:
         print(f"  [FAIL] {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_components():
@@ -143,11 +140,10 @@ def test_components():
         assert len(scroll.children) == 10
         print("  [OK] ScrollView component")
         
-        return True
     except Exception as e:
         print(f"  [FAIL] {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_input_handling():
@@ -175,11 +171,10 @@ def test_input_handling():
         assert input_field.cursor_pos == 1
         print("  [OK] Cursor position")
 
-        return True
     except Exception as e:
         print(f"  [FAIL] {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_stress():
@@ -213,11 +208,10 @@ def test_stress():
         
         print(f"  [OK] {iterations} frames in {elapsed:.2f}s ({fps:.0f} FPS)")
         
-        return True
     except Exception as e:
         print(f"  [FAIL] {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

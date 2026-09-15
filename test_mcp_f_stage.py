@@ -36,7 +36,6 @@ def test_health_monitor():
     assert monitor.policy.get_delay(3) == 8.0
     assert monitor.policy.get_delay(10) == 60.0  # 上限
     print("  [OK] Health monitor with exponential backoff")
-    return True
 
 
 def test_health_record():
@@ -55,7 +54,6 @@ def test_health_record():
     assert d["is_healthy"] is False
     assert "history" in d
     print("  [OK] Health record serialization")
-    return True
 
 
 def test_audit_logger():
@@ -81,7 +79,6 @@ def test_audit_logger():
     assert record.success is True
     assert record.duration == 0.123
     print("  [OK] Audit record created")
-    return True
 
 
 def test_audit_sanitization():
@@ -109,7 +106,6 @@ def test_audit_sanitization():
     sanitized_result = _sanitize_result(result)
     assert "abc123xyz789" not in sanitized_result
     print("  [OK] Sensitive data sanitized")
-    return True
 
 
 def test_audit_query():
@@ -148,7 +144,6 @@ def test_audit_query():
     assert stats["fail_count"] == 1
     assert "filesystem" in stats["by_server"]
     print(f"  [OK] Query: {len(all_records)} records, stats: {stats['total_calls']} calls")
-    return True
 
 
 def test_ecosystem_presets():
@@ -171,7 +166,6 @@ def test_ecosystem_presets():
     assert "git" in preset_names
     assert "sqlite" in preset_names
     print(f"  [OK] {len(presets)} presets available: {preset_names[:3]}...")
-    return True
 
 
 def test_conflict_detection():
@@ -182,7 +176,6 @@ def test_conflict_detection():
     # 无 MCP 服务器连接时应该无冲突
     assert isinstance(conflicts, list)
     print(f"  [OK] Conflicts detected: {len(conflicts)}")
-    return True
 
 
 def test_status():
@@ -195,7 +188,6 @@ def test_status():
     assert isinstance(status.builtin_tools, int)
     assert isinstance(status.details, dict)
     print(f"  [OK] Status: {status.total_presets} presets, {status.builtin_tools} builtin tools")
-    return True
 
 
 def main():
@@ -220,8 +212,8 @@ def main():
     for name, test in tests:
         print()
         try:
-            if test():
-                passed += 1
+            test()
+            passed += 1
         except Exception as e:
             print(f"  [FAIL] {e}")
             import traceback
@@ -232,8 +224,13 @@ def main():
     print("=" * 60)
     print(f"Results: {passed} passed, {failed} failed")
     print("=" * 60)
-    return failed == 0
+    assert failed == 0, f"{failed} 项测试失败"
 
 
 if __name__ == "__main__":
-    sys.exit(0 if main() else 1)
+    try:
+        main()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"测试失败: {e}")
+        sys.exit(1)

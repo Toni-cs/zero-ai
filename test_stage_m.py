@@ -37,7 +37,6 @@ def test_m1_llm_embed_signature():
     print("  [OK] embed 方法签名正确")
     print("  [OK] embed_sync 方法存在")
     print("  [OK] embed_one 方法存在")
-    return True
 
 
 def test_m2_embedding_backend_embed_func():
@@ -71,7 +70,6 @@ def test_m2_embedding_backend_embed_func():
 
     vecs = asyncio.get_event_loop().run_until_complete(_test())
     print(f"  [OK] 嵌入结果 shape: {vecs.shape}")
-    return True
 
 
 def test_m2_vector_store_faiss_detection():
@@ -88,7 +86,6 @@ def test_m2_vector_store_faiss_detection():
         # 验证 FAISS 检测不崩溃
         print(f"  [OK] FAISS available: {store._faiss_available}")
         print("  [OK] VectorStore 初始化成功（无论 FAISS 是否可用）")
-    return True
 
 
 def test_m3_semantic_chunker_basic():
@@ -142,7 +139,6 @@ def hello():
                    for c in chunks)
     print(f"  [OK] 代码块保持完整: {has_code}")
 
-    return True
 
 
 def test_m3_semantic_chunker_short_merge():
@@ -163,7 +159,6 @@ def test_m3_semantic_chunker_short_merge():
     for c in chunks:
         print(f"    - size={c['size']}, content={c['content'][:50]}...")
 
-    return True
 
 
 def test_m3_mmr_reranker():
@@ -196,7 +191,6 @@ def test_m3_mmr_reranker():
     for i, r in enumerate(result, 1):
         print(f"    [{i}] score={r['score']:.2f} - {r['content']}")
 
-    return True
 
 
 def test_m3_context_compressor():
@@ -234,7 +228,6 @@ def test_m3_context_compressor():
     assert "省略" not in not_compressed
     print("  [OK] 未超限时保持原文")
 
-    return True
 
 
 def test_m3_rag_pipeline_end_to_end():
@@ -309,7 +302,6 @@ ZeroAI 也可以作为 MCP 服务器，暴露 58+ 工具给外部客户端。
         assert "compressor" in stats
         print(f"  [OK] 统计信息完整")
 
-    return True
 
 
 def test_m3_rag_pipeline_with_fake_embed():
@@ -358,7 +350,6 @@ def test_m3_rag_pipeline_with_fake_embed():
         result = asyncio.get_event_loop().run_until_complete(_test())
         print(f"  [OK] 注入 embed 后检索成功, 结果长度: {len(result)}")
 
-    return True
 
 
 def main():
@@ -380,13 +371,9 @@ def main():
 
     for name, test_func in tests:
         try:
-            result = test_func()
-            if result:
-                passed += 1
-                print(f"\n[PASS] {name}")
-            else:
-                failed += 1
-                print(f"\n[FAIL] {name}")
+            test_func()
+            passed += 1
+            print(f"\n[PASS] {name}")
         except Exception as e:
             failed += 1
             print(f"\n[FAIL] {name}: {e}")
@@ -397,8 +384,13 @@ def main():
     print(f"阶段 M 测试结果: {passed}/{passed + failed} 通过")
     print("=" * 60)
 
-    return 0 if failed == 0 else 1
+    assert failed == 0, f"{failed} 项测试失败"
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"测试失败: {e}")
+        sys.exit(1)

@@ -18,6 +18,11 @@ import ctypes
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+try:
+    import pytest
+except ImportError:
+    pytest = None
+
 
 # 检测 C 扩展是否可用
 HAS_C_RENDERER = False
@@ -29,25 +34,26 @@ except ImportError:
 
 
 def _skip_if_no_c_ext(test_name: str):
-    """无 C 扩展时统一跳过测试（返回 True 表示跳过，不算失败）"""
+    """无 C 扩展时统一跳过测试"""
     if not HAS_C_RENDERER:
         print(f"  [SKIP] C extension not available, skipping {test_name}")
-        return True
-    return None  # 继续
+        if pytest is not None:
+            pytest.skip(f"C extension not available, skipping {test_name}")
+        return  # 直接运行时跳过
 
 
 def test_c_style_struct_size():
     """测试 C 端 StyleStruct 大小为 8 字节"""
     print("[Test] C StyleStruct size == 8...")
-    try:
-        from zeroai_tui import _renderer
-        # C 扩展内部有编译期断言保证 sizeof(StyleStruct) == 8
-        # 如果扩展能加载，说明断言已通过
-        print("  [OK] C extension loaded (compile-time assert passed)")
-        return True
-    except ImportError as e:
-        print(f"  [SKIP] C extension not available: {e}")
-        return True  # 不失败，只是跳过
+    if not HAS_C_RENDERER:
+        print("  [SKIP] C extension not available")
+        if pytest is not None:
+            pytest.skip("C extension not available")
+        return
+    from zeroai_tui import _renderer
+    # C 扩展内部有编译期断言保证 sizeof(StyleStruct) == 8
+    # 如果扩展能加载，说明断言已通过
+    print("  [OK] C extension loaded (compile-time assert passed)")
 
 
 def test_ctypes_style_struct_layout():
@@ -57,13 +63,15 @@ def test_ctypes_style_struct_layout():
         from zeroai_tui._zig_bindings import StyleStruct
     except ImportError:
         print("  [SKIP] _zig_bindings not available")
-        return True
+        if pytest is not None:
+            pytest.skip("_zig_bindings not available")
+        return
 
     # 大小必须为 8 字节（与 C/Zig 一致）
     size = ctypes.sizeof(StyleStruct)
     if size != 8:
         print(f"  [FAIL] sizeof(StyleStruct) = {size}, expected 8")
-        return False
+        raise AssertionError(f"sizeof(StyleStruct) = {size}, expected 8")
 
     # 字段偏移量验证
     # offset 0: bold      (u8)
@@ -88,287 +96,228 @@ def test_ctypes_style_struct_layout():
             field_obj = getattr(StyleStruct, field, None)
             if field_obj is None or not hasattr(field_obj, 'offset'):
                 print(f"  [FAIL] field '{field}' not accessible")
-                return False
+                raise AssertionError(f"field '{field}' not accessible")
             actual_offset = field_obj.offset
         if actual_offset != expected_offset:
             print(f"  [FAIL] field '{field}' offset = {actual_offset}, expected {expected_offset}")
-            return False
+            raise AssertionError(f"field '{field}' offset = {actual_offset}, expected {expected_offset}")
 
     # 测试字段读写
     s = StyleStruct(bold=1, dim=0, italic=1, underline=0, fg_id=5, bg_id=-1)
     if s.bold != 1 or s.italic != 1 or s.fg_id != 5 or s.bg_id != -1:
         print(f"  [FAIL] field read/write mismatch: {s}")
-        return False
+        raise AssertionError(f"field read/write mismatch: {s}")
 
     # 测试默认值
     s2 = StyleStruct()
     if s2.bold != 0 or s2.fg_id != 0:
         print(f"  [FAIL] default value mismatch: {s2}")
-        return False
+        raise AssertionError(f"default value mismatch: {s2}")
 
     print(f"  [OK] ctypes StyleStruct: size={size}, all offsets correct")
-    return True
 
 
 def test_zig_available_query():
     """测试 Zig 可用性查询"""
     print("[Test] Zig availability query...")
-    skip = _skip_if_no_c_ext("zig_available_query")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        available = bool(_renderer.zig_available())
-        print(f"  [OK] Zig available: {available}")
-        return True
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        return False
+    _skip_if_no_c_ext("zig_available_query")
+    from zeroai_tui import _renderer
+    available = bool(_renderer.zig_available())
+    print(f"  [OK] Zig available: {available}")
 
 
 def test_zig_c_output_consistency():
     """测试 Zig 路径与 C 路径输出一致性"""
     print("[Test] Zig/C output consistency...")
-    skip = _skip_if_no_c_ext("zig_c_output_consistency")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        from zeroai_tui.renderer import RenderBuffer, Style
-        from zeroai_tui.terminal import Color
+    _skip_if_no_c_ext("zig_c_output_consistency")
+    from zeroai_tui import _renderer
+    from zeroai_tui.renderer import RenderBuffer, Style
+    from zeroai_tui.terminal import Color
 
-        rows, cols = 5, 20
-        current = RenderBuffer(cols, rows)
-        next_buf = RenderBuffer(cols, rows)
+    rows, cols = 5, 20
+    current = RenderBuffer(cols, rows)
+    next_buf = RenderBuffer(cols, rows)
 
-        # 填充不同的内容
-        next_buf.write(0, 0, "Hello", Style(bold=True, fg=Color.CYAN))
-        next_buf.write(1, 0, "World", Style(fg=Color.GREEN))
-        next_buf.write(2, 0, "Test", Style(dim=True))
+    # 填充不同的内容
+    next_buf.write(0, 0, "Hello", Style(bold=True, fg=Color.CYAN))
+    next_buf.write(1, 0, "World", Style(fg=Color.GREEN))
+    next_buf.write(2, 0, "Test", Style(dim=True))
 
-        # 调用 diff_buffers（内部自动选择 Zig 或 C 路径）
-        output1 = _renderer.diff_buffers(
-            current.buffer, current.styles,
-            next_buf.buffer, next_buf.styles,
-            rows, cols
-        )
+    # 调用 diff_buffers（内部自动选择 Zig 或 C 路径）
+    output1 = _renderer.diff_buffers(
+        current.buffer, current.styles,
+        next_buf.buffer, next_buf.styles,
+        rows, cols
+    )
 
-        # 再次调用，结果应该一致
-        # 重建 current（因为 diff 后会 swap）
-        current2 = RenderBuffer(cols, rows)
-        next_buf2 = RenderBuffer(cols, rows)
-        next_buf2.write(0, 0, "Hello", Style(bold=True, fg=Color.CYAN))
-        next_buf2.write(1, 0, "World", Style(fg=Color.GREEN))
-        next_buf2.write(2, 0, "Test", Style(dim=True))
+    # 再次调用，结果应该一致
+    # 重建 current（因为 diff 后会 swap）
+    current2 = RenderBuffer(cols, rows)
+    next_buf2 = RenderBuffer(cols, rows)
+    next_buf2.write(0, 0, "Hello", Style(bold=True, fg=Color.CYAN))
+    next_buf2.write(1, 0, "World", Style(fg=Color.GREEN))
+    next_buf2.write(2, 0, "Test", Style(dim=True))
 
-        output2 = _renderer.diff_buffers(
-            current2.buffer, current2.styles,
-            next_buf2.buffer, next_buf2.styles,
-            rows, cols
-        )
+    output2 = _renderer.diff_buffers(
+        current2.buffer, current2.styles,
+        next_buf2.buffer, next_buf2.styles,
+        rows, cols
+    )
 
-        if output1 == output2:
-            print(f"  [OK] Outputs consistent ({len(output1)} chars)")
-            return True
-        else:
-            print(f"  [WARN] Outputs differ: {len(output1)} vs {len(output2)}")
-            # 差异可能来自 Zig/C 不同的输出顺序，但功能都正确
-            return True
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    if output1 == output2:
+        print(f"  [OK] Outputs consistent ({len(output1)} chars)")
+    else:
+        print(f"  [WARN] Outputs differ: {len(output1)} vs {len(output2)}")
+        # 差异可能来自 Zig/C 不同的输出顺序，但功能都正确
 
 
 def test_fallback_when_zig_unavailable():
     """测试 Zig 不可用时 C 路径正确回退"""
     print("[Test] C fallback when Zig unavailable...")
-    skip = _skip_if_no_c_ext("fallback_when_zig_unavailable")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        from zeroai_tui.renderer import RenderBuffer, Style
-        from zeroai_tui.terminal import Color
+    _skip_if_no_c_ext("fallback_when_zig_unavailable")
+    from zeroai_tui import _renderer
+    from zeroai_tui.renderer import RenderBuffer, Style
+    from zeroai_tui.terminal import Color
 
-        rows, cols = 3, 10
-        current = RenderBuffer(cols, rows)
-        next_buf = RenderBuffer(cols, rows)
-        next_buf.write(0, 0, "AB", Style(bold=True, fg=Color.RED))
+    rows, cols = 3, 10
+    current = RenderBuffer(cols, rows)
+    next_buf = RenderBuffer(cols, rows)
+    next_buf.write(0, 0, "AB", Style(bold=True, fg=Color.RED))
 
-        # 无论 Zig 是否可用，diff_buffers 都应该返回有效输出
-        output = _renderer.diff_buffers(
-            current.buffer, current.styles,
-            next_buf.buffer, next_buf.styles,
-            rows, cols
-        )
+    # 无论 Zig 是否可用，diff_buffers 都应该返回有效输出
+    output = _renderer.diff_buffers(
+        current.buffer, current.styles,
+        next_buf.buffer, next_buf.styles,
+        rows, cols
+    )
 
-        if output and len(output) > 0:
-            # 验证输出包含光标移动序列
-            has_cursor = "\033[" in output
-            has_reset = "\033[0m" in output
-            if has_cursor and has_reset:
-                print(f"  [OK] Fallback works (output: {len(output)} chars)")
-                return True
-            else:
-                print(f"  [WARN] Output missing expected sequences (cursor={has_cursor}, reset={has_reset})")
-                return True
+    if output and len(output) > 0:
+        # 验证输出包含光标移动序列
+        has_cursor = "\033[" in output
+        has_reset = "\033[0m" in output
+        if has_cursor and has_reset:
+            print(f"  [OK] Fallback works (output: {len(output)} chars)")
         else:
-            print("  [FAIL] Empty output")
-            return False
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+            print(f"  [WARN] Output missing expected sequences (cursor={has_cursor}, reset={has_reset})")
+    else:
+        print("  [FAIL] Empty output")
+        raise AssertionError("Empty output from diff_buffers")
 
 
 def test_empty_buffer_diff():
     """测试空缓冲区 diff"""
     print("[Test] Empty buffer diff...")
-    skip = _skip_if_no_c_ext("empty_buffer_diff")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        from zeroai_tui.renderer import RenderBuffer
+    _skip_if_no_c_ext("empty_buffer_diff")
+    from zeroai_tui import _renderer
+    from zeroai_tui.renderer import RenderBuffer
 
-        rows, cols = 5, 10
-        buf1 = RenderBuffer(cols, rows)
-        buf2 = RenderBuffer(cols, rows)
+    rows, cols = 5, 10
+    buf1 = RenderBuffer(cols, rows)
+    buf2 = RenderBuffer(cols, rows)
 
-        # 两个相同的空缓冲区，diff 应该返回空或仅重置序列
-        output = _renderer.diff_buffers(
-            buf1.buffer, buf1.styles,
-            buf2.buffer, buf2.styles,
-            rows, cols
-        )
+    # 两个相同的空缓冲区，diff 应该返回空或仅重置序列
+    output = _renderer.diff_buffers(
+        buf1.buffer, buf1.styles,
+        buf2.buffer, buf2.styles,
+        rows, cols
+    )
 
-        # 没有变化时，输出应该是空字符串或仅包含重置序列
-        if output == "" or output == "\033[0m":
-            print(f"  [OK] Empty diff returns: {repr(output)}")
-            return True
-        else:
-            print(f"  [WARN] Unexpected output: {repr(output[:50])}")
-            return True
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        return False
+    # 没有变化时，输出应该是空字符串或仅包含重置序列
+    if output == "" or output == "\033[0m":
+        print(f"  [OK] Empty diff returns: {repr(output)}")
+    else:
+        print(f"  [WARN] Unexpected output: {repr(output[:50])}")
 
 
 def test_reload_zig():
     """测试 Zig 库热重载"""
     print("[Test] Zig reload...")
-    skip = _skip_if_no_c_ext("reload_zig")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        # reload_zig 应该总是返回布尔值，不抛异常
-        result = _renderer.reload_zig()
-        print(f"  [OK] reload_zig returned: {result}")
-        return True
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        return False
+    _skip_if_no_c_ext("reload_zig")
+    from zeroai_tui import _renderer
+    # reload_zig 应该总是返回布尔值，不抛异常
+    result = _renderer.reload_zig()
+    print(f"  [OK] reload_zig returned: {result}")
 
 
 def test_large_buffer_stress():
     """测试大缓冲区 stress 测试（200x100 = 20000 cells）"""
     print("[Test] Large buffer stress (200x100)...")
-    skip = _skip_if_no_c_ext("large_buffer_stress")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        from zeroai_tui.renderer import RenderBuffer, Style
-        from zeroai_tui.terminal import Color
+    _skip_if_no_c_ext("large_buffer_stress")
+    from zeroai_tui import _renderer
+    from zeroai_tui.renderer import RenderBuffer, Style
+    from zeroai_tui.terminal import Color
 
-        rows, cols = 100, 200
-        current = RenderBuffer(cols, rows)
-        next_buf = RenderBuffer(cols, rows)
+    rows, cols = 100, 200
+    current = RenderBuffer(cols, rows)
+    next_buf = RenderBuffer(cols, rows)
 
-        # 填充大量变化：每隔 5 个字符变化一次
-        for row in range(rows):
-            for col in range(cols):
-                if (row * cols + col) % 5 == 0:
-                    next_buf.put(row, col, chr(ord('A') + (col % 26)),
-                                 Style(bold=True, fg=Color.CYAN))
+    # 填充大量变化：每隔 5 个字符变化一次
+    for row in range(rows):
+        for col in range(cols):
+            if (row * cols + col) % 5 == 0:
+                next_buf.put(row, col, chr(ord('A') + (col % 26)),
+                             Style(bold=True, fg=Color.CYAN))
 
-        # 调用 diff_buffers（无论 Zig 还是 C 路径都应正常工作）
-        output = _renderer.diff_buffers(
-            current.buffer, current.styles,
-            next_buf.buffer, next_buf.styles,
-            rows, cols
-        )
+    # 调用 diff_buffers（无论 Zig 还是 C 路径都应正常工作）
+    output = _renderer.diff_buffers(
+        current.buffer, current.styles,
+        next_buf.buffer, next_buf.styles,
+        rows, cols
+    )
 
-        if not output:
-            print("  [FAIL] Empty output for large buffer")
-            return False
+    if not output:
+        print("  [FAIL] Empty output for large buffer")
+        raise AssertionError("Empty output for large buffer")
 
-        # 输出应包含光标序列和字符
-        if "\033[" not in output:
-            print("  [FAIL] No ANSI sequences in output")
-            return False
+    # 输出应包含光标序列和字符
+    if "\033[" not in output:
+        print("  [FAIL] No ANSI sequences in output")
+        raise AssertionError("No ANSI sequences in output")
 
-        print(f"  [OK] Large buffer diff: {len(output)} chars output")
-        return True
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    print(f"  [OK] Large buffer diff: {len(output)} chars output")
 
 
 def test_style_combinations():
     """测试各种 Style 组合的渲染正确性"""
     print("[Test] Style combinations...")
-    skip = _skip_if_no_c_ext("style_combinations")
-    if skip:
-        return skip
-    try:
-        from zeroai_tui import _renderer
-        from zeroai_tui.renderer import RenderBuffer, Style
-        from zeroai_tui.terminal import Color
+    _skip_if_no_c_ext("style_combinations")
+    from zeroai_tui import _renderer
+    from zeroai_tui.renderer import RenderBuffer, Style
+    from zeroai_tui.terminal import Color
 
-        rows, cols = 1, 8
-        current = RenderBuffer(cols, rows)
-        next_buf = RenderBuffer(cols, rows)
+    rows, cols = 1, 8
+    current = RenderBuffer(cols, rows)
+    next_buf = RenderBuffer(cols, rows)
 
-        # 各种样式组合
-        next_buf.put(0, 0, "A", Style(bold=True))
-        next_buf.put(0, 1, "B", Style(italic=True))
-        next_buf.put(0, 2, "C", Style(underline=True))
-        next_buf.put(0, 3, "D", Style(dim=True))
-        next_buf.put(0, 4, "E", Style(bold=True, fg=Color.RED))
-        next_buf.put(0, 5, "F", Style(fg=Color.GREEN, bg=Color.YELLOW))
-        next_buf.put(0, 6, "G", Style(bold=True, italic=True, underline=True,
-                                       fg=Color.CYAN, bg=Color.MAGENTA))
-        next_buf.put(0, 7, "H", None)  # 无样式
+    # 各种样式组合
+    next_buf.put(0, 0, "A", Style(bold=True))
+    next_buf.put(0, 1, "B", Style(italic=True))
+    next_buf.put(0, 2, "C", Style(underline=True))
+    next_buf.put(0, 3, "D", Style(dim=True))
+    next_buf.put(0, 4, "E", Style(bold=True, fg=Color.RED))
+    next_buf.put(0, 5, "F", Style(fg=Color.GREEN, bg=Color.YELLOW))
+    next_buf.put(0, 6, "G", Style(bold=True, italic=True, underline=True,
+                                   fg=Color.CYAN, bg=Color.MAGENTA))
+    next_buf.put(0, 7, "H", None)  # 无样式
 
-        output = _renderer.diff_buffers(
-            current.buffer, current.styles,
-            next_buf.buffer, next_buf.styles,
-            rows, cols
-        )
+    output = _renderer.diff_buffers(
+        current.buffer, current.styles,
+        next_buf.buffer, next_buf.styles,
+        rows, cols
+    )
 
-        # 验证所有字符都在输出中
-        for ch in "ABCDEFGH":
-            if ch not in output:
-                print(f"  [FAIL] Character '{ch}' missing in output")
-                return False
+    # 验证所有字符都在输出中
+    for ch in "ABCDEFGH":
+        if ch not in output:
+            print(f"  [FAIL] Character '{ch}' missing in output")
+            raise AssertionError(f"Character '{ch}' missing in output")
 
-        # 验证 ANSI 序列存在
-        if "\033[0m" not in output:
-            print("  [FAIL] Missing reset sequence")
-            return False
+    # 验证 ANSI 序列存在
+    if "\033[0m" not in output:
+        print("  [FAIL] Missing reset sequence")
+        raise AssertionError("Missing reset sequence")
 
-        print(f"  [OK] All style combinations rendered: {len(output)} chars")
-        return True
-    except Exception as e:
-        print(f"  [FAIL] {e}")
-        return False
+    print(f"  [OK] All style combinations rendered: {len(output)} chars")
 
 
 def test_color_id_mapping():
@@ -378,7 +327,9 @@ def test_color_id_mapping():
         from zeroai_tui._zig_bindings import color_str_to_id
     except ImportError:
         print("  [SKIP] _zig_bindings not available")
-        return True
+        if pytest is not None:
+            pytest.skip("_zig_bindings not available")
+        return
 
     # 验证 16 色前景色映射
     test_cases = [
@@ -399,10 +350,9 @@ def test_color_id_mapping():
         actual_id = color_str_to_id(color_str)
         if actual_id != expected_id:
             print(f"  [FAIL] color_str_to_id({color_str!r}) = {actual_id}, expected {expected_id}")
-            return False
+            raise AssertionError(f"color_str_to_id({color_str!r}) = {actual_id}, expected {expected_id}")
 
     print(f"  [OK] Color ID mapping correct ({len(test_cases)} cases)")
-    return True
 
 
 def main():
@@ -430,9 +380,11 @@ def main():
 
     for test in tests:
         print()
-        if test():
+        try:
+            test()
             passed += 1
-        else:
+        except Exception as e:
+            print(f"  [FAIL] {e}")
             failed += 1
 
     print()
@@ -440,9 +392,12 @@ def main():
     print(f"Results: {passed} passed, {failed} failed")
     print("=" * 60)
 
-    return failed == 0
+    assert failed == 0, f"{failed} 项测试失败"
 
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    try:
+        main()
+        sys.exit(0)
+    except AssertionError:
+        sys.exit(1)

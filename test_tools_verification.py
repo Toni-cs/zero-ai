@@ -54,7 +54,7 @@ def test_imports():
             print(f"  [ERR] {mod_name}: {type(e).__name__}: {e}")
             failed += 1
     print(f"\n  导入测试: {passed} 通过, {failed} 失败")
-    return failed == 0
+    assert failed == 0, f"{failed} 个模块导入失败"
 
 
 def test_schema_map_consistency():
@@ -90,8 +90,9 @@ def test_schema_map_consistency():
 
     if not duplicate_names and not only_in_schema and not only_in_map:
         print(f"  [OK]  TOOLS 与 TOOL_MAP 完全一致（{len(schema_names)} 个工具）")
-        return True
-    return False
+    assert not duplicate_names, f"TOOLS 中重复的工具名: {duplicate_names}"
+    assert not only_in_schema, f"只在 TOOLS schema 中存在（TOOL_MAP 缺失）: {only_in_schema}"
+    assert not only_in_map, f"只在 TOOL_MAP 中存在（TOOLS schema 缺失）: {only_in_map}"
 
 
 def test_tool_callability():
@@ -119,7 +120,7 @@ def test_tool_callability():
             print(f"  [ERR] {name}: 无法获取签名 - {e}")
             failed += 1
     print(f"\n  可调用性测试: {passed} 通过, {failed} 失败")
-    return failed == 0
+    assert failed == 0, f"{failed} 个工具不可调用"
 
 
 def test_schema_param_match():
@@ -174,7 +175,7 @@ def test_schema_param_match():
             print(f"  [ERR] {name}: 签名分析异常 - {e}")
             failed += 1
     print(f"\n  签名匹配测试: {passed} 通过, {failed} 失败")
-    return failed == 0
+    assert failed == 0, f"{failed} 个工具签名不匹配"
 
 
 def test_voice_tools_unregistered():
@@ -192,11 +193,10 @@ def test_voice_tools_unregistered():
                 print(f"  [OK]  {name}: 已注册")
         if unregistered:
             print(f"\n  未注册工具: {unregistered}")
-            return False
-        return True
+        assert not unregistered, f"voice.py 存在未注册的工具函数: {unregistered}"
     except ImportError as e:
         print(f"  [ERR] 导入 voice.py 失败: {e}")
-        return False
+        raise
 
 
 def test_check_port_dead_code():
@@ -248,13 +248,12 @@ def test_check_port_dead_code():
 
         if dead_code_count == 0:
             print(f"  [OK]  check_port 无死代码")
-            return True
         else:
             print(f"  [WARN] check_port 发现 {dead_code_count} 处死代码")
-            return False
+        assert dead_code_count == 0, f"check_port 发现 {dead_code_count} 处死代码"
     except Exception as e:
         print(f"  [ERR] 检查失败: {e}")
-        return False
+        raise
 
 
 def main():
@@ -262,20 +261,23 @@ def main():
     print(f"项目根目录: {project_root}")
     print(f"Python: {sys.version.split()[0]}")
 
-    results = []
-    results.append(("模块导入", test_imports()))
-    results.append(("Schema-Map一致性", test_schema_map_consistency()))
-    results.append(("工具可调用性", test_tool_callability()))
-    results.append(("签名匹配", test_schema_param_match()))
-    results.append(("voice.py未注册工具", test_voice_tools_unregistered()))
-    results.append(("check_port死代码", test_check_port_dead_code()))
+    tests = [
+        ("模块导入", test_imports),
+        ("Schema-Map一致性", test_schema_map_consistency),
+        ("工具可调用性", test_tool_callability),
+        ("签名匹配", test_schema_param_match),
+        ("voice.py未注册工具", test_voice_tools_unregistered),
+        ("check_port死代码", test_check_port_dead_code),
+    ]
 
     print_section("测试总结")
     all_pass = True
-    for name, passed in results:
-        status = "[OK]  " if passed else "[FAIL]"
-        print(f"  {status} {name}")
-        if not passed:
+    for name, test_func in tests:
+        try:
+            test_func()
+            print(f"  [OK]  {name}")
+        except Exception as e:
+            print(f"  [FAIL] {name}: {e}")
             all_pass = False
 
     print(f"\n{'='*60}")

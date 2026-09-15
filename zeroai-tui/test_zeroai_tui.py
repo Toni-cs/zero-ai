@@ -28,12 +28,9 @@ def main():
     for name, test_func in tests:
         print(f"[测试] {name}...", end=" ")
         try:
-            if test_func():
-                print("✓")
-                passed += 1
-            else:
-                print("✗")
-                failed += 1
+            test_func()
+            print("✓")
+            passed += 1
         except Exception as e:
             print(f"✗ ({e})")
             failed += 1
@@ -50,7 +47,7 @@ def main():
         print("运行方式:")
         print("  python test_zeroai_tui.py")
     
-    return failed == 0
+    assert failed == 0, f"{failed} 项测试失败"
 
 
 def test_imports():
@@ -59,13 +56,12 @@ def test_imports():
     import zeroai_tui.renderer
     import zeroai_tui.terminal
     import zeroai_tui.components
-    return True
 
 
 def test_c_extension():
     """测试C扩展"""
     from zeroai_tui.renderer import HAS_C_RENDERER
-    return HAS_C_RENDERER
+    assert HAS_C_RENDERER, "C 扩展未加载"
 
 
 def test_terminal():
@@ -76,7 +72,6 @@ def test_terminal():
     cols, rows = Terminal.get_size()
     assert cols > 0 and rows > 0
     
-    return True
 
 
 def test_renderer():
@@ -96,7 +91,6 @@ def test_renderer():
     buffer = RenderBuffer(80, 24)
     buffer.write(0, 0, "Test", Style())
     
-    return True
 
 
 def test_components():
@@ -111,7 +105,6 @@ def test_components():
     box = Box(children=[text])
     assert len(box.children) == 1
     
-    return True
 
 
 def test_chat():
@@ -127,7 +120,6 @@ def test_chat():
     assert msg.role == "user"
     assert msg.content == "Hello"
     
-    return True
 
 
 def test_integration():
@@ -142,9 +134,11 @@ def test_integration():
     app = create_demo_app()
     assert app is not None
     
-    return True
 
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    try:
+        main()
+        sys.exit(0)
+    except AssertionError:
+        sys.exit(1)

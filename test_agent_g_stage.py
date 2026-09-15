@@ -60,7 +60,6 @@ def test_thought_snapshot():
     assert snapshot2.step == 1
     assert snapshot2.tool_name == "read_file"
     print("  [OK] ThoughtSnapshot serialization")
-    return True
 
 
 def test_persistence_save_load():
@@ -102,7 +101,6 @@ def test_persistence_save_load():
         assert session.thought_chain[1].step == 2
         assert session.is_paused is True
         print("  [OK] Save/load roundtrip")
-    return True
 
 
 def test_persistence_append():
@@ -128,7 +126,6 @@ def test_persistence_append():
         assert len(session.thought_chain) == 2
         assert session.thought_chain[1].tool_name == "search"
         print("  [OK] Incremental append")
-    return True
 
 
 def test_resume_point():
@@ -159,7 +156,6 @@ def test_resume_point():
         resume2 = persistence.get_resume_point()
         assert resume2 is None  # 已完成的不返回续跑点
         print("  [OK] Resume point detection")
-    return True
 
 
 def test_list_sessions():
@@ -190,7 +186,6 @@ def test_list_sessions():
         found = get_session_by_task("任务_1", Path(tmpdir))
         assert found == "list_test_1"
         print("  [OK] Session listing and search")
-    return True
 
 
 def test_cleanup_old_sessions():
@@ -230,7 +225,6 @@ def test_cleanup_old_sessions():
         assert len(sessions) == 1
         assert sessions[0]["session_id"] == "new_session"
         print("  [OK] Cleanup removed 1 old session")
-    return True
 
 
 # ============================================================================
@@ -273,7 +267,6 @@ def test_tool_cache_basic():
     assert stats["misses"] == 2
     assert stats["hit_rate"] > 0
     print(f"  [OK] Cache: hits={stats['hits']}, misses={stats['misses']}")
-    return True
 
 
 def test_tool_cache_no_cache_tools():
@@ -300,7 +293,6 @@ def test_tool_cache_no_cache_tools():
     assert stats["hits"] == 0
     assert stats["misses"] == 0  # 不缓存的工具不记 miss
     print("  [OK] get_time not cached (2 calls)")
-    return True
 
 
 def test_tool_cache_force_refresh():
@@ -327,7 +319,6 @@ def test_tool_cache_force_refresh():
     stats = cache.get_stats()
     assert stats["hits"] == 1, f"Expected 1 hit, got {stats['hits']}"
     print(f"  [OK] Force refresh: {call_count} calls, {stats['hits']} hits")
-    return True
 
 
 def test_tool_cache_ttl():
@@ -351,7 +342,6 @@ def test_tool_cache_ttl():
     asyncio.run(run())
     assert call_count == 2  # 过期后重新调用
     print("  [OK] TTL expired, re-called")
-    return True
 
 
 def test_tool_cache_lru_eviction():
@@ -389,7 +379,6 @@ def test_tool_cache_lru_eviction():
     stats = cache.get_stats()
     assert stats["evictions"] >= 1
     print(f"  [OK] LRU evicted {stats['evictions']} entries")
-    return True
 
 
 # ============================================================================
@@ -419,7 +408,6 @@ def test_visualizer_card():
     assert "[OK]" in card
     assert "=" in card  # 边框
     print("  [OK] Card rendered with borders and icons")
-    return True
 
 
 def test_visualizer_chain():
@@ -445,7 +433,6 @@ def test_visualizer_chain():
     assert "成功: 3" in plain
     assert "失败: 1" in plain
     print("  [OK] Chain rendered with progress and summary")
-    return True
 
 
 def test_visualizer_colors():
@@ -465,7 +452,6 @@ def test_visualizer_colors():
     assert ACTION_ICONS["tool_call"] == "[*]"
     assert ACTION_ICONS["final_answer"] == "[=]"
     print("  [OK] Color and icon mapping correct")
-    return True
 
 
 def test_visualizer_convenience():
@@ -479,7 +465,6 @@ def test_visualizer_convenience():
     chain_text = render_thought_chain([thought], width=40)
     assert "思维链" in chain_text
     print("  [OK] Convenience functions work")
-    return True
 
 
 def main():
@@ -514,8 +499,8 @@ def main():
     for name, test in tests:
         print()
         try:
-            if test():
-                passed += 1
+            test()
+            passed += 1
         except Exception as e:
             print(f"  [FAIL] {e}")
             import traceback
@@ -526,8 +511,13 @@ def main():
     print("=" * 60)
     print(f"Results: {passed} passed, {failed} failed")
     print("=" * 60)
-    return failed == 0
+    assert failed == 0, f"{failed} 项测试失败"
 
 
 if __name__ == "__main__":
-    sys.exit(0 if main() else 1)
+    try:
+        main()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"测试失败: {e}")
+        sys.exit(1)

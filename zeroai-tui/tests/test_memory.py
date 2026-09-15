@@ -59,7 +59,6 @@ def test_memory_stability():
         
         if total_increase < 1024 * 1024:  # Less than 1MB increase
             print("  [OK] No significant memory leak")
-            return True
         else:
             print("  [WARN] Potential memory leak detected")
             return True  # Still pass, but warn
@@ -68,7 +67,7 @@ def test_memory_stability():
         print(f"  [FAIL] {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_renderer_stability():
@@ -110,13 +109,12 @@ def test_renderer_stability():
         Terminal.write("Stability test complete")
         
         print("  [OK] No crashes detected")
-        return True
         
     except Exception as e:
         print(f"  [FAIL] {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_concurrent_operations():
@@ -149,16 +147,15 @@ def test_concurrent_operations():
         
         if errors:
             print(f"  [FAIL] Errors: {errors}")
-            return False
+            raise
         
         print("  [OK] Concurrent writes successful")
-        return True
         
     except Exception as e:
         print(f"  [FAIL] {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():

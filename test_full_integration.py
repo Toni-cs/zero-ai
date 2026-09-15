@@ -13,6 +13,8 @@ ZeroAI Full Integration Test
 import sys
 import os
 
+import pytest
+
 # Add paths
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -44,16 +46,12 @@ def test_full_integration():
     for name, test_func in tests:
         print(f"[Test] {name}...")
         try:
-            result = test_func()
-            if result is True:
-                print(f"  [OK] Passed")
-                passed += 1
-            elif result == "skip":
-                print(f"  [SKIP] Skipped (optional dependency not installed)")
-                skipped += 1
-            else:
-                print(f"  [FAIL] Failed")
-                failed += 1
+            test_func()
+            print(f"  [OK] Passed")
+            passed += 1
+        except pytest.skip.Exception as e:
+            print(f"  [SKIP] Skipped ({e})")
+            skipped += 1
         except Exception as e:
             print(f"  [ERROR] {e}")
             failed += 1
@@ -77,74 +75,82 @@ def test_full_integration():
         print("  # Run ZeroAI as MCP Server")
         print("  python -m zeroai.mcp")
 
-    return failed == 0
+    assert failed == 0, f"{failed} 项集成测试失败"
 
 
 def test_import_zeroai():
     """Test importing zeroai package"""
     import zeroai
-    return hasattr(zeroai, '__version__')
+    assert hasattr(zeroai, '__version__'), "zeroai 缺少 __version__ 属性"
 
 
 def test_import_tui_agent():
     """Test importing tui_agent"""
     import tui_agent
-    return hasattr(tui_agent, 'main')
+    assert hasattr(tui_agent, 'main'), "tui_agent 缺少 main 函数"
 
 
 def test_expert_system():
     """Test expert system"""
     from zeroai.core.expert import ExpertRouter
     router = ExpertRouter()
-    return router is not None
+    assert router is not None, "ExpertRouter 返回 None"
 
 
 def test_llm_module():
     """Test LLM module"""
     from zeroai.core import llm
-    return hasattr(llm, 'LLMClient')
+    assert hasattr(llm, 'LLMClient'), "llm 模块缺少 LLMClient"
 
 
 def test_config():
     """Test config module"""
     from zeroai.core.config import Config
     config = Config()
-    return config is not None
+    assert config is not None, "Config 返回 None"
 
 
 def test_mcp_module():
     """Test MCP module (阶段 3 新增)"""
     from zeroai import mcp
-    return hasattr(mcp, 'MCPClient') and hasattr(mcp, 'MCPServer')
+    assert hasattr(mcp, 'MCPClient'), "mcp 缺少 MCPClient"
+    assert hasattr(mcp, 'MCPServer'), "mcp 缺少 MCPServer"
 
 
 def test_agent_loop():
     """Test Agent Loop (阶段 1 增强)"""
     from zeroai.core.agent import AdvancedAgentLoop, MultiAgentCollaborator
-    return AdvancedAgentLoop is not None and MultiAgentCollaborator is not None
+    assert AdvancedAgentLoop is not None, "AdvancedAgentLoop 为 None"
+    assert MultiAgentCollaborator is not None, "MultiAgentCollaborator 为 None"
 
 
 def test_vector_memory():
     """Test vector memory (阶段 2 新增)"""
     from zeroai.memory import VectorStore, ConversationMemory
-    return VectorStore is not None and ConversationMemory is not None
+    assert VectorStore is not None, "VectorStore 为 None"
+    assert ConversationMemory is not None, "ConversationMemory 为 None"
 
 
 def test_tools_registry():
     """Test tools registry"""
     from zeroai.tools.registry import TOOL_MAP, TOOLS
-    return len(TOOL_MAP) > 0 and len(TOOLS) > 0
+    assert len(TOOL_MAP) > 0, "TOOL_MAP 为空"
+    assert len(TOOLS) > 0, "TOOLS 为空"
 
 
 def test_zeroai_tui_optional():
     """Test zeroai_tui (optional - skip if not installed)"""
     try:
         import zeroai_tui
-        return hasattr(zeroai_tui, '__version__')
     except ImportError:
-        return "skip"
+        pytest.skip("zeroai_tui 未安装（可选依赖）")
+    assert hasattr(zeroai_tui, '__version__'), "zeroai_tui 缺少 __version__ 属性"
 
 
 if __name__ == "__main__":
-    success = test_full_integration()
-    sys.exit(0 if success else 1)
+    try:
+        test_full_integration()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"集成测试失败: {e}")
+        sys.exit(1)

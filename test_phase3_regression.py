@@ -27,7 +27,6 @@ def test_import():
     print(f"  OK: _ZEROAI_IMPL_ACTIVE = {tui_agent._ZEROAI_IMPL_ACTIVE}")
     print(f"  OK: TOOLS count = {len(tui_agent.TOOLS)}")
     print(f"  OK: TOOL_MAP count = {len(tui_agent.TOOL_MAP)}")
-    return tui_agent
 
 
 def test_tools_from_zeroai(tui_agent):
@@ -315,7 +314,8 @@ def main():
     print("阶段3 回归测试：tui_agent.py 内部调用切换到 zeroai 包")
     print("=" * 70)
 
-    tui_agent = test_import()
+    test_import()
+    import tui_agent
     test_tools_from_zeroai(tui_agent)
     test_core_from_zeroai(tui_agent)
     test_tools_toolmap_consistency(tui_agent)
