@@ -69,3 +69,6 @@ _tmp_*/
 # 所有 bak 变体（含 .bak.xxx 命名）
 *.bak.*
 *.bak
+
+# Prevent backup file residue
+*.bak.*

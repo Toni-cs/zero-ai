@@ -11,11 +11,18 @@ dynamic = ["version"]
 description = "ZeroAI - 终端 AI 编程助手（多专家协作·语音对话·文档生成·安全审计）"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Proprietary" }
+# 【重要】此前为 "Proprietary"（专有），与事实矛盾：本项目 1.1.0~1.1.4 共 5 个
+# 版本已实际发布于 PyPI，而专有许可证第 3.1(b) 条明文禁止"分发"。一句话总结：
+# 一边在许可证里禁止分发，一边在 PyPI 上分发，这在合规审查中是最容易被抓的硬伤。
+# 且"专有 + 无商用授权"直接排除了所有企业用户与二次集成方——与"要有真实用户"
+# 的目标相反。现改为 Apache-2.0：允许商用与再分发，保留专利授权与免责条款，
+# 不要求下游开源（对比 GPL），是 CLI 工具最无摩擦的选择。
+license = { text = "Apache-2.0" }
 authors = [{ name = "ZeroAI Team" }]
-keywords = ["ai", "cli", "assistant", "coding", "terminal", "zeroai"]
+keywords = ["ai", "cli", "assistant", "coding", "terminal", "zeroai", "agent", "llm"]
 classifiers = [
     "Environment :: Console",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
@@ -78,10 +85,17 @@ zeroai = "zeroai.main:main"
 
 [tool.setuptools]
 # 包含模块
-# 注意：原来这里写了 "config"，但仓库根目录并不存在 config.py
-# （真正的配置在 zeroai/core/config.py）。setuptools 会容忍这个悬空声明，
-# 但它纯粹是误导，已移除。
-py-modules = ["tui_agent"]
+#
+# 【重要】这里此前有 py-modules = ["tui_agent"]。
+# 后果（实测 1.1.4 已发布 wheel）：16,264 行 / 779KB 的遗留单体文件被原样
+# 打进客户端包，占整包体积的 90% 以上；而它自己的注释说该文件只是"备份"。
+# 已移除——tui_agent.py 保留在源码树中供 tui 层转发使用（见 zeroai/tui/），
+# 但不再作为顶层模块随 wheel 分发。
+#
+# 若将来确实需要把 tui_agent 作为可导入的顶层模块分发，必须同时满足：
+#   1) zeroai/tui/* 完成解耦，不再 from tui_agent import；
+#   2) tui_agent.py 顶部不再有模块级副作用（当前已修为惰性代理）。
+py-modules = []
 
 [tool.setuptools.dynamic]
 # 版本号从 zeroai/__init__.py 的 __version__ 读取（setuptools 优先做 AST
@@ -109,8 +123,17 @@ namespaces = false
 # "Warning: Config file not found ..."，而且那行警告走的是 stdout，
 # 会直接污染 --json 的单行输出契约。
 "zeroai" = ["config.yaml"]
-# zeroai_tui 包含 Zig 共享库和 C 源码
-"zeroai_tui" = ["*.dll", "*.so", "*.dylib", "src/*.c"]
+# 【重要】zeroai_tui 的平台相关二进制产物（*.dll / *.pyd / *.so / *.dylib）
+# 此前被声明为随包分发，但 wheel 标签是 py3-none-any（Root-Is-Purelib: true）
+# —— 这是**自相矛盾**的声明：pip 在 Linux/macOS 上会照装，随后 import
+# zeroai_tui 加载 win_amd64 的 .pyd 必然失败（1.1.4 实测即为该问题）。
+#
+# 处置：本发行版（zero-ai-cli）定位为**纯 Python 主包**，不再携带任何平台
+# 二进制，标签因此真实。C 加速 TUI 作为独立发行版单独构建与发布
+# （见 pyproject.accelerated.toml 的说明），由用户在明确知道自己平台时安装。
+#
+# 只保留 C 源码（有参考价值、平台无关、体积极小），不保留编译产物。
+"zeroai_tui" = ["src/*.c"]
 
 [tool.pytest.ini_options]
 # pytest-asyncio 自动模式：无需 @pytest.mark.asyncio 装饰器

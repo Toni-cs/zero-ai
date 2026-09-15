@@ -10,7 +10,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
-[![License](https://img.shields.io/badge/License-Proprietary-orange.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.3-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.3/)
 [![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/gt17641001169-design/zero-ai)
 
@@ -797,7 +797,7 @@ zero-ai-cli/
 ├── README.md                 # This documentation
 ├── CHANGELOG.md              # Changelog
 ├── CONTRIBUTING.md           # Contribution guide
-├── LICENSE                   # Proprietary license
+├── LICENSE                   # Apache-2.0 license
 ├── AUTHORS                   # Author list
 ├── install.bat               # Windows one-click installer
 └── libs/ models/             # Voice dependencies (development mode, not versioned)
@@ -876,7 +876,9 @@ A: Under the proxy server architecture:
 
 ## License
 
-Proprietary software. Commercial use without authorization is prohibited. See [LICENSE](LICENSE).
+Apache License 2.0 — free for personal and commercial use, modification, and
+redistribution, provided the copyright notice and license text are retained.
+See [LICENSE](LICENSE).
 
 ## Author
 

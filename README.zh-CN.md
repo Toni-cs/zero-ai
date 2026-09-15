@@ -10,7 +10,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
-[![License](https://img.shields.io/badge/License-Proprietary-orange.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.3-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.3/)
 [![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/gt17641001169-design/zero-ai)
 
@@ -774,7 +774,7 @@ zero-ai-cli/
 ├── README.md                 # 说明文档
 ├── CHANGELOG.md              # 更新日志
 ├── CONTRIBUTING.md           # 贡献指南
-├── LICENSE                   # 专有软件许可证
+├── LICENSE                   # Apache-2.0 开源许可证
 ├── AUTHORS                   # 作者列表
 ├── install.bat               # Windows 一键安装脚本
 └── libs/ models/             # 语音依赖（开发模式，不入库）
@@ -853,7 +853,8 @@ A: 代理服务器架构下：
 
 ## 许可证
 
-专有软件（Proprietary）。未经授权不得商用。详见 [LICENSE](LICENSE)。
+Apache License 2.0 —— 个人与商业用途、修改、再分发均免费，只需保留版权声明与许可证原文。
+详见 [LICENSE](LICENSE)。
 
 ## 作者
 
