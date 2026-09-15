@@ -209,3 +209,33 @@ def _make_openai_client(model_key: str):
         base_url=base_cfg.get("base_url", ""),
         api_key=base_cfg.get("api_key", ""),
     )
+
+
+def _make_openai_sync_client(model_key: str):
+    """统一的 OpenAI 同步客户端工厂（与 _make_openai_client 逻辑完全对齐）
+
+    存在的理由：llm.py 同时需要同步与异步两种客户端。此前 llm.py 四处
+    直接 `OpenAI(...)` / `AsyncOpenAI(...)`，完全绕过本模块的工厂，后果是
+    **代理模式形同虚设**——代理开了，核心链路依然直连上游并因无真实 Key 崩溃。
+    此处补齐同步版本，让"代理/本地"这一决策只有一处实现。
+
+    model_key: MODEL_CONFIGS 的键
+    """
+    from .constants import MODEL_CONFIGS
+    from openai import OpenAI
+
+    base_cfg = MODEL_CONFIGS.get(model_key, {})
+
+    if _is_proxy_enabled():
+        proxy_url = PROXY_CONFIG["base_url"]
+        if not proxy_url.rstrip("/").endswith("/v1"):
+            proxy_url = proxy_url.rstrip("/") + "/v1"
+        return OpenAI(
+            base_url=proxy_url,
+            api_key=PROXY_CONFIG["token"],
+        )
+
+    return OpenAI(
+        base_url=base_cfg.get("base_url", ""),
+        api_key=base_cfg.get("api_key", ""),
+    )

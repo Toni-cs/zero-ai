@@ -119,9 +119,13 @@ def get_model_display_name(model_key: str) -> str:
 
 
 def get_client():
-    """获取当前模型的 OpenAI 客户端（同步）"""
-    cfg = MODEL_CONFIGS[CURRENT_MODEL_KEY]
-    return OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
+    """获取当前模型的 OpenAI 客户端（同步）
+
+    经 secrets._make_openai_sync_client 统一构造，使代理/本地决策只有一处实现。
+    此前直接 OpenAI(...)，会让代理模式在此路径上失效。
+    """
+    from .secrets import _make_openai_sync_client
+    return _make_openai_sync_client(CURRENT_MODEL_KEY)
 
 
 def get_model_name():

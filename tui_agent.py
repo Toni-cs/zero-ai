@@ -1920,8 +1920,41 @@ def get_model_label():
         return "混合思考"
     return MODEL_CONFIGS[CURRENT_MODEL_KEY]["label"]
 
-# 兼容旧代码：初始化全局 client 和 MODEL
-client = get_client()
+# 兼容旧代码：全局 client 与 MODEL
+#
+# 【重要】这里曾经是 `client = get_client()`，即模块导入时立刻构造 OpenAI 客户端。
+# 后果（实测）：任何没有配置 API Key 的环境——CI、全新克隆、评审者、只跑
+# `pytest` 的机器——`import tui_agent` 会直接抛
+#   openai.OpenAIError: Missing credentials.
+# 导致整个包连导入都做不到（zeroai/tui/* 全部反向依赖本模块）。
+#
+# 现改为惰性代理：导入时不构造客户端，首次访问 `client.xxx` 时才构造。
+# 好处：
+#   1. 无 Key 也能 import（诊断、`--check`、只看工具清单都可用）；
+#   2. 真正调用 LLM 时若仍未配 Key，错误发生在调用点，位置精确、可被上层捕获；
+#   3. 换模型后自动取新客户端，不再需要 `global client` 手工重绑。
+class _LazyClientProxy:
+    """惰性 OpenAI 客户端代理：首次属性访问时才构造真实客户端。"""
+
+    __slots__ = ("_client",)
+
+    def __init__(self):
+        self._client = None
+
+    def _get(self):
+        if self._client is None:
+            self._client = get_client()
+        return self._client
+
+    def __getattr__(self, name):
+        # 注意：__slots__ 中的 _client 走正常属性查找，不会进到这里
+        return getattr(self._get(), name)
+
+    def __repr__(self):
+        return f"<LazyClientProxy built={self._client is not None}>"
+
+
+client = _LazyClientProxy()
 MODEL = get_model_name()
 
 WORK_DIR = os.getcwd()
@@ -7674,8 +7707,21 @@ def ssh_deploy(deploy_config: dict, conn_id: str = "default") -> str:
             report.append("")
 
     # 汇总
+    # 【2026-09-15 修复】此前无条件打印 "✅ 部署完成 (N/N 步骤已执行)"，
+    # 导致"安装失败→重启失败→健康检查失败"的部署在报告里依然全绿（假成功汇报）。
+    # 本文件为遗留单体，正式实现见 zeroai/tools/ssh_ops.py::ssh_deploy（已同步修复）。
+    # 这里给出与之等价的保守汇报：不做步骤级中止（遗留行为保持不变以兼容既有调用），
+    # 但至少不再把失败谎报为成功。
     report.append("=" * 50)
-    report.append(f"✅ 部署完成 ({step}/{total_steps} 步骤已执行)")
+    _deploy_failed = any(
+        ("❌" in _l) or ("[退出码:" in _l) or ("执行错误:" in _l)
+        for _l in report
+    )
+    if _deploy_failed:
+        report.append(f"⚠️ 部署存在失败项 ({step}/{total_steps} 步骤已执行，请检查上方 ❌ 标记)")
+        report.append("   注意：本实现失败后不中止后续步骤，且不自动回滚，请人工复核已产生的副作用")
+    else:
+        report.append(f"✅ 部署完成 ({step}/{total_steps} 步骤，全部成功)")
     report.append("=" * 50)
 
     return _ssh_format_prefix(conn_id) + "\n" + "\n".join(report)
@@ -10405,55 +10451,17 @@ SYSTEM_PROMPT_CORE = f"""# 角色
 """
 
 
-# ====== 身份泄露过滤（API 响应层拦截，作为 SYSTEM_PROMPT 规则的后置防线） ======
-# 检测模型输出中的自报家门内容，替换为标准 ZeroAI 身份回答
-_IDENTITY_LEAK_PATTERNS = [
-    # "我是智谱/GLM/GPT/Claude/Gemini..." 自报家门
-    re.compile(r"我是.{0,15}(智谱|GLM[-\s]?[0-9.]+|ChatGLM|GPT[-\s]?[0-9]|Claude|Gemini|PaLM|LLaMA|Qwen)", re.IGNORECASE),
-    # "基于 XX 模型微调/训练/推出/开发"
-    re.compile(r"基于.{0,30}(GLM|GPT|Claude|Gemini|LLaMA|Qwen).{0,15}(微调|训练|推出|开发|构建)", re.IGNORECASE),
-    # "由 XX 公司/机构 推出/发布/开发/创建/联合训练"
-    re.compile(r"由.{0,20}(智谱|OpenAI|Anthropic|Google|Meta|Microsoft|清华大学).{0,15}(推出|发布|开发|创建|联合训练)", re.IGNORECASE),
-    # "智谱 AI 公司和清华大学 KEG 实验室联合训练" / 清华大学相关
-    re.compile(r"(智谱\s*AI|清华大学|清华\s*KEG|KEG\s*实验室).{0,20}(联合训练|联合开发|联合发布|开发|训练)", re.IGNORECASE),
-    # 直接出现底层模型标识（含 GLM-4 / GLM-4V / GLM-4.7 / GLM-130B 等）
-    re.compile(r"(智谱\s*AI|GLM[-\s]?[0-9.]+|ChatGLM|我是\s*GLM|我的模型是\s*GLM|基于\s*GLM)", re.IGNORECASE),
-    # "130B/400B/32B 参数规模" 等参数泄露
-    re.compile(r"\d+\s*B\s*参数"),
-    # "GLM-4.7-Flash / GLM-4V-Flash" 等具体模型名
-    re.compile(r"GLM[-\s]?[0-9.]+[-\s]?(Flash|V|Vision)", re.IGNORECASE),
-    # 编造身世/时间/训练数据：模型 + 20XX 年 + 发布/训练/截止/版本
-    re.compile(r"(模型|AI|助手|智能|智谱|ChatGLM|GLM).{0,20}(20\d{2})\s*年.{0,30}(发布|训练|截止|知识|版本)", re.IGNORECASE),
-    # "我的训练数据截止至 2023 年 9 月" / "知识截止"
-    re.compile(r"(训练数据|知识|信息).{0,10}(截止|截至|更新).{0,15}(20\d{2})\s*年", re.IGNORECASE),
-    # "ChatGLM 模型，由智谱 AI 公司..." 直接自报
-    re.compile(r"ChatGLM.{0,30}(智谱|Zhipu|由北京|由.*公司|于\s*20\d{2})", re.IGNORECASE),
-    # "智谱清言"
-    re.compile(r"智谱清言", re.IGNORECASE),
-    # "2023 年 12 月发布" 单独出现且上下文涉及模型
-    re.compile(r"(于\s*20\d{2}\s*年\s*\d{1,2}\s*月\s*发布|20\d{2}\s*年\s*\d{1,2}\s*月\s*发布).{0,10}(模型|AI|助手|智能)", re.IGNORECASE),
-]
-_IDENTITY_REPLACEMENT = "我是 ZeroAI，一个终端 AI 编程助手。"
+# ====== 身份抹除功能：已删除（2026-09-15）======
+# 原实现（13 条正则 + 整段替换）会把模型自报家门的内容改写为
+# "我是 ZeroAI，一个终端 AI 编程助手。"。删除理由见
+# zeroai/core/response_utils.py 中同名函数的说明（法律风险 / 零商业价值 /
+# 销毁原始响应）。此处保留同名符号作为兼容性空壳，不再修改任何文本。
+_IDENTITY_LEAK_PATTERNS = []
+_IDENTITY_REPLACEMENT = ""
 
 
 def _sanitize_identity_leak(text: str) -> tuple:
-    """检测并过滤身份泄露内容
-
-    Returns:
-        (sanitized_text, leaked: bool)  leaked 为 True 表示检测到并已过滤
-
-    策略：一旦检测到任何泄露模式，整段文本替换为标准 ZeroAI 身份回答，
-    避免只替换匹配片段而残留"清华大学 KEG"、"GLM-4"等敏感词。
-    """
-    if not text:
-        return text, False
-    leaked = False
-    for pattern in _IDENTITY_LEAK_PATTERNS:
-        if pattern.search(text):
-            leaked = True
-            break
-    if leaked:
-        return _IDENTITY_REPLACEMENT, True
+    """[已弃用 · 空操作] 原身份抹除过滤器，现直接返回原文（向后兼容保留）。"""
     return text, False
 
 

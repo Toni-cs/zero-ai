@@ -246,13 +246,21 @@ class EmbeddingBackend:
         """通过 OpenAI/GLM API 生成 embedding
 
         使用智谱 embedding-3 模型，1024 维
+
+        客户端经 core.secrets 的统一工厂构造（代理启用时走代理），避免在这里
+        再开一条绕过代理的旁路。若本实例显式配置了 base_url/api_key，则优先
+        使用实例配置（用于自定义 embedding 端点）。
         """
         from openai import AsyncOpenAI
 
-        client = AsyncOpenAI(
-            base_url=self.base_url or "https://open.bigmodel.cn/api/paas/v4/",
-            api_key=self.api_key,
-        )
+        if self.base_url or self.api_key:
+            client = AsyncOpenAI(
+                base_url=self.base_url or "https://open.bigmodel.cn/api/paas/v4/",
+                api_key=self.api_key,
+            )
+        else:
+            from ..core.secrets import _make_openai_client
+            client = _make_openai_client("glm")
         # GLM embedding 模型：embedding-3，支持指定 dimensions
         model = "embedding-3"
         try:
@@ -346,6 +354,12 @@ class VectorStore:
             self._faiss_available = True
         except ImportError:
             pass  # FAISS 未安装，回退 numpy
+        # 向量内存缓存（避免每次查询从磁盘加载）
+        self._vectors_cache: Optional[np.ndarray] = None
+        self._vectors_cache_mtime: float = 0.0
+        # 向量内存缓存（避免每次查询从磁盘加载）
+        self._vectors_cache: Optional[np.ndarray] = None
+        self._vectors_cache_mtime: float = 0.0
 
     def _init_db(self) -> None:
         """初始化 sqlite 表结构"""
@@ -391,17 +405,43 @@ class VectorStore:
         return self.db_path + ".npy"
 
     def _load_vectors(self) -> np.ndarray:
-        """加载向量矩阵"""
-        if os.path.exists(self._vector_path()):
-            try:
-                return np.load(self._vector_path())
-            except Exception:
-                pass
+        """加载向量矩阵（带内存缓存，避免每次查询从磁盘读取）"""
+        vec_path = self._vector_path()
+        if not os.path.exists(vec_path):
+            return np.zeros((0, self.embedding.dim), dtype=np.float32)
+
+        # 检查文件修改时间，只在文件变化时重新加载
+        try:
+            current_mtime = os.path.getmtime(vec_path)
+            if self._vectors_cache is not None and current_mtime == self._vectors_cache_mtime:
+                return self._vectors_cache
+        except OSError:
+            pass
+
+        try:
+            vectors = np.load(vec_path)
+            self._vectors_cache = vectors
+            self._vectors_cache_mtime = os.path.getmtime(vec_path)
+            return vectors
+        except Exception:
+            pass
         return np.zeros((0, self.embedding.dim), dtype=np.float32)
 
     def _save_vectors(self, vectors: np.ndarray) -> None:
         """保存向量矩阵"""
         np.save(self._vector_path(), vectors)
+        # 更新内存缓存
+        self._vectors_cache = vectors
+        try:
+            self._vectors_cache_mtime = os.path.getmtime(self._vector_path())
+        except OSError:
+            pass
+        # 更新内存缓存
+        self._vectors_cache = vectors
+        try:
+            self._vectors_cache_mtime = os.path.getmtime(self._vector_path())
+        except OSError:
+            pass
 
     async def add(
         self,
@@ -733,6 +773,72 @@ class VectorStore:
             for s in scored[:top_k]
         ]
 
+    @staticmethod
+    def _adaptive_weights(query: str) -> Tuple[float, float]:
+        """自适应权重：精确匹配偏 BM25，语义查询偏向量
+
+        判断依据：
+        - 包含代码标识符（import, def, class, 函数名等）→ 偏 BM25
+        - 包引号包裹的精确字符串 → 偏 BM25
+        - 自然语言长句 → 偏向量
+        """
+        query_lower = query.lower()
+        # 精确匹配信号
+        exact_signals = 0
+        if re.search(r'\b(import|from|def|class|return|raise|assert)\b', query_lower):
+            exact_signals += 1
+        if re.search(r'`[^`]+`', query):  # 反引号包裹的代码
+            exact_signals += 1
+        if re.search(r'["\'][^"\']+["\']', query):  # 引号包裹的精确字符串
+            exact_signals += 1
+        if re.search(r'[a-zA-Z_][a-zA-Z0-9_]*\(\)', query):  # 函数调用
+            exact_signals += 1
+
+        # 语义查询信号
+        semantic_signals = 0
+        if len(query) > 30:  # 长句更可能是语义查询
+            semantic_signals += 1
+        if re.search(r'[怎么|如何|为什么|什么|哪些|是否|能否]', query):
+            semantic_signals += 1
+
+        if exact_signals > semantic_signals:
+            return 0.3, 0.7  # 偏 BM25
+        elif semantic_signals > exact_signals:
+            return 0.8, 0.2  # 偏向量
+        return 0.6, 0.4  # 默认
+
+    def _rewrite_query(self, query: str) -> List[str]:
+        """查询改写：生成多个改写 query 提高召回率
+
+        策略：
+        1. 原始 query
+        2. 去除停用词的精简版
+        3. 同义词替换（简易版）
+        """
+        queries = [query]
+
+        # 精简版：去除常见停用词
+        stopwords = {'的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没', '看', '好', '自己', '这', '那', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'need'}
+        words = re.findall(r'[a-zA-Z]+|[\u4e00-\u9fff]+', query)
+        kept = [w for w in words if w.lower() not in stopwords]
+        if kept and len(kept) < len(words):
+            queries.append(' '.join(kept))
+
+        # 同义词替换（简易映射）
+        synonym_map = {
+            '快': '性能 速度', '慢': '性能 速度', '优化': '改进 性能',
+            'bug': '错误 缺陷 问题', '问题': 'bug 错误 缺陷',
+            '部署': '发布 上线', '测试': '验证 检查',
+        }
+        rewritten = query
+        for orig, repl in synonym_map.items():
+            if orig in query:
+                rewritten = rewritten.replace(orig, repl)
+        if rewritten != query:
+            queries.append(rewritten)
+
+        return queries[:3]  # 最多 3 个改写
+
     def hybrid_search(
         self,
         query: str,
@@ -742,74 +848,61 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         """混合检索：向量语义检索 + BM25 关键词检索 融合
 
-        策略：
-        1. 分别用向量检索和 BM25 检索，各取 top_k*2
-        2. 分数归一化（min-max 到 [0,1]）
-        3. 加权融合：final_score = vector_weight * vec_score + bm25_weight * bm25_score
-        4. 按融合分数排序，取 top_k
+        增强策略：
+        1. 查询改写：生成多个改写 query，分别检索后合并
+        2. 自适应权重：根据 query 类型自动调整 vector/bm25 权重
+        3. Reciprocal Rank Fusion (RRF) 替代简单加权
 
         Args:
             query: 查询文本
             top_k: 返回数量
-            vector_weight: 向量检索权重（0-1）
-            bm25_weight: BM25 权重（0-1）
+            vector_weight: 向量检索权重（0-1），0 表示自适应
+            bm25_weight: BM25 权重（0-1），0 表示自适应
 
         Returns:
             [{"doc_id":..., "source":..., "content":..., "score":...,
               "vec_score":..., "bm25_score":...}, ...]
         """
-        # 各取更多候选，确保融合后有足够 top_k
-        candidate_k = max(top_k * 2, 10)
-        vec_results = self.search(query, top_k=candidate_k)
-        bm25_results = self._bm25_search(query, top_k=candidate_k)
+        # 自适应权重（当调用方未指定时）
+        if vector_weight == 0.7 and bm25_weight == 0.3:
+            vector_weight, bm25_weight = self._adaptive_weights(query)
 
-        # 归一化函数
-        def _normalize(results: List[Dict[str, Any]], score_key: str) -> Dict[int, float]:
-            if not results:
-                return {}
-            scores = [r[score_key] for r in results]
-            min_s, max_s = min(scores), max(scores)
-            denom = max_s - min_s if max_s > min_s else 1.0
-            return {r["doc_id"]: (r[score_key] - min_s) / denom for r in results}
+        # 查询改写
+        rewritten_queries = self._rewrite_query(query)
 
-        vec_norm = _normalize(vec_results, "score")
-        bm25_norm = _normalize(bm25_results, "score")
-
-        # 收集所有候选 doc_id
-        all_ids = set(vec_norm.keys()) | set(bm25_norm.keys())
-
-        # 从数据库批量查内容（避免 N+1 查询）
+        # 对每个改写 query 分别检索，用 RRF 融合
+        rrf_k = 60  # RRF 常数
+        rrf_scores: Dict[int, float] = {}
         content_map: Dict[int, Dict[str, Any]] = {}
-        if all_ids:
-            with self._lock:
-                conn = sqlite3.connect(self.db_path)
-                placeholders = ",".join("?" * len(all_ids))
-                cur = conn.execute(
-                    f"SELECT id, doc_id, source, content FROM chunks WHERE id IN ({placeholders})",
-                    tuple(all_ids),
-                )
-                for row in cur.fetchall():
-                    content_map[row[0]] = {
-                        "doc_id": row[1], "source": row[2], "content": row[3],
-                    }
-                conn.close()
 
-        # 融合打分
-        fused = []
-        for doc_id in all_ids:
-            if doc_id not in content_map:
-                continue
-            vec_s = vec_norm.get(doc_id, 0.0)
-            bm25_s = bm25_norm.get(doc_id, 0.0)
-            final = vector_weight * vec_s + bm25_weight * bm25_s
-            entry = dict(content_map[doc_id])
-            entry["score"] = float(final)
-            entry["vec_score"] = float(vec_s)
-            entry["bm25_score"] = float(bm25_s)
-            fused.append(entry)
+        for rq in rewritten_queries:
+            candidate_k = max(top_k * 2, 10)
+            vec_results = self.search(rq, top_k=candidate_k)
+            bm25_results = self._bm25_search(rq, top_k=candidate_k)
 
-        fused.sort(key=lambda x: x["score"], reverse=True)
-        return fused[:top_k]
+            # RRF 融合：score = sum(1 / (k + rank))
+            for rank, r in enumerate(vec_results):
+                doc_id = r["doc_id"]
+                rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + vector_weight / (rrf_k + rank + 1)
+                if doc_id not in content_map:
+                    content_map[doc_id] = {"doc_id": r["doc_id"], "source": r["source"], "content": r["content"]}
+            for rank, r in enumerate(bm25_results):
+                doc_id = r["doc_id"]
+                rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + bm25_weight / (rrf_k + rank + 1)
+                if doc_id not in content_map:
+                    content_map[doc_id] = {"doc_id": r["doc_id"], "source": r["source"], "content": r["content"]}
+
+        # 按 RRF 分数排序
+        sorted_ids = sorted(rrf_scores.items(), key=lambda x: -x[1])[:top_k]
+
+        results = []
+        for doc_id, score in sorted_ids:
+            if doc_id in content_map:
+                entry = dict(content_map[doc_id])
+                entry["score"] = float(score)
+                results.append(entry)
+
+        return results
 
     async def search_async(
         self,

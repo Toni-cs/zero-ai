@@ -5,6 +5,13 @@ from openai import OpenAI, AsyncOpenAI
 from .config import get_config
 from .constants import MODEL_CONFIGS
 
+try:
+    from .cost_tracker import CostTracker
+    _COST_TRACKER_AVAILABLE = True
+except ImportError:
+    _COST_TRACKER_AVAILABLE = False
+    CostTracker = None
+
 
 class LLMClient:
     """Wrapper for LLM API calls"""
@@ -23,31 +30,107 @@ class LLMClient:
             self._model_config = MODEL_CONFIGS.get(model_key, {}).copy()
         self._client = None
         self._async_client = None
+        self.cost_tracker = CostTracker() if _COST_TRACKER_AVAILABLE else None
     
     @property
     def client(self) -> OpenAI:
-        """Get synchronous OpenAI client"""
+        """Get synchronous OpenAI client
+
+        经 secrets._make_openai_sync_client 统一构造：代理启用时走代理，
+        否则直连上游。**不要在此处直接 OpenAI(...)**——那会让代理模式失效。
+        """
         if self._client is None:
-            self._client = OpenAI(
-                base_url=self._model_config["base_url"],
-                api_key=self._model_config["api_key"]
-            )
+            from .secrets import _make_openai_sync_client
+            self._client = _make_openai_sync_client(self.model_key)
         return self._client
     
     @property
     def async_client(self) -> AsyncOpenAI:
-        """Get asynchronous OpenAI client"""
+        """Get asynchronous OpenAI client
+
+        同 client，经统一工厂构造，保证代理/本地决策只有一处实现。
+        """
         if self._async_client is None:
-            self._async_client = AsyncOpenAI(
-                base_url=self._model_config["base_url"],
-                api_key=self._model_config["api_key"]
-            )
+            from .secrets import _make_openai_client
+            self._async_client = _make_openai_client(self.model_key)
         return self._async_client
     
     @property
     def model(self) -> str:
         """Get model name"""
         return self._model_config["model"]
+
+    def get_cost_report(self) -> str:
+        """获取成本报告"""
+        if self.cost_tracker is not None:
+            return self.cost_tracker.format_report()
+        return "成本追踪不可用"
+
+    def get_session_cost(self):
+        """获取会话成本摘要"""
+        if self.cost_tracker is not None:
+            return self.cost_tracker.get_session_summary()
+        return None
+
+    # ========================================================================
+    # P2-1：提示词缓存优化（Anthropic/Claude cache_control 标记）
+    # ========================================================================
+
+    @staticmethod
+    def _is_claude_model(model_name: str) -> bool:
+        """检测是否为 Claude/Anthropic 模型
+
+        Anthropic API 支持提示词缓存（Prompt Caching），
+        通过在消息上添加 cache_control 标记，API 会自动缓存
+        系统提示词前缀，减少重复计算和延迟。
+
+        Args:
+            model_name: 模型名（如 "claude-3-5-sonnet-20241022"）
+
+        Returns:
+            True 如果模型名包含 "claude" 或 "anthropic"
+        """
+        if not model_name:
+            return False
+        model_lower = model_name.lower()
+        return "claude" in model_lower or "anthropic" in model_lower
+
+    @classmethod
+    def _apply_cache_control_for_claude(
+        cls,
+        messages: List[Dict[str, Any]],
+        model_name: str,
+    ) -> List[Dict[str, Any]]:
+        """为 Claude 模型的 system 消息添加 cache_control 标记
+
+        策略：
+        - 仅当模型为 Claude/Anthropic 时生效
+        - 只对 role="system" 的消息添加 cache_control: {"type": "ephemeral"}
+        - 不修改 user/assistant/tool 消息
+        - 非 Claude 模型原样返回（OpenAI/GLM 等忽略此字段，但为避免
+          无关字段污染请求，非 Claude 模型直接返回原列表）
+
+        注意：此方法不修改原列表，返回新列表（浅拷贝消息字典），
+        避免影响调用方的原始消息。
+
+        Args:
+            messages: 消息列表
+            model_name: 当前调用的模型名
+
+        Returns:
+            添加了 cache_control 标记的新消息列表（非 Claude 模型返回原列表）
+        """
+        if not cls._is_claude_model(model_name):
+            return messages
+
+        new_messages = []
+        for msg in messages:
+            new_msg = dict(msg)
+            if new_msg.get("role") == "system":
+                # 只为 system 消息添加 cache_control，保持缓存前缀稳定
+                new_msg["cache_control"] = {"type": "ephemeral"}
+            new_messages.append(new_msg)
+        return new_messages
 
     # ========================================================================
     # 阶段 V：模型降级策略（主模型限流时自动切换备用模型）
@@ -108,18 +191,21 @@ class LLMClient:
         return MODEL_CONFIGS.get(model_key, {}).copy()
 
     def _get_sync_client_for(self, model_key: str) -> OpenAI:
-        """获取指定模型的同步客户端（主模型复用缓存）"""
+        """获取指定模型的同步客户端（主模型复用缓存）
+
+        非主模型同样走统一工厂（代理/本地分支唯一），只是不缓存。
+        """
         if model_key == self.model_key:
             return self.client
-        cfg = self._get_fallback_config(model_key)
-        return OpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
+        from .secrets import _make_openai_sync_client
+        return _make_openai_sync_client(model_key)
 
     def _get_async_client_for(self, model_key: str) -> AsyncOpenAI:
         """获取指定模型的异步客户端（主模型复用缓存）"""
         if model_key == self.model_key:
             return self.async_client
-        cfg = self._get_fallback_config(model_key)
-        return AsyncOpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
+        from .secrets import _make_openai_client
+        return _make_openai_client(model_key)
 
     def _get_model_name_for(self, model_key: str) -> str:
         """获取指定模型的模型名"""
@@ -145,13 +231,22 @@ class LLMClient:
         for idx, model_key in enumerate(self._fallback_model_keys()):
             try:
                 client = self._get_sync_client_for(model_key)
+                model_name = self._get_model_name_for(model_key)
+                # P2-1: 为 Claude 模型的 system 消息添加 cache_control 标记
+                effective_messages = self._apply_cache_control_for_claude(messages, model_name)
                 response = client.chat.completions.create(
-                    model=self._get_model_name_for(model_key),
-                    messages=messages,
+                    model=model_name,
+                    messages=effective_messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     stream=stream,
                 )
+                if self.cost_tracker is not None and hasattr(response, 'usage') and response.usage:
+                    self.cost_tracker.record_call(
+                        model=model_name,
+                        prompt_tokens=response.usage.prompt_tokens or 0,
+                        completion_tokens=response.usage.completion_tokens or 0,
+                    )
                 if stream:
                     return self._handle_stream_sync(response)
                 return response.choices[0].message.content
@@ -186,16 +281,25 @@ class LLMClient:
         for idx, model_key in enumerate(self._fallback_model_keys()):
             try:
                 client = self._get_async_client_for(model_key)
+                model_name = self._get_model_name_for(model_key)
+                # P2-1: 为 Claude 模型的 system 消息添加 cache_control 标记
+                effective_messages = self._apply_cache_control_for_claude(messages, model_name)
                 response = await asyncio.wait_for(
                     client.chat.completions.create(
-                        model=self._get_model_name_for(model_key),
-                        messages=messages,
+                        model=model_name,
+                        messages=effective_messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         stream=stream,
                     ),
                     timeout=timeout,
                 )
+                if self.cost_tracker is not None and hasattr(response, 'usage') and response.usage:
+                    self.cost_tracker.record_call(
+                        model=model_name,
+                        prompt_tokens=response.usage.prompt_tokens or 0,
+                        completion_tokens=response.usage.completion_tokens or 0,
+                    )
                 if stream:
                     return self._handle_stream_async(response)
                 return response.choices[0].message.content
@@ -229,16 +333,25 @@ class LLMClient:
         for idx, model_key in enumerate(self._fallback_model_keys()):
             try:
                 client = self._get_async_client_for(model_key)
+                model_name = self._get_model_name_for(model_key)
+                # P2-1: 为 Claude 模型的 system 消息添加 cache_control 标记
+                effective_messages = self._apply_cache_control_for_claude(messages, model_name)
                 response = await asyncio.wait_for(
                     client.chat.completions.create(
-                        model=self._get_model_name_for(model_key),
-                        messages=messages,
+                        model=model_name,
+                        messages=effective_messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         stream=stream,
                     ),
                     timeout=timeout,
                 )
+                if self.cost_tracker is not None and hasattr(response, 'usage') and response.usage:
+                    self.cost_tracker.record_call(
+                        model=model_name,
+                        prompt_tokens=response.usage.prompt_tokens or 0,
+                        completion_tokens=response.usage.completion_tokens or 0,
+                    )
                 if stream:
                     return self._handle_stream_async(response)
                 return response.choices[0].message.content
