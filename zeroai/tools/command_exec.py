@@ -18,14 +18,60 @@
 import os
 import sys
 import re
+import shlex
 import locale
+import logging
 import subprocess
 
 from zeroai.core.constants import PERMISSION_LEVEL
 
+logger = logging.getLogger(__name__)
+
 
 # 工作目录（受限模式下命令执行限制在此目录）
 WORK_DIR = os.getcwd()
+
+
+# 高危命令正则模式（比黑名单更广，用于 warning 日志记录）
+# 在 full 模式下不拒绝，仅记录 warning；在 restricted 模式下拦截
+_DANGEROUS_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"\brm\s+(-[a-z]*r[a-z]*f[a-z]*|-[a-z]*f[a-z]*r[a-z]*)\b",  # rm -rf
+        r"\bformat\b\s+[a-z]:",                                       # format X:
+        r"\bdel\s+/[a-z]*f[a-z]*\b",                                  # del /f
+        r"\brmdir\s+/[a-z]*s[a-z]*\b",                                # rmdir /s
+        r"\bmkfs\b",                                                   # mkfs
+        r"\bdd\s+if=",                                                 # dd if=
+        r":\(\)\s*\{\s*:\|:&\s*\};:",                                 # fork bomb :(){:|:&};:
+        r"\bshutdown\b",                                               # shutdown
+        r"\bsystemctl\s+(stop|disable|poweroff|halt)\b",              # systemctl stop
+        r"\breg\s+delete\b",                                           # reg delete
+    ]
+]
+
+
+def _is_dangerous_command(command: str) -> bool:
+    """检查命令是否匹配高危模式"""
+    return any(p.search(command) for p in _DANGEROUS_PATTERNS)
+
+
+def _validate_command_lexical(command: str) -> None:
+    """验证命令字符串词法完整性（检测未闭合引号等注入迹象）
+
+    Windows 上 shell=True 必须保留（dir/type/set 等内置命令需要），
+    但通过 shlex 解析验证命令字符串的词法完整性，防止引号注入。
+
+    Raises:
+        ValueError: 命令字符串词法不完整（如未闭合引号）
+    """
+    try:
+        if sys.platform == "win32":
+            # Windows: posix=False 避免反斜杠被当作转义符
+            shlex.split(command, posix=False)
+        else:
+            shlex.split(command)
+    except ValueError as e:
+        raise ValueError(f"命令词法解析失败（可能存在注入）: {e}")
 
 
 def _is_windows_local() -> bool:
@@ -211,17 +257,25 @@ def run_command(command: str, skip_translate: bool = False) -> str:
     跨平台支持：自动识别 Linux 命令并转换为 Windows 等效命令（或反之）。
     例如在 Windows 上输入 'ls' 会自动转换为 'dir'，'cat file' 转换为 'type file'。
 
+    安全加固（P1-1）：
+    - 非 Windows 平台：用 shlex.split + shell=False 避免 shell 注入
+    - Windows 平台：保留 shell=True（内置命令 dir/type/set 需要），但用 shlex 验证命令词法
+    - 高危命令（rm -rf / format / mkfs / dd if= / fork bomb 等）：
+      * full 模式：记录 warning 日志后继续执行（用户已授权，类似 Cursor/Claude Code）
+      * restricted 模式：拦截
+
     Args:
         command: 要执行的命令
         skip_translate: 跳过跨平台翻译（语义化本地运维工具内部已适配，传 True 避免误翻译）
 
     迁移来源：tui_agent.py 行 2090-2133
     """
-    # 危险命令黑名单（仅受限模式生效）
-    dangerous = ["rm -rf /", "del /f /s /q C:\\", "format C:", "shutdown /s /t 0"]
-    if PERMISSION_LEVEL != "full":
-        if any(d in command.lower() for d in dangerous):
-            return "已拦截危险命令（受限模式）"
+    # 高危命令检测（比黑名单更广的正则模式匹配）
+    if _is_dangerous_command(command):
+        if PERMISSION_LEVEL != "full":
+            return "已拦截高危命令（受限模式）"
+        # full 模式：用户已授权，记录 warning 但继续执行
+        logger.warning("执行高危命令: %s", original_cmd_safe(command))
 
     # 跨平台命令翻译（语义化工具已内部适配，跳过）
     original_command = command
@@ -232,16 +286,29 @@ def run_command(command: str, skip_translate: bool = False) -> str:
             translate_hint = f"[跨平台] 已将 '{original_cmd_safe(original_command)}' 翻译为 '{command}'\n"
 
     try:
+        # 命令词法验证（检测未闭合引号等注入迹象）
+        _validate_command_lexical(command)
+
         # 全权限：超时延长到 120 秒；受限：30 秒
         timeout = 120 if PERMISSION_LEVEL == "full" else 30
         # 全权限：cwd 限制放开（不强制 WORK_DIR）
         cwd = None if PERMISSION_LEVEL == "full" else WORK_DIR
         # encoding 使用本地默认（中文 Windows 为 GBK/cp936），errors='replace' 兜底
         # 避免某些命令（ipconfig/systeminfo/sc/netsh）输出非 UTF-8 时 UnicodeDecodeError
-        r = subprocess.run(command, shell=True, capture_output=True,
-                          text=True, timeout=timeout, cwd=cwd,
-                          encoding=locale.getpreferredencoding(False),
-                          errors="replace")
+        if sys.platform == "win32":
+            # Windows: 必须保留 shell=True 以支持内置命令（dir/type/set/cd 等）
+            # 已通过 _validate_command_lexical 验证命令词法完整性
+            r = subprocess.run(command, shell=True, capture_output=True,
+                              text=True, timeout=timeout, cwd=cwd,
+                              encoding=locale.getpreferredencoding(False),
+                              errors="replace")
+        else:
+            # POSIX: shlex.split + shell=False 避免 shell 注入
+            args = shlex.split(command)
+            r = subprocess.run(args, shell=False, capture_output=True,
+                              text=True, timeout=timeout, cwd=cwd,
+                              encoding=locale.getpreferredencoding(False),
+                              errors="replace")
         out = (r.stdout or "") + (r.stderr or "")
         # 全权限：返回更长（8000）；受限：4000
         max_out = 8000 if PERMISSION_LEVEL == "full" else 4000
@@ -249,6 +316,8 @@ def run_command(command: str, skip_translate: bool = False) -> str:
         return translate_hint + result
     except subprocess.TimeoutExpired:
         return f"{translate_hint}错误：命令超时（>{timeout}秒）"
+    except ValueError as e:
+        return f"{translate_hint}错误：{e}"
     except Exception as e:
         return f"{translate_hint}错误：{e}"
 
@@ -264,26 +333,26 @@ def original_cmd_safe(cmd: str) -> str:
 def exec_python(code: str, timeout: int = 10) -> str:
     """在受限环境中执行 Python 代码片段
 
+    安全加固（P1-1）：废弃可绕过的字符串黑名单匹配，改用 AST 静态分析
+    （来自 zeroai.core.sandbox.CodeSafetyChecker），可有效检测：
+    - obfuscated = "ev" + "al" 等拼接绕过
+    - getattr(__builtins__, "ev"+"al") 等反射绕过
+    - importlib.import_module("subprocess") 等动态导入绕过
+
+    执行流程：
+    1. AST 安全检查（替代字符串黑名单）
+    2. 在受限命名空间中执行（受限 builtins + 预置安全模块）
+
     迁移来源：tui_agent.py 行 3263-3316
     """
     import io, sys
-    # 危险模块黑名单 - 更严格的限制
-    blocked = [
-        "os.system", "os.popen", "subprocess", "eval", "exec", "compile",
-        "__import__", "open(", "shutil.rmtree", "shutil.move",
-        "ctypes", "windll", "cdll", "socket", "http", "urllib", "requests",
-        "multiprocessing", "threading", "signal", "sys.exit", "sys.modules.pop",
-        "importlib", "imp", "code", "codeop", "pdb", "bdb", "profile", "cProfile",
-        "timeit", "unittest", "pytest", "doctest", "xmlrpc", "jsonrpc",
-        "pickle", "shelve", "dbm", "sqlite3", "mysql", "psycopg2",
-        "ftplib", "smtplib", "imaplib", "poplib", "telnetlib", "ssh", "paramiko",
-        "numpy", "pandas", "matplotlib", "scipy", "PIL", "cv2", "opencv",
-        "tensorflow", "torch", "keras", "django", "flask", "fastapi",
-        "selenium", "playwright", "bs4", "lxml",
-    ]
-    for b in blocked:
-        if b in code:
-            return f"错误：代码包含受限操作 '{b}'"
+    from zeroai.core.sandbox import check_code_safety
+
+    # AST 安全检查（替代字符串黑名单，防止 obfuscated = "ev"+"al" 等绕过）
+    is_safe, issues = check_code_safety(code)
+    if not is_safe:
+        return f"错误：代码安全检查未通过：{'; '.join(issues)}"
+
     old_stdout = sys.stdout
     old_stderr = sys.stderr
     captured = io.StringIO()

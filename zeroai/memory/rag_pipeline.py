@@ -310,15 +310,38 @@ class MMRReranker:
 
     λ=1 时退化为纯相关性排序，λ=0 时纯多样性排序。
     默认 λ=0.7 偏重相关性。
+
+    相似度计算策略（按优先级）：
+    1. embedding 余弦相似度（如果提供了 embed_func）
+    2. 字符 n-gram 余弦相似度（比 Jaccard 更好地捕捉语义相似性）
+    3. Jaccard 相似度（最终回退）
     """
 
-    def __init__(self, lambda_param: float = 0.7):
+    def __init__(self, lambda_param: float = 0.7, embed_func=None):
         """初始化
 
         Args:
             lambda_param: 相关性 vs 多样性权衡参数（0-1）
+            embed_func: 可选的 embedding 函数 text->list[float]，用于语义相似度
         """
         self.lambda_param = lambda_param
+        self._embed_func = embed_func
+        self._embed_cache: Dict[str, list] = {}
+
+    def _get_embedding(self, text: str) -> Optional[list]:
+        """获取文本 embedding，带缓存"""
+        if self._embed_func is None:
+            return None
+        if text in self._embed_cache:
+            return self._embed_cache[text]
+        try:
+            emb = self._embed_func(text)
+            if emb:
+                self._embed_cache[text] = emb
+                return emb
+        except Exception:
+            pass
+        return None
 
     def rerank(
         self,
@@ -358,7 +381,7 @@ class MMRReranker:
                 # 多样性惩罚：与已选结果的最大相似度
                 diversity_penalty = 0.0
                 for sel in selected:
-                    sim = self._text_similarity(
+                    sim = self._semantic_similarity(
                         candidate.get("content", ""),
                         sel.get("content", ""),
                     )
@@ -375,28 +398,63 @@ class MMRReranker:
 
         return selected
 
+    def _semantic_similarity(self, text1: str, text2: str) -> float:
+        """语义相似度：优先用 embedding，回退到 n-gram 余弦，最终回退 Jaccard"""
+        # 1. 尝试 embedding 余弦相似度
+        emb1 = self._get_embedding(text1)
+        emb2 = self._get_embedding(text2)
+        if emb1 and emb2 and len(emb1) == len(emb2):
+            return self._cosine_sim(emb1, emb2)
+
+        # 2. 字符 n-gram 余弦相似度（比 Jaccard 更好）
+        return self._ngram_cosine_similarity(text1, text2)
+
     @staticmethod
-    def _text_similarity(text1: str, text2: str) -> float:
-        """计算两段文本的相似度（Jaccard 简化版）"""
-        # 简易分词：英文按词，中文按字
-        def _tokenize(text: str) -> set:
-            tokens = set()
-            for word in re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", text.lower()):
-                tokens.add(word)
-            for ch in text:
-                if "\u4e00" <= ch <= "\u9fff":
-                    tokens.add(ch)
-            return tokens
+    def _cosine_sim(a: list, b: list) -> float:
+        """向量余弦相似度"""
+        import math
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(y * y for y in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
 
-        set1 = _tokenize(text1)
-        set2 = _tokenize(text2)
+    @staticmethod
+    def _ngram_cosine_similarity(text1: str, text2: str, n: int = 3) -> float:
+        """字符 n-gram 余弦相似度
 
-        if not set1 or not set2:
+        比 Jaccard 更好地捕捉语义相似性：
+        - Jaccard 只看有无重叠（二值），余弦看重叠频率
+        - n-gram 能捕捉局部顺序信息
+        """
+        if not text1 or not text2:
             return 0.0
 
-        intersection = set1 & set2
-        union = set1 | set2
-        return len(intersection) / len(union) if union else 0.0
+        def _ngram_freqs(text: str) -> Dict[str, int]:
+            if len(text) < n:
+                return {text: 1} if text else {}
+            freqs: Dict[str, int] = {}
+            for i in range(len(text) - n + 1):
+                gram = text[i:i + n]
+                freqs[gram] = freqs.get(gram, 0) + 1
+            return freqs
+
+        freqs1 = _ngram_freqs(text1)
+        freqs2 = _ngram_freqs(text2)
+
+        if not freqs1 or not freqs2:
+            return 0.0
+
+        # 余弦相似度
+        all_keys = set(freqs1.keys()) | set(freqs2.keys())
+        dot = sum(freqs1.get(k, 0) * freqs2.get(k, 0) for k in all_keys)
+        norm1 = sum(v * v for v in freqs1.values())
+        norm2 = sum(v * v for v in freqs2.values())
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        return dot / (norm1 ** 0.5 * norm2 ** 0.5)
 
 
 # ============================================================================
@@ -534,6 +592,7 @@ class RAGPipeline:
         self.reranker = reranker or MMRReranker()
         self.compressor = compressor or ContextCompressor()
         self.llm_client = llm_client
+        self._embedding_dim = embedding_dim
 
     async def index_text(
         self,
@@ -608,6 +667,16 @@ class RAGPipeline:
 
         # MMR 重排序
         if use_mmr:
+            # 预计算 embeddings 填入 reranker 缓存（异步→同步桥接）
+            if self.llm_client is not None and hasattr(self.llm_client, "embed"):
+                try:
+                    texts_to_embed = [query] + [c.get("content", "") for c in candidates]
+                    embs = await self.llm_client.embed(texts_to_embed, dimensions=self._embedding_dim)
+                    for text, emb in zip(texts_to_embed, embs):
+                        if emb:
+                            self.reranker._embed_cache[text] = emb
+                except Exception:
+                    pass
             candidates = self.reranker.rerank(query, candidates, top_k=top_k)
         else:
             candidates = candidates[:top_k]

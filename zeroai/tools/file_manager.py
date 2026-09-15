@@ -24,7 +24,9 @@
 import os
 import re
 import shutil
+import difflib
 from pathlib import Path
+from typing import Callable, Optional, List, Dict
 
 from zeroai.core.runtime import runtime_cache
 from zeroai.core.constants import PERMISSION_LEVEL, MAX_FILE_SIZE
@@ -448,5 +450,187 @@ def read_image(path: str) -> str:
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
                 "gif": "image/gif", "bmp": "image/bmp", "webp": "image/webp"}.get(ext.lstrip("."), "image/png")
         return f"data:{mime};base64,{b64_data}"
+    except Exception as e:
+        return f"错误：{e}"
+
+
+# ---------------------------------------------------------------------------
+# diff 生成与审批编辑功能（追加于文件末尾，不修改任何现有函数）
+# ---------------------------------------------------------------------------
+
+
+def _read_file_multi_encoding(path: str) -> "tuple[Optional[str], Optional[str]]":
+    """以多编码方式读取文件，返回 (文本内容, 实际使用的编码)
+
+    支持 utf-8 / gbk / latin-1，全部失败返回 (None, None)。
+    """
+    full = Path(path).resolve()
+    for enc in ["utf-8", "gbk", "latin-1"]:
+        try:
+            return full.read_text(encoding=enc), enc
+        except UnicodeDecodeError:
+            continue
+    return None, None
+
+
+def generate_diff(file_path: str, old_content: str, new_content: str) -> str:
+    """生成 unified diff 格式的差异对比
+
+    使用 difflib.unified_diff 生成标准 diff 格式。
+    返回可读的 diff 文本。
+    """
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    diff_iter = difflib.unified_diff(
+        old_lines,
+        new_lines,
+        fromfile=f"{file_path} (原)",
+        tofile=f"{file_path} (新)",
+        lineterm="",
+    )
+    diff_text = "\n".join(diff_iter)
+    if not diff_text:
+        return f"（{file_path} 无差异）"
+    return diff_text
+
+
+def apply_edit_with_diff(
+    file_path: str,
+    old_string: str,
+    new_string: str,
+    approval_callback: Optional[Callable[[str], bool]] = None,
+) -> str:
+    """带 diff 预览和审批的编辑操作
+
+    流程：
+    1. 读取文件当前内容
+    2. 检查 old_string 是否存在于文件中
+    3. 生成新内容（替换 old_string 为 new_string）
+    4. 生成 diff 预览
+    5. 如果有 approval_callback，调用它展示 diff 并等待用户审批
+    6. 审批通过则写入文件，否则返回"用户拒绝"
+    7. 返回操作结果描述
+    """
+    try:
+        full = Path(file_path).resolve()
+        if not full.exists():
+            return f"错误：文件不存在 {file_path}"
+        if full.is_dir():
+            return f"错误：{file_path} 是目录"
+
+        # 1. 读取文件当前内容（多编码兼容）
+        current_content, enc = _read_file_multi_encoding(file_path)
+        if current_content is None:
+            return "错误：无法解码文件"
+        if enc is None:
+            enc = "utf-8"
+
+        # 2. 检查 old_string 是否存在
+        if old_string not in current_content:
+            return f"错误：未在文件中找到要替换的内容（old_string 不匹配）"
+
+        # 3. 生成新内容
+        new_content = current_content.replace(old_string, new_string, 1)
+
+        # 4. 生成 diff 预览
+        diff_text = generate_diff(file_path, current_content, new_content)
+
+        # 5. 审批流程
+        if approval_callback is not None:
+            try:
+                approved = approval_callback(diff_text)
+            except Exception as e:
+                return f"错误：审批回调执行失败 {e}"
+            if not approved:
+                return f"用户拒绝：未应用编辑\n{diff_text}"
+
+        # 6. 写入文件
+        full.write_text(new_content, encoding=enc)
+        return f"{_load_svg_icon('check')} 已应用编辑：{file_path}\n{diff_text}"
+    except Exception as e:
+        return f"错误：{e}"
+
+
+def apply_patch_edit(
+    file_path: str,
+    patches: List[Dict[str, str]],
+    approval_callback: Optional[Callable[[str], bool]] = None,
+) -> str:
+    """批量补丁编辑
+
+    patches 是 [{"old": "...", "new": "..."}] 列表
+    依次应用每个补丁，生成完整 diff 后一次性审批
+    """
+    try:
+        full = Path(file_path).resolve()
+        if not full.exists():
+            return f"错误：文件不存在 {file_path}"
+        if full.is_dir():
+            return f"错误：{file_path} 是目录"
+
+        # 读取文件当前内容（多编码兼容）
+        current_content, enc = _read_file_multi_encoding(file_path)
+        if current_content is None:
+            return "错误：无法解码文件"
+        if enc is None:
+            enc = "utf-8"
+
+        # 依次应用每个补丁，生成新内容
+        new_content = current_content
+        applied_count = 0
+        for idx, patch in enumerate(patches):
+            old_str = patch.get("old", "")
+            new_str = patch.get("new", "")
+            if old_str not in new_content:
+                return (
+                    f"错误：第 {idx + 1} 个补丁的 old 内容未在文件中找到，"
+                    f"已应用 {applied_count} 个补丁后中止"
+                )
+            new_content = new_content.replace(old_str, new_str, 1)
+            applied_count += 1
+
+        # 生成完整 diff
+        diff_text = generate_diff(file_path, current_content, new_content)
+
+        # 审批流程
+        if approval_callback is not None:
+            try:
+                approved = approval_callback(diff_text)
+            except Exception as e:
+                return f"错误：审批回调执行失败 {e}"
+            if not approved:
+                return f"用户拒绝：未应用 {len(patches)} 个补丁\n{diff_text}"
+
+        # 写入文件
+        full.write_text(new_content, encoding=enc)
+        return (
+            f"{_load_svg_icon('check')} 已应用 {applied_count} 个补丁：{file_path}\n"
+            f"{diff_text}"
+        )
+    except Exception as e:
+        return f"错误：{e}"
+
+
+def preview_edit(file_path: str, old_string: str, new_string: str) -> str:
+    """只预览不应用，返回 diff 文本"""
+    try:
+        full = Path(file_path).resolve()
+        if not full.exists():
+            return f"错误：文件不存在 {file_path}"
+        if full.is_dir():
+            return f"错误：{file_path} 是目录"
+
+        # 读取文件当前内容（多编码兼容）
+        current_content, _ = _read_file_multi_encoding(file_path)
+        if current_content is None:
+            return "错误：无法解码文件"
+
+        # 检查 old_string 是否存在
+        if old_string not in current_content:
+            return f"错误：未在文件中找到要替换的内容（old_string 不匹配）"
+
+        # 生成新内容（不写入）
+        new_content = current_content.replace(old_string, new_string, 1)
+        return generate_diff(file_path, current_content, new_content)
     except Exception as e:
         return f"错误：{e}"

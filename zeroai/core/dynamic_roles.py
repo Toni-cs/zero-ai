@@ -549,82 +549,174 @@ class EnhancedMultiAgentCollaborator(MultiAgentCollaborator):
         task: str,
         results: Dict[str, str],
         voter_roles: Optional[List[str]] = None,
+        max_rounds: int = 3,
     ) -> Dict[str, Any]:
-        """投票选择最佳方案
+        """多轮淘汰制共识投票
+
+        每轮所有投票者对剩余候选方案打分（1-10）并给出批判性评价，
+        淘汰得分最低的方案，直到剩下一个或达到最大轮数。
 
         Returns:
             {
-                "winner": str,           # 胜出结果
-                "winner_agent": str,     # 胜出 Agent
-                "votes": Dict[str, int], # 每个方案的票数
-                "details": List[Dict],   # 详细投票信息
+                "winner": str,
+                "winner_agent": str,
+                "votes": Dict[str, float],   # 最终累计得分
+                "details": List[Dict],       # 每轮详细投票信息
+                "elimination_history": List[Dict],
             }
         """
         if not results:
-            return {"winner": "", "winner_agent": "", "votes": {}, "details": []}
+            return {"winner": "", "winner_agent": "", "votes": {}, "details": [],
+                    "elimination_history": []}
 
-        # 如果只有一个结果，直接返回
         if len(results) == 1:
             name, result = next(iter(results.items()))
             return {
-                "winner": result,
-                "winner_agent": name,
-                "votes": {name: 1},
+                "winner": result, "winner_agent": name,
+                "votes": {name: 10.0},
                 "details": [{"voter": "auto", "choice": name, "reason": "唯一方案"}],
+                "elimination_history": [],
             }
 
-        # 构造投票 prompt
-        results_desc = "\n\n".join(
-            f"=== 方案 {i+1}（来自 {name}）===\n{result[:500]}..."
-            for i, (name, result) in enumerate(results.items())
+        # 确定投票者
+        if voter_roles is None:
+            voter_roles = list(self.roles.keys())
+        if not voter_roles:
+            voter_roles = ["orchestrator"]
+
+        candidates = dict(results)  # 候选方案（可被淘汰）
+        all_details: List[Dict[str, Any]] = []
+        elimination_history: List[Dict[str, Any]] = []
+        cumulative_scores: Dict[str, float] = {n: 0.0 for n in results}
+
+        for round_idx in range(max_rounds):
+            if len(candidates) <= 1:
+                break
+
+            # 每轮：所有投票者对所有候选打分 + 批判
+            round_scores: Dict[str, float] = {n: 0.0 for n in candidates}
+            round_details: List[Dict[str, Any]] = []
+
+            scoring_tasks = []
+            for voter in voter_roles:
+                scoring_tasks.append(
+                    self._score_candidates(task, candidates, voter, round_idx)
+                )
+
+            scoring_results = await asyncio.gather(*scoring_tasks, return_exceptions=True)
+
+            for voter, sr in zip(voter_roles, scoring_results):
+                if isinstance(sr, Exception) or not sr:
+                    continue
+                for cand_name, score_info in sr.get("scores", {}).items():
+                    if cand_name in round_scores:
+                        round_scores[cand_name] += score_info["score"]
+                        round_details.append({
+                            "voter": voter,
+                            "candidate": cand_name,
+                            "score": score_info["score"],
+                            "critique": score_info.get("critique", ""),
+                            "round": round_idx,
+                        })
+
+            all_details.extend(round_details)
+
+            for n, s in round_scores.items():
+                cumulative_scores[n] = cumulative_scores.get(n, 0.0) + s
+
+            # 淘汰：得分最低的 1-2 个方案
+            ranked = sorted(round_scores.items(), key=lambda x: x[1])
+            n_eliminate = min(len(ranked) - 1, 2 if len(ranked) > 4 else 1)
+            eliminated = []
+            for i in range(n_eliminate):
+                elim_name, elim_score = ranked[i]
+                eliminated.append({"name": elim_name, "score": elim_score})
+                candidates.pop(elim_name, None)
+
+            elimination_history.append({
+                "round": round_idx,
+                "remaining": list(candidates.keys()),
+                "eliminated": eliminated,
+                "round_scores": round_scores,
+            })
+
+        # 最终胜出
+        if candidates:
+            winner_name = max(candidates, key=lambda n: cumulative_scores.get(n, 0))
+        else:
+            winner_name = max(cumulative_scores, key=cumulative_scores.get)
+
+        return {
+            "winner": results[winner_name],
+            "winner_agent": winner_name,
+            "votes": cumulative_scores,
+            "details": all_details,
+            "elimination_history": elimination_history,
+        }
+
+    async def _score_candidates(
+        self,
+        task: str,
+        candidates: Dict[str, str],
+        voter: str,
+        round_idx: int,
+    ) -> Dict[str, Any]:
+        """单个投票者对所有候选方案打分 + 批判性评价
+
+        强制要求找出每个方案的缺陷（对抗性思维），而非简单选优。
+        """
+        cand_desc = "\n\n".join(
+            f"=== 方案 [{name}] ===\n{result[:600]}"
+            for name, result in candidates.items()
         )
 
-        prompt = f"""你是评审专家。以下是多个 Agent 对同一任务的独立完成结果，请选出最佳方案。
+        prompt = f"""你是评审专家 [{voter}]，第 {round_idx + 1} 轮评审。
 
 任务：{task}
 
-{results_desc}
+候选方案：
+{cand_desc}
 
-请输出 JSON：
+请对每个方案打分（1-10）并给出批判性评价。必须指出每个方案的缺陷。
+
+输出 JSON：
 ```json
-{{"choice": <方案编号1-N>, "reason": "选择原因"}}
+{{
+  "scores": [
+    {{"name": "方案名", "score": 8, "critique": "缺陷分析..."}},
+    ...
+  ]
+}}
 ```
 
 评判标准：
 1. 正确性：是否正确完成任务
 2. 完整性：是否覆盖所有要求
 3. 质量：代码/文档质量
-4. 清晰度：是否易于理解"""
+4. 清晰度：是否易于理解
+5. 对抗性：必须找出真实缺陷，不能只说好话"""
 
         client = LLMClient(model_key=self.orchestrator_model)
         msgs = [{"role": "user", "content": prompt}]
         try:
-            resp = await client.chat(msgs, temperature=0.2)
-            # 解析投票结果
-            match = re.search(r'\{[^}]+\}', resp)
+            resp = await client.chat(msgs, temperature=0.3)
+            match = re.search(r'\{.*\}', resp, re.DOTALL)
             if match:
-                vote_data = json.loads(match.group())
-                choice_idx = int(vote_data.get("choice", 1)) - 1
-                names = list(results.keys())
-                if 0 <= choice_idx < len(names):
-                    winner_name = names[choice_idx]
-                    return {
-                        "winner": results[winner_name],
-                        "winner_agent": winner_name,
-                        "votes": {winner_name: 1},
-                        "details": [{"voter": "orchestrator", "choice": winner_name, "reason": vote_data.get("reason", "")}],
-                    }
+                data = json.loads(match.group())
+                scores_dict = {}
+                for item in data.get("scores", []):
+                    name = item.get("name", "")
+                    if name in candidates:
+                        scores_dict[name] = {
+                            "score": max(1, min(10, float(item.get("score", 5)))),
+                            "critique": item.get("critique", ""),
+                        }
+                return {"scores": scores_dict}
         except Exception:
             pass
 
-        # 回退：选第一个
-        first_name = next(iter(results))
-        return {
-            "winner": results[first_name],
-            "winner_agent": first_name,
-            "votes": {first_name: 1},
-            "details": [{"voter": "fallback", "choice": first_name, "reason": "默认选择"}],
-        }
+        # 回退：均匀打分
+        return {"scores": {n: {"score": 5.0, "critique": "评分失败"} for n in candidates}}
 
 
 __all__ = [

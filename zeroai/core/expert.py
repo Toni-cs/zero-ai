@@ -20,6 +20,8 @@
 import asyncio
 import re
 import hashlib
+import math
+import json
 from typing import Dict, List, Optional, Tuple, Any, Callable
 from collections import OrderedDict, deque
 from .config import get_config
@@ -113,6 +115,8 @@ class ExpertRouter:
         self.config = get_config()
         self._route_cache = LRUCache(maxsize=256)
         self._expert_team = self.config._config.get("experts", {})
+        self._embedding_cache: Dict[str, list] = {}  # 语义路由 embedding 缓存
+        self._embedding_cache: Dict[str, list] = {}  # 语义路由 embedding 缓存
 
     def route_by_keywords(self, user_input: str) -> str:
         """Route to expert based on keyword matching"""
@@ -187,6 +191,83 @@ class ExpertRouter:
             expert_key = self.route_by_keywords(user_input)
             self._route_cache.set(cache_key, expert_key)
             return expert_key
+
+    async def route_semantic(self, user_input: str) -> List[Tuple[str, float]]:
+        """语义路由：用 embedding 相似度选择专家
+
+        Returns:
+            [(expert_key, confidence), ...] 按相似度降序排列
+        """
+        try:
+            query_emb = await self._get_embedding(user_input)
+            if not query_emb:
+                return [(self.route_by_keywords(user_input), 0.5)]
+
+            scores = {}
+            for expert_key, cfg in self._expert_team.items():
+                # 用专家关键词 + 描述构建语义表示
+                kw_list = cfg.get("keywords", [])
+                desc = cfg.get("description", "")
+                sys_prompt = cfg.get("system_prompt", "")
+                expert_desc = " ".join(kw_list) + " " + desc + " " + sys_prompt[:200]
+                expert_emb = await self._get_embedding(expert_desc)
+                sim = self._cosine_similarity(query_emb, expert_emb)
+                scores[expert_key] = sim
+
+            ranked = sorted(scores.items(), key=lambda x: -x[1])
+            return ranked
+        except Exception:
+            return [(self.route_by_keywords(user_input), 0.5)]
+
+    async def route_with_confidence(self, user_input: str) -> List[str]:
+        """高置信→单专家，低置信→多专家兜底
+
+        Returns:
+            专家 key 列表（1-3 个）
+        """
+        if len(user_input) < 10:
+            return [self.route_by_keywords(user_input)]
+
+        ranked = await self.route_semantic(user_input)
+        if not ranked:
+            return [self.route_by_keywords(user_input)]
+
+        top_score = ranked[0][1]
+        if top_score > 0.85:
+            return [ranked[0][0]]  # 高置信，单专家
+        elif top_score > 0.6:
+            return [k for k, _ in ranked[:2]]  # 中置信，top-2
+        else:
+            return [k for k, _ in ranked[:3]]  # 低置信，top-3 兜底
+
+    async def _get_embedding(self, text: str) -> Optional[list]:
+        """获取文本 embedding，带缓存"""
+        cache_key = hashlib.md5(text.encode("utf-8")).hexdigest()[:16]
+        if cache_key in self._embedding_cache:
+            return self._embedding_cache[cache_key]
+
+        try:
+            from .llm import LLMClient
+            llm = LLMClient("glm-v")
+            emb = await llm.get_embedding(text)
+            if emb and isinstance(emb, list):
+                self._embedding_cache[cache_key] = emb
+                return emb
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _cosine_similarity(a: list, b: list) -> float:
+        """余弦相似度"""
+        if not a or not b or len(a) != len(b):
+            return 0.0
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(y * y for y in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
 
     def get_expert_config(self, expert_key: str) -> Dict:
         """Get configuration for a specific expert"""
@@ -353,31 +434,28 @@ class HybridExpertSystem:
         user_input: str,
         temperature: float = 0.7,
     ) -> List[Dict[str, str]]:
-        """多专家并行调用
+        """多专家真正并行调用（asyncio.gather）
 
         Returns:
             [{"expert": key, "label": label, "content": text}, ...]
             失败的专家不会出现在结果中
         """
-        tasks = {}
-        for ek in expert_keys:
-            tasks[ek] = self.call_expert(ek, user_input, temperature, stream=False)
-
-        results = []
-        for ek, task in tasks.items():
+        async def _call_one(ek: str) -> Optional[Dict[str, str]]:
             try:
-                content = await task
+                content = await self.call_expert(ek, user_input, temperature, stream=False)
                 if content:
                     expert_cfg = self.config.get_expert_config(ek)
-                    results.append({
+                    return {
                         "expert": ek,
                         "label": expert_cfg.get("label", ek),
                         "content": content,
-                    })
+                    }
             except Exception:
-                continue
+                pass
+            return None
 
-        return results
+        raw_results = await asyncio.gather(*[_call_one(ek) for ek in expert_keys])
+        return [r for r in raw_results if r is not None]
 
     async def call_experts_chain(
         self,
@@ -491,6 +569,139 @@ class HybridExpertSystem:
             # 汇总失败，返回第一个专家的回答
             return responses[0]["content"] if responses else None
 
+    async def adversarial_debate(
+        self,
+        user_input: str,
+        expert_keys: List[str],
+        rounds: int = 2,
+        temperature: float = 0.7,
+        log_func: Optional[Callable[[str], None]] = None,
+    ) -> Tuple[List[Dict[str, str]], List[Dict]]:
+        """对抗辩论：多轮交叉审查，让专家互相质疑并修正
+
+        流程：
+          round 0: 各专家独立回答
+          round 1-N: 每位专家看到其他人的观点并批判 + 修正自己
+          最终: 显式处理冲突而非简单拼接
+
+        Returns:
+            (final_responses, debate_history)
+        """
+        # round 0: 独立回答
+        responses = await self.call_experts_parallel(expert_keys, user_input, temperature)
+        if not responses:
+            return [], []
+
+        debate_history = [{"round": 0, "summary": f"{len(responses)} 位专家独立回答"}]
+
+        for round_idx in range(1, rounds + 1):
+            if log_func:
+                log_func(f"对抗辩论第 {round_idx} 轮：交叉批判")
+
+            async def _critique_one(resp: Dict[str, str]) -> Optional[Dict[str, str]]:
+                my_view = resp["content"][:1500]
+                others = {
+                    r["expert"]: r["content"][:1000]
+                    for r in responses
+                    if r["expert"] != resp["expert"]
+                }
+                if not others:
+                    return resp
+
+                critique_prompt = (
+                    f"你是严格的同行评审专家。请对以下回答进行批判性审查：\n\n"
+                    f"原始问题：{user_input[:500]}\n\n"
+                    f"你的回答：\n{my_view}\n\n"
+                    f"其他专家的回答：\n"
+                )
+                for k, v in others.items():
+                    critique_prompt += f"  [{k}]: {v}\n"
+                critique_prompt += (
+                    "\n请执行：\n"
+                    "1. 指出其他专家回答中的错误或不足\n"
+                    "2. 指出自己回答中的错误或不足\n"
+                    "3. 给出修正后的完整回答\n\n"
+                    "输出 JSON：{\"critiques\": \"对其他专家的批判\", "
+                    "\"self_correction\": \"自我修正\", \"revised_answer\": \"修正后的完整回答\"}"
+                )
+
+                try:
+                    llm = LLMClient("glm-v")
+                    raw = await llm.chat(
+                        system_prompt="你是严格的同行评审专家，负责批判性审查并修正回答。",
+                        user_prompt=critique_prompt,
+                        temperature=temperature,
+                        max_tokens=2000,
+                        stream=False,
+                        timeout=60,
+                    )
+                    if raw:
+                        # 尝试解析 JSON，失败则直接用 raw
+                        try:
+                            import json as _json
+                            # 去掉可能的 markdown 代码块标记
+                            clean = raw.strip()
+                            if clean.startswith("```"):
+                                clean = clean.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                            parsed = _json.loads(clean)
+                            revised = parsed.get("revised_answer", "")
+                            if revised:
+                                resp = dict(resp)
+                                resp["content"] = revised
+                        except Exception:
+                            pass  # JSON 解析失败，保留原回答
+                except Exception:
+                    pass
+                return resp
+
+            responses = await asyncio.gather(*[_critique_one(r) for r in responses])
+            responses = [r for r in responses if r is not None]
+            debate_history.append({
+                "round": round_idx,
+                "summary": f"第 {round_idx} 轮交叉批判完成，{len(responses)} 位专家已修正",
+            })
+
+        return responses, debate_history
+
+    async def _resolve_debate_conflicts(
+        self,
+        user_input: str,
+        responses: List[Dict[str, str]],
+        temperature: float = 0.3,
+    ) -> Optional[str]:
+        """显式处理专家间的冲突，而非简单拼接"""
+        if not responses:
+            return None
+        if len(responses) == 1:
+            return responses[0]["content"]
+
+        expert_answers = {r["expert"]: r["content"][:1500] for r in responses}
+        import json as _json
+
+        prompt = (
+            f"以下是多位专家经过多轮辩论后对同一问题的回答：\n\n"
+            f"问题：{user_input[:500]}\n\n"
+            f"专家回答：\n{_json.dumps(expert_answers, ensure_ascii=False, indent=2)}\n\n"
+            f"请综合这些回答。要求：\n"
+            f"1. 如果专家意见一致，直接整合\n"
+            f"2. 如果存在冲突，对每个冲突分析根源并给出明确裁决"
+            f"（不要简单列出两种方案让用户选）\n"
+            f"3. 输出一份连贯、完整的最终回答"
+        )
+
+        try:
+            llm = LLMClient("glm-v")
+            return await llm.chat(
+                system_prompt="你是 ZeroAI 首席专家，负责综合多位专家的辩论结果并给出最终裁决。",
+                user_prompt=prompt,
+                temperature=temperature,
+                max_tokens=3000,
+                stream=False,
+                timeout=60,
+            )
+        except Exception:
+            return responses[0]["content"]
+
     async def run_hybrid_turn(
         self,
         user_input: str,
@@ -530,14 +741,23 @@ class HybridExpertSystem:
             if log_func:
                 log_func("协作链模式：专家依次回答并传递结果")
             responses = await self.call_experts_chain(expert_keys, user_input, temperature)
+            debate_history = []
+        elif len(expert_keys) > 1:
+            if log_func:
+                log_func("对抗辩论模式：多专家交叉批判")
+            responses, debate_history = await self.adversarial_debate(
+                user_input, expert_keys, rounds=2, temperature=temperature, log_func=log_func
+            )
         else:
             responses = await self.call_experts_parallel(expert_keys, user_input, temperature)
+            debate_history = []
 
         if not responses:
             return {
                 "experts": expert_keys,
                 "responses": [],
                 "dedup_skipped": [],
+                "debate_history": debate_history,
                 "final_response": "（所有专家调用失败，请检查网络或 API Key 后重试）",
             }
 
@@ -550,6 +770,9 @@ class HybridExpertSystem:
         # 4. 汇总
         if len(responses) == 1:
             final = responses[0]["content"]
+        elif debate_history:
+            # 对抗辩论后用冲突解决
+            final = await self._resolve_debate_conflicts(user_input, responses)
         else:
             final = await self.summarize_responses(responses, user_input, temperature, stream)
 
@@ -557,6 +780,7 @@ class HybridExpertSystem:
             "experts": expert_keys,
             "responses": responses,
             "dedup_skipped": dedup_skipped,
+            "debate_history": debate_history,
             "final_response": final or "",
         }
 

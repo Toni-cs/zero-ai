@@ -410,9 +410,36 @@ except Exception as e:
         lines = code.split("\n")
         return "\n".join(indent + line if line.strip() else line for line in lines)
 
+    # 子进程环境变量白名单：仅传递必要的非敏感变量
+    # 防止 API_KEY / GLM_API_KEY / OR_API_KEY 等敏感变量泄露到子进程
+    _ALLOWED_ENV_KEYS: Set[str] = {
+        # 通用（Linux/macOS）
+        "PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE",
+        # Python 自身配置（部分会被显式覆盖）
+        "PYTHONPATH", "PYTHONIOENCODING", "PYTHONDONTWRITEBYTECODE",
+        "PYTHONUNBUFFERED", "PYTHONHOME",
+        # Windows 必需（缺失会导致 Python/CRT 初始化失败）
+        "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT",
+        "TEMP", "TMP", "USERPROFILE", "APPDATA",
+        "LOCALAPPDATA", "PROGRAMDATA",
+    }
+
     def _build_env(self, work_dir: str) -> Dict[str, str]:
-        """构建子进程环境变量"""
-        env = os.environ.copy()
+        """构建子进程环境变量
+
+        安全加固：使用白名单过滤，仅传递必要的非敏感环境变量，
+        防止 API_KEY / GLM_API_KEY / OR_API_KEY 等敏感变量泄露到子进程。
+
+        Args:
+            work_dir: 临时工作目录（用于设置 PYTHONPATH）
+
+        Returns:
+            过滤后的环境变量字典
+        """
+        env: Dict[str, str] = {}
+        for key in self._ALLOWED_ENV_KEYS:
+            if key in os.environ:
+                env[key] = os.environ[key]
         # 限制 PATH，防止执行外部命令
         env["PYTHONPATH"] = work_dir
         env["PYTHONIOENCODING"] = "utf-8"

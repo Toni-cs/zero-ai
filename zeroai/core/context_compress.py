@@ -24,6 +24,8 @@
 这些属于 TUI 表现层。本模块提供回退实现（空字符串图标 + 灰色常量），
 TUI 层可通过传入的 log_func 自行处理图标/颜色的最终渲染。
 """
+import copy
+import logging
 import re
 
 from .constants import (
@@ -45,6 +47,105 @@ from .secrets import _make_openai_client
 # 核心层不依赖 TUI，提供回退：图标用空字符串，颜色用灰色 hex
 # TUI 层若需完整图标，可在传入的 log_func 中自行替换
 _C_DIM_FALLBACK = "#6B6B75"  # 灰色（次要文字/说明），与 tui_agent.py 的 C_DIM 一致
+
+logger = logging.getLogger(__name__)
+
+
+def smart_truncate(content: str, max_chars: int) -> str:
+    """智能截断：优先保留代码块、错误信息、关键结论。
+
+    策略：
+    1. 若长度未超 max_chars，原样返回
+    2. 否则按行处理，优先保留：
+       - ```代码块``` 的起止行及内部前几行
+       - Error/Exception/Traceback/错误/失败 等关键行
+       - 最后 N 行（结论）
+       - 开头前 2 行（上下文）
+    3. 中间被跳过的部分用省略标记替代
+
+    Args:
+        content: 待截断文本（非 str 会先转 str）
+        max_chars: 最大字符数
+
+    Returns:
+        截断后的文本
+    """
+    if not isinstance(content, str):
+        content = str(content) if content is not None else ""
+    if len(content) <= max_chars:
+        return content
+    if max_chars <= 0:
+        return ""
+
+    lines = content.split("\n")
+    # 关键行关键词（小写匹配）
+    key_patterns = (
+        "error", "exception", "traceback", "错误", "失败", "警告",
+        "```", "def ", "class ", "function ", "return ", "raise ",
+        "结果", "结论", "完成", "成功", "assert",
+    )
+
+    selected: list = []  # [(line_index, line_text), ...]
+    selected_set: set = set()
+
+    def _add_line(idx: int) -> None:
+        if 0 <= idx < len(lines) and idx not in selected_set:
+            selected_set.add(idx)
+            selected.append((idx, lines[idx]))
+
+    # 1. 保留代码块起止行及内部前后几行
+    in_code = False
+    code_start = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith("```"):
+            if not in_code:
+                in_code = True
+                code_start = i
+                _add_line(i)
+            else:
+                in_code = False
+                _add_line(i)
+                if code_start >= 0:
+                    for j in range(code_start + 1, min(code_start + 3, i)):
+                        _add_line(j)
+                    for j in range(max(i - 2, code_start + 1), i):
+                        _add_line(j)
+
+    # 2. 保留错误/关键行
+    for i, line in enumerate(lines):
+        low = line.lower()
+        if any(p in low for p in key_patterns):
+            _add_line(i)
+
+    # 3. 保留最后 N 行（结论）
+    tail_n = min(8, len(lines))
+    for i in range(len(lines) - tail_n, len(lines)):
+        _add_line(i)
+
+    # 4. 保留开头前 2 行（上下文）
+    for i in range(min(2, len(lines))):
+        _add_line(i)
+
+    # 按行号排序后组装，控制总长度
+    selected.sort(key=lambda x: x[0])
+    omitted_marker = f"\n... [已智能截断，原 {len(content)} 字符，保留关键部分] ...\n"
+    omitted_len = len(omitted_marker)
+
+    result_lines = []
+    total = 0
+    prev_idx = -1
+    for idx, line in selected:
+        if prev_idx >= 0 and idx > prev_idx + 1:
+            if total + omitted_len <= max_chars:
+                result_lines.append(omitted_marker.strip())
+                total += omitted_len
+        if total + len(line) + 1 > max_chars:
+            break
+        result_lines.append(line)
+        total += len(line) + 1
+        prev_idx = idx
+
+    return "\n".join(result_lines)
 
 
 def _load_svg_icon_fallback(name: str) -> str:
@@ -97,12 +198,11 @@ def _summarize_tool_output(tool_name: str, content: str) -> str:
     if pids:
         indicators.append(f"PID:{','.join(pids[:5])}")
 
-    # 构造摘要
+    # 构造摘要：使用智能截断保留关键信息（代码块/错误/结论），预算 400 字符
     indicator_str = " ".join(indicators) if indicators else "无关键指标"
-    head = content[:60].replace("\n", " ").strip()
-    tail = content[-60:].replace("\n", " ").strip()
+    body = smart_truncate(content, 400)
 
-    summary = f"[工具结果已清理 | {tool_name} | 原长度{len(content)}字 | {indicator_str}]\n开头: {head}...\n结尾: ...{tail}"
+    summary = f"[工具结果已清理 | {tool_name} | 原长度{len(content)}字 | {indicator_str}]\n{body}"
     return summary
 
 
@@ -192,9 +292,9 @@ def cleanup_context(messages: list, context_limit: int,
         elif role == "assistant":
             # 助手消息：保留文本，移除 tool_calls（避免 API 报错）
             new_msg = {"role": "assistant", "content": content}
-            # 如果内容过长，截断保留前 300 字
+            # 如果内容过长，智能截断保留关键部分（代码块/错误/结论）
             if isinstance(content, str) and len(content) > 300:
-                new_msg["content"] = content[:300] + "...[已截断]"
+                new_msg["content"] = smart_truncate(content, 300)
                 assistant_cleaned_count += 1
             # 注意：不保留 tool_calls 字段，因为没有对应的 tool 消息会报错
             cleaned_msgs.append(new_msg)
@@ -504,8 +604,9 @@ async def compress_context(messages: list, context_limit: int, keep_recent_turns
             timeout=30,
         )
         summary = resp.choices[0].message.content.strip()
-    except Exception:
+    except Exception as e:
         # 压缩失败，降级为简单截断（保留每条消息前200字）
+        logger.warning("LLM 压缩失败，降级为截断: %s", e, exc_info=True)
         summary = "【历史对话摘要（压缩失败，已截断）】\n"
         for msg in to_compress[-6:]:  # 最近6条
             role = msg.get("role", "unknown")
@@ -517,10 +618,80 @@ async def compress_context(messages: list, context_limit: int, keep_recent_turns
             summary += f"【{role}】{content[:200]}\n"
 
     # 构造压缩后的消息列表
+    # P2-1 提示词缓存优化：摘要作为 user 消息插入，而非 system 消息。
+    # 这样可以保持 system 消息的前缀稳定性，使 Anthropic 提示词缓存命中率最大化。
+    # 原实现将摘要作为 system 消息插入，会导致 system 前缀变化，破坏缓存。
     compressed_msg = {
-        "role": "system",
+        "role": "user",
         "content": f"【对话历史摘要】以下是之前对话的压缩摘要，请基于此继续对话：\n\n{summary}",
     }
 
     new_messages = system_msgs + [compressed_msg] + keep_recent
     return new_messages
+
+
+class ContextCompressor:
+    """可恢复的上下文压缩器：压缩前保存快照，支持回滚。
+
+    解决 P1-3：compress_context() 压缩后原始消息被永久替换、不可逆的问题。
+
+    用法：
+        compressor = ContextCompressor()
+        messages = await compressor.compress_context(messages, context_limit)
+        # 若需回滚：
+        original = compressor.rollback_last_compression()
+        if original is not None:
+            messages = original
+    """
+
+    def __init__(self, max_snapshots: int = 20):
+        self._compression_snapshots: list = []
+        self._max_snapshots = max_snapshots
+
+    async def compress_context(
+        self,
+        messages: list,
+        context_limit: int,
+        keep_recent_turns: int = KEEP_RECENT_TURNS,
+    ) -> list:
+        """压缩上下文，压缩前保存快照以支持回滚。
+
+        Args:
+            messages: 待压缩的消息列表
+            context_limit: 上下文 token 上限
+            keep_recent_turns: 保留的最近轮数
+
+        Returns:
+            压缩后的消息列表
+        """
+        # 压缩前保存快照（深拷贝，避免后续修改影响快照）
+        self._compression_snapshots.append(copy.deepcopy(messages))
+        # 保留最近 max_snapshots 条快照
+        if len(self._compression_snapshots) > self._max_snapshots:
+            self._compression_snapshots.pop(0)
+
+        try:
+            return await compress_context(messages, context_limit, keep_recent_turns)
+        except Exception as e:
+            # 压缩失败：弹出刚保存的快照（因为没有实际压缩），并记录日志
+            self._compression_snapshots.pop()
+            logger.warning("上下文压缩失败，已回滚快照: %s", e, exc_info=True)
+            return messages
+
+    def rollback_last_compression(self):
+        """回滚最近一次压缩，返回压缩前的消息列表。
+
+        Returns:
+            压缩前的消息列表；若无快照可回滚则返回 None
+        """
+        if self._compression_snapshots:
+            return self._compression_snapshots.pop()
+        return None
+
+    def has_snapshot(self) -> bool:
+        """是否存在可回滚的快照"""
+        return bool(self._compression_snapshots)
+
+    def clear_snapshots(self) -> None:
+        """清空所有快照"""
+        self._compression_snapshots.clear()
