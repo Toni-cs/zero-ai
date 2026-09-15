@@ -14,23 +14,23 @@ env/
 .pytest_cache/
 .mypy_cache/
 
-# ZeroAI è¿è¡Œæ—¶ç”Ÿæˆ
+# ZeroAI è¿è¡Œæ—¶ç”Ÿæˆ?
 .zeroai/
 .zeroai_config.json
 logs/
 *.log
 
-# è¯­éŸ³æ¨¡å‹ï¼ˆä½“ç§¯å¤§ï¼Œä¸å…¥åº“ï¼‰
+# è¯­éŸ³æ¨¡å‹ï¼ˆä½“ç§¯å¤§ï¼Œä¸å…¥åº“ï¼?
 models/
 libs/
 
-# ä»£ç†æœåŠ¡æ•æ„Ÿé…ç½®ï¼ˆå«çœŸå® API Keyï¼‰
+# ä»£ç†æœåŠ¡æ•æ„Ÿé…ç½®ï¼ˆå«çœŸå® API Keyï¼?
 zeroai-proxy/.env
 zeroai-proxy/.venv/
 zeroai-proxy/logs/
 zeroai-proxy/__pycache__/
 
-# Zig æ„å»ºç¼“å­˜ä¸äº§ç‰©ï¼ˆzeroai-tuiï¼‰
+# Zig æ„å»ºç¼“å­˜ä¸äº§ç‰©ï¼ˆzeroai-tuiï¼?
 zeroai-tui/.zig-cache/
 zeroai-tui/zig-out/
 zeroai-tui/zeroai_tui/zig_render.dll
@@ -53,22 +53,31 @@ zeroai-tui/zeroai_tui/*.lib
 Thumbs.db
 desktop.ini
 
-# æ„å»ºäº§ç‰©
+# ¹¹½¨²úÎï
 *.whl
 *.tar.gz
 *.spec.bak
 
-# å¤‡ä»½æ–‡ä»¶
-*.bak_*
+# ±¸·İÎÄ¼ş£¨ÏÂÁĞÈıÌõÎªÈßÓàĞ´·¨£¬Í³Ò»±£ÁôÒ»Ìõ¸²¸ÇÈ«²¿ .bak ±äÌå£©
 *.bak
+*.bak_*
+*.bak.*
 
-# ä¸´æ—¶è°ƒè¯•æ–‡ä»¶
+# ÁÙÊ±µ÷ÊÔÎÄ¼ş
 _tmp_*.py
 _tmp_*/
 
-# ËùÓĞ bak ±äÌå£¨º¬ .bak.xxx ÃüÃû£©
-*.bak.*
-*.bak
+# AI ¹¤×÷¼ÇÒäÄ¿Â¼£¨±¾µØ×´Ì¬£¬²»Ó¦½øÈë°æ±¾ÀúÊ·£©
+# ×¢Òâ£ºÕâÁ½¸öÄ¿Â¼ÊÇ AI ÖúÊÖµÄ³Ö¾Ã»¯¼ÇÒä£¬ÇëÎğÉ¾³ı£¬Ö»ÊÇ²»ÄÉÈë°æ±¾¿ØÖÆ
+.workbuddy/
+.workbuddy-ai/
 
-# Prevent backup file residue
-*.bak.*
+# µ÷ÑĞÓë·ÖÎö±¨¸æ¹éµµ
+# ´æ·Å¶Ô¿¹Ê½Éó²é¡¢¶Ô±êµ÷ÑĞ¡¢ºÏ¹æÉó¼ÆµÈ¹ı³ÌĞÔÎÄµµ¡£
+# ËüÃÇÓë´úÂëÎŞ¹Ø¡¢Ìå»ı´ó¡¢ÇÒ¶àÎªÒ»´ÎĞÔ½áÂÛ£¬²»½øÈë°æ±¾ÀúÊ·¡£
+# ÈçĞè¹«¿ª·ÖÏí£¬Çëµ¥¶ÀÕûÀíµ½ docs/ »ò×÷Îª Release ¸½¼ş·¢²¼¡£
+reports/
+
+# µÚÈı·½²Ö¿â¿ËÂ¡¸±±¾£¨½ö¹©±¾µØ±È¶Ô£¬·Ç±¾ÏîÄ¿Ô´Âë£©
+zero-ai-repo/
+zeroai-dl/
