@@ -83,7 +83,7 @@ def __dir__() -> list:
     return sorted(set(globals()) | set(_LAZY_EXPORTS) | set(_LAZY_SUBMODULES))
 
 
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 __author__ = "ZeroAI"
 
 

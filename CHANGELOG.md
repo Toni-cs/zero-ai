@@ -5,6 +5,61 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.5] - 2026-09-15
+
+本版为**修复与合规版**：修正 1.1.4 中若干影响可用性与合规性的缺陷，
+并调整许可证。无新增功能。
+
+### ⚠️ 升级提示（重要）
+- **Linux / macOS 用户必须升级**。1.1.4 及更早版本的 wheel 标签为
+  `py3-none-any`（声明平台无关），包内却含 Windows 专用的
+  `zeroai_tui/zig_render.dll`。在 Linux/macOS 上 `pip install` 会正常装上，
+  但随后 `import zeroai_tui` 必然失败。1.1.5 已移除全部平台二进制
+- **许可证由 Proprietary 变更为 Apache-2.0**。此前许可证第 3.1(b) 条明文
+  禁止分发，而本项目 1.1.0–1.1.4 已实际发布于 PyPI，属自相矛盾。即日起
+  商用、修改、再分发均被允许（保留版权声明与许可证原文）。**已获得旧
+  专有许可证授权的用户，其权利不受影响且范围不缩小**
+
+### 修复
+- **`import tui_agent` 在无凭据环境下崩溃**：`tui_agent.py` 存在模块级
+  `client = get_client()`，导入时即构造 OpenAI 客户端，未配置 API Key 时
+  直接抛 `OpenAIError: Missing credentials`。由于 `zeroai/tui/*` 会转发到
+  该模块，这属于导入路径上的硬崩溃。改为惰性代理，首次属性访问时才构造。
+  连带修复：`test_markdown_module.py` / `test_tool_call_xml.py` 此前因
+  收集期崩溃而无法运行，现可正常通过
+- **代理配置实际不生效**：`zeroai/core/llm.py` 有四处直接构造
+  `OpenAI()` / `AsyncOpenAI()`，绕过 `secrets.py` 中负责代理路由的
+  `_make_openai_client()` 工厂。后果是设置了 `ZEROAI_PROXY_URL` 后请求仍
+  直连上游——用户以为流量走代理，实际没有。现全部改走统一工厂，并新增
+  同步版工厂 `_make_openai_sync_client()`；`model_manager.py`、
+  `memory/vector_store.py` 一并收敛
+- **`ssh_deploy` 失败被静默吞掉并汇报成功**：该函数不解析任何步骤的返回
+  值，install/restart/health 任一步失败后仍继续执行，末尾无条件打印
+  `✅ 部署完成`。运维场景下用户会据此认为发布成功而不再复查。现改为：
+  除环境检查外任一关键步骤失败即中止，末尾如实汇报状态并列出**已产生的
+  副作用**；新增 `continue_on_failure` 开关（默认关闭）
+- **`ssh_disk_analyze` 假告警**：原实现对 `df` 每一行做阈值告警且不过滤
+  伪文件系统，导致装了 ISO 的机器（squashfs 100%）、容器宿主（overlay
+  高占用）在每次巡检中都弹出"磁盘危急"。现仅对真实块设备告警，伪文件
+  系统如实列出但不告警
+
+### 变更
+- **wheel 不再包含 `tui_agent.py`**：该文件 16,264 行 / 779KB，占整包体积
+  90% 以上，此前作为顶层模块随包分发。现已从 `py-modules` 移除；文件保留
+  在源码树中供 `zeroai/tui/` 转发使用。包体积由 791KB 降至约 460KB
+- **`ssh_ops.py` 新增 `_ssh_cmd_ok()`**：统一的命令结果判定器，只匹配
+  `ssh_exec` 自己生成的确定性标记（`[退出码: N]`、`错误：`、`危险命令`），
+  刻意不做宽泛关键词匹配，避免命令自身 stdout 中的 `exit=1` 之类文本被误判
+
+### 其他
+- 子进程环境变量改为白名单制（`core/sandbox.py`），避免 API Key 泄露到子进程
+- 上下文压缩新增按语义边界截断（`core/context_compress.py`）
+- 多专家投票由单轮打分改为多轮淘汰制（`core/dynamic_roles.py`）
+- 专家路由新增 embedding 语义匹配（`core/expert.py`）
+- RAG 相似度改为三级回退：embedding 余弦 → 字符 n-gram 余弦 → Jaccard
+- 测试中的版本号断言不再硬编码，改为从 `zeroai.__version__` 动态读取
+- 修复 `.gitignore` 中三处编码错乱注释，合并重复的 `*.bak` 规则
+
 ## [1.1.4] - 2026-09-11
 
 ### 安全（信任层）
