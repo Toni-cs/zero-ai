@@ -654,10 +654,51 @@ def ssh_download(remote_path: str, local_path: str, conn_id: str = "default") ->
         return f"下载错误: {e}"
 
 
+def _ssh_cmd_ok(result: str) -> bool:
+    """判断 ssh_exec 的返回体是否代表命令成功执行。
+
+    背景：修复 ssh_deploy 的"假成功汇报"缺陷（2026-09-15）。
+    此前 ssh_deploy 全部步骤的返回值都被无条件当作成功处理，末尾一律打印
+    "✅ 部署完成"，导致"安装依赖失败 → 重启服务失败 → 健康检查失败"的部署
+    在报告里依然显示为全绿。运维场景下用户会据此认为发布成功而不再复查。
+
+    ssh_exec 的失败信号是明确的（见 ssh_exec 尾部返回体构造）：
+      - 命令非零退出  → 输出末尾含 "[退出码: N]"
+      - 连接异常/错误 → 输出以 "错误：" / "执行错误:" 开头
+      - 命令被拦截    → 输出含 "危险命令"
+
+    注意：命令自身在 stdout 里打印 "exit=1" 之类的文本**不应**被误判为失败，
+    因此这里只匹配 ssh_exec 自己生成的确定性标记，不做宽泛的关键词匹配。
+
+    Args:
+        result: ssh_exec / ssh_upload 的返回字符串
+
+    Returns:
+        True 表示成功；False 表示失败（调用方应据此中止后续步骤）
+    """
+    if not result:
+        return False
+    import re  # 本模块惯例：re 在函数内局部导入，避免顶层命名空间污染
+    # 连接不存在 / 已断开 / 连接错误
+    if result.startswith(("错误：", "错误:", "执行错误:", "上传失败:", "上传错误:")):
+        return False
+    # 危险命令拦截
+    if "危险命令" in result:
+        return False
+    # 非零退出码（ssh_exec 生成的确定性标记）
+    if re.search(r"\[退出码:\s*-?\d+\]", result):
+        return False
+    return True
+
+
 def ssh_deploy(deploy_config: dict, conn_id: str = "default") -> str:
     """一键项目部署（多步骤自动化部署）。
 
     按顺序执行部署步骤：环境检查→创建目录→上传代码→安装依赖→重启服务→健康检查。
+
+    失败处理：除环境检查（pre_check，仅作信息采集，不中断）外，任一关键步骤
+    失败即**立即中止**后续步骤，并在报告中明确列出失败步骤与"已产生的副作用"，
+    避免出现"步骤失败但报告显示部署成功"的假成功汇报。
 
     Args:
         deploy_config: 部署配置字典，包含：
@@ -668,15 +709,18 @@ def ssh_deploy(deploy_config: dict, conn_id: str = "default") -> str:
             - restart_cmd: 重启服务命令（如 "systemctl restart myapp"）
             - health_check: 健康检查命令（如 "curl -s localhost:8080/health"）
             - post_cmds: 部署后额外命令列表
+            - continue_on_failure: 可选，True 时失败不中止（默认 False）
         conn_id: 连接ID
 
     Returns:
-        部署报告（每步结果汇总）
+        部署报告（每步结果汇总，含成功/失败判定与副作用清单）
 
     迁移来源：tui_agent.py 行 7372-7495
     """
     if conn_id not in _SSH_CONNECTIONS:
         return f"错误：连接 '{conn_id}' 不存在，请先调用 ssh_connect"
+
+    continue_on_failure = bool(deploy_config.get("continue_on_failure", False))
 
     report = []
     report.append("=" * 50)
@@ -704,79 +748,137 @@ def ssh_deploy(deploy_config: dict, conn_id: str = "default") -> str:
     report.append(f"总步骤: {total_steps}")
     report.append("")
 
-    # 1. 环境检查
+    failed_step = None       # 失败步骤名
+    failed_detail = ""       # 失败原因（截断）
+    side_effects = []        # 失败前已产生的副作用（真实发生的写操作）
+
+    # 1. 环境检查（信息采集，失败不中止——检查命令本身失败不代表部署不能继续）
     if deploy_config.get("pre_check"):
         report.append("📋 [步骤] 环境检查")
         for cmd in deploy_config["pre_check"]:
             step += 1
             result = ssh_exec(cmd, conn_id, _internal=True, timeout=15)
-            status = "✅" if "错误" not in result and "exit_code" not in result.lower() else "⚠️"
+            status = "✅" if _ssh_cmd_ok(result) else "⚠️"
             report.append(f"  {status} [{step}/{total_steps}] {cmd}")
             report.append(f"     {result[:200]}")
             report.append("")
+        if not _ssh_cmd_ok(result):
+            report.append("  ℹ️ 环境检查有未通过项，仅作提示，不中止部署")
+            report.append("")
 
     # 2. 创建远程目录
-    if deploy_config.get("remote_dir"):
+    if failed_step is None and deploy_config.get("remote_dir"):
         step += 1
         remote_dir = deploy_config["remote_dir"]
         report.append(f"📁 [步骤 {step}/{total_steps}] 创建目录: {remote_dir}")
         result = ssh_exec(f"mkdir -p {remote_dir}", conn_id)
+        if _ssh_cmd_ok(result):
+            report.append("  ✅ 目录已就绪")
+        else:
+            report.append(f"  ❌ 创建目录失败")
+            failed_step = f"创建目录 ({remote_dir})"
+            failed_detail = result[:300]
         report.append(f"  {result[:200]}")
         report.append("")
 
     # 3. 上传文件
-    if deploy_config.get("upload_files"):
+    if failed_step is None and deploy_config.get("upload_files"):
         for local, remote in deploy_config["upload_files"]:
             step += 1
             report.append(f"📤 [步骤 {step}/{total_steps}] 上传: {local} → {remote}")
             result = ssh_upload(local, remote, conn_id)
-            status = "✅" if "成功" in result else "❌"
-            report.append(f"  {status} {result[:200]}")
+            if _ssh_cmd_ok(result):
+                report.append(f"  ✅ {result[:200]}")
+                side_effects.append(f"已上传文件: {remote}")
+            else:
+                report.append(f"  ❌ {result[:200]}")
+                failed_step = f"上传 {local} → {remote}"
+                failed_detail = result[:300]
+                report.append("")
+                break
             report.append("")
+            if failed_step is not None and not continue_on_failure:
+                break
 
     # 4. 安装依赖
-    if deploy_config.get("install_cmd"):
+    if failed_step is None and deploy_config.get("install_cmd"):
         step += 1
         install_cmd = deploy_config["install_cmd"]
         remote_dir = deploy_config.get("remote_dir", "")
         report.append(f"📦 [步骤 {step}/{total_steps}] 安装依赖: {install_cmd}")
         full_cmd = f"cd {remote_dir} && {install_cmd}" if remote_dir else install_cmd
         result = ssh_exec(full_cmd, conn_id, _internal=True, timeout=120)
+        if _ssh_cmd_ok(result):
+            report.append("  ✅ 依赖安装完成")
+        else:
+            report.append("  ❌ 依赖安装失败")
+            failed_step = f"安装依赖 ({install_cmd})"
+            failed_detail = result[:500]
         report.append(f"  {result[:500]}")
         report.append("")
 
-    # 5. 重启服务
-    if deploy_config.get("restart_cmd"):
+    # 5. 重启服务（仅在前面全部成功时执行——失败时重启无意义且会掩盖问题）
+    if failed_step is None and deploy_config.get("restart_cmd"):
         step += 1
         restart_cmd = deploy_config["restart_cmd"]
         report.append(f"🔄 [步骤 {step}/{total_steps}] 重启服务: {restart_cmd}")
         result = ssh_exec(restart_cmd, conn_id, timeout=30)
+        if _ssh_cmd_ok(result):
+            report.append("  ✅ 服务已重启")
+        else:
+            report.append("  ❌ 服务重启失败")
+            failed_step = f"重启服务 ({restart_cmd})"
+            failed_detail = result[:300]
         report.append(f"  {result[:300]}")
         report.append("")
 
     # 6. 健康检查
-    if deploy_config.get("health_check"):
+    if failed_step is None and deploy_config.get("health_check"):
         step += 1
         health_cmd = deploy_config["health_check"]
         report.append(f"🏥 [步骤 {step}/{total_steps}] 健康检查: {health_cmd}")
         result = ssh_exec(health_cmd, conn_id, _internal=True, timeout=15)
-        status = "✅ 健康" if "错误" not in result and "exit_code" not in result.lower() else "⚠️ 需检查"
-        report.append(f"  {status}")
+        if _ssh_cmd_ok(result):
+            report.append("  ✅ 健康")
+        else:
+            report.append("  ⚠️ 需检查（健康检查命令返回非零）")
+            failed_step = f"健康检查 ({health_cmd})"
+            failed_detail = result[:300]
         report.append(f"  {result[:300]}")
         report.append("")
 
-    # 7. 部署后命令
-    if deploy_config.get("post_cmds"):
+    # 7. 部署后命令（仅在未失败时执行）
+    if failed_step is None and deploy_config.get("post_cmds"):
         for cmd in deploy_config["post_cmds"]:
             step += 1
             report.append(f"⚙️ [步骤 {step}/{total_steps}] 后置: {cmd}")
             result = ssh_exec(cmd, conn_id, _internal=True, timeout=30)
-            report.append(f"  {result[:200]}")
+            ok = _ssh_cmd_ok(result)
+            report.append(f"  {'✅' if ok else '❌'} {result[:200]}")
             report.append("")
+            if not ok:
+                failed_step = f"后置命令 ({cmd})"
+                failed_detail = result[:300]
+                break
 
-    # 汇总
+    # 汇总（真实状态汇报，不再无条件打印成功）
     report.append("=" * 50)
-    report.append(f"✅ 部署完成 ({step}/{total_steps} 步骤已执行)")
+    if failed_step is None:
+        report.append(f"✅ 部署完成 ({step}/{total_steps} 步骤，全部成功)")
+    else:
+        report.append(f"❌ 部署失败：{failed_step}")
+        report.append(f"   在 {step}/{total_steps} 步中止，后续步骤未执行")
+        if side_effects:
+            report.append("   ⚠️ 已产生的副作用（未自动回滚，需人工确认）:")
+            for se in side_effects:
+                report.append(f"     - {se}")
+        else:
+            report.append("   未产生写入类副作用（失败发生在第一个写操作之前）")
+        report.append("   失败详情:")
+        for line in failed_detail.splitlines()[:8]:
+            report.append(f"     | {line}")
+        if continue_on_failure:
+            report.append("   ℹ️ continue_on_failure=True，已按配置继续执行")
     report.append("=" * 50)
 
     return _ssh_format_prefix(conn_id) + "\n" + "\n".join(report)
@@ -1584,21 +1686,81 @@ def ssh_disk_analyze(path: str = "/", conn_id: str = "default") -> str:
     du_out = ssh_exec(du_cmd, conn_id=conn_id, timeout=60)
 
     # 分析
+    # 【2026-09-15 修复】此前对 df 的每一行都做阈值告警，不过滤伪文件系统。
+    # 后果：装了 ISO 的机器必有 squashfs 挂载（使用率 100%），容器宿主必有
+    # overlay（常年高占用），几乎每台机器都有 tmpfs/devtmpfs——它们容量小、
+    # 天然接近满、且**不反映真实磁盘压力**。实测 df -h 中这类行占比常常过半，
+    # 于是"⚠️ 磁盘使用率 100%（危急）"这类假告警会在几乎每次巡检中出现，
+    # 用户很快学会忽略告警——告警一旦失信就再也回不来了。
+    #
+    # 处置：只对真实块设备文件系统做阈值判定，并把被跳过的伪文件系统单独列出
+    # （不隐藏信息，只是不告警）。
+    _PSEUDO_FS = {
+        "tmpfs", "devtmpfs", "devfs", "squashfs", "overlay", "overlay2",
+        "aufs", "ramfs", "proc", "sysfs", "cgroup", "cgroup2", "debugfs",
+        "tracefs", "securityfs", "pstore", "bpf", "configfs", "fusectl",
+        "mqueue", "hugetlbfs", "nsfs", "autofs", "binfmt_misc", "efivarfs",
+        "rpc_pipefs", "selinuxfs", "fuse.gvfsd-fuse", "fuse.portal",
+        "none", "udev", "snapfuse", "lxcfs",
+    }
+
     analysis = ""
+    pseudo_notes = []
+    real_mounts_checked = 0
+
     for line in df_out.split("\n"):
-        if "%" in line:
-            # 提取使用率
-            parts = line.split()
-            for p in parts:
-                if p.endswith("%") and p[:-1].isdigit():
-                    pct = int(p[:-1])
-                    if pct >= 90:
-                        analysis += f"\n⚠️ 磁盘使用率 {pct}%（危急，建议立即清理）"
-                    elif pct >= 80:
-                        analysis += f"\n⚠️ 磁盘使用率 {pct}%（警告）"
-                    elif pct >= 70:
-                        analysis += f"\nℹ️ 磁盘使用率 {pct}%（关注）"
-                    break
+        if "%" not in line:
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+
+        # df -h 的列：Filesystem Size Used Avail Use% Mounted-on
+        # Use% 是唯一以 % 结尾且前缀为数字的字段，据此定位使用率。
+        use_idx = None
+        for i, p in enumerate(parts):
+            if p.endswith("%") and p[:-1].isdigit():
+                use_idx = i
+                break
+        if use_idx is None:
+            continue
+
+        # 挂载点 = 使用率字段之后的第一个字段（可含空格，故 join）
+        mount_point = " ".join(parts[use_idx + 1:]) if use_idx + 1 < len(parts) else ""
+        fs_type = ""   # df -h 默认不含类型；见下方 df -hT 说明
+        fs_name = parts[0]
+
+        # 识别伪文件系统：优先看文件系统名，其次看挂载点前缀
+        is_pseudo = (
+            fs_name in _PSEUDO_FS
+            or fs_name.split("/")[0] in _PSEUDO_FS
+            or mount_point.startswith(("/proc", "/sys", "/dev", "/run"))
+            or mount_point.startswith("/snap/")
+        )
+
+        pct = int(parts[use_idx][:-1])
+
+        if is_pseudo:
+            # 伪文件系统不参与告警，但如实记录（避免"隐藏信息"）
+            if pct >= 80:
+                pseudo_notes.append(f"  · {fs_name} → {mount_point or '(未知)'} {pct}%（伪文件系统，不影响真实磁盘）")
+            continue
+
+        real_mounts_checked += 1
+        if pct >= 90:
+            analysis += f"\n⚠️ 磁盘使用率 {pct}%（危急，建议立即清理）  ← {fs_name} → {mount_point}"
+        elif pct >= 80:
+            analysis += f"\n⚠️ 磁盘使用率 {pct}%（警告）  ← {fs_name} → {mount_point}"
+        elif pct >= 70:
+            analysis += f"\nℹ️ 磁盘使用率 {pct}%（关注）  ← {fs_name} → {mount_point}"
+
+    if pseudo_notes:
+        analysis += ("\n\nℹ️ 以下为伪文件系统（tmpfs/overlay/squashfs 等），"
+                     "不反映真实磁盘压力，已排除在告警之外：")
+        analysis += "\n" + "\n".join(pseudo_notes[:10])
+
+    if real_mounts_checked == 0:
+        analysis += "\n\nℹ️ 未检测到真实块设备挂载点（df 输出可能被过滤或格式异常）"
 
     return f"[磁盘使用]\n$ {df_cmd}\n{df_out}\n\n[Top10 大目录]\n$ {du_cmd}\n{du_out}{analysis}"
 

@@ -7,42 +7,43 @@
 - _parse_think_tags：解析 <think>...</think> 思考链标签
 - _jaccard_similarity：基于 n-gram 的 Jaccard 相似度（用于专家回答去重）
 - _truncate_expert_response：截断专家回答到指定字符数
-- _sanitize_identity_leak：检测并过滤身份泄露内容（API 响应层防线）
+- _sanitize_identity_leak：[已弃用] 原身份抹除过滤器，现为空操作（见文件内说明）
 
 本模块无外部依赖，仅使用标准库 re。
 """
 import re
 
 
-# ====== 身份泄露过滤（API 响应层拦截，作为 SYSTEM_PROMPT 规则的后置防线） ======
-# 检测模型输出中的自报家门内容，替换为标准 ZeroAI 身份回答
-_IDENTITY_LEAK_PATTERNS = [
-    # "我是智谱/GLM/GPT/Claude/Gemini..." 自报家门
-    re.compile(r"我是.{0,15}(智谱|GLM[-\s]?[0-9.]+|ChatGLM|GPT[-\s]?[0-9]|Claude|Gemini|PaLM|LLaMA|Qwen)", re.IGNORECASE),
-    # "基于 XX 模型微调/训练/推出/开发"
-    re.compile(r"基于.{0,30}(GLM|GPT|Claude|Gemini|LLaMA|Qwen).{0,15}(微调|训练|推出|开发|构建)", re.IGNORECASE),
-    # "由 XX 公司/机构 推出/发布/开发/创建/联合训练"
-    re.compile(r"由.{0,20}(智谱|OpenAI|Anthropic|Google|Meta|Microsoft|清华大学).{0,15}(推出|发布|开发|创建|联合训练)", re.IGNORECASE),
-    # "智谱 AI 公司和清华大学 KEG 实验室联合训练" / 清华大学相关
-    re.compile(r"(智谱\s*AI|清华大学|清华\s*KEG|KEG\s*实验室).{0,20}(联合训练|联合开发|联合发布|开发|训练)", re.IGNORECASE),
-    # 直接出现底层模型标识（含 GLM-4 / GLM-4V / GLM-4.7 / GLM-130B 等）
-    re.compile(r"(智谱\s*AI|GLM[-\s]?[0-9.]+|ChatGLM|我是\s*GLM|我的模型是\s*GLM|基于\s*GLM)", re.IGNORECASE),
-    # "130B/400B/32B 参数规模" 等参数泄露
-    re.compile(r"\d+\s*B\s*参数"),
-    # "GLM-4.7-Flash / GLM-4V-Flash" 等具体模型名
-    re.compile(r"GLM[-\s]?[0-9.]+[-\s]?(Flash|V|Vision)", re.IGNORECASE),
-    # 编造身世/时间/训练数据：模型 + 20XX 年 + 发布/训练/截止/版本
-    re.compile(r"(模型|AI|助手|智能|智谱|ChatGLM|GLM).{0,20}(20\d{2})\s*年.{0,30}(发布|训练|截止|知识|版本)", re.IGNORECASE),
-    # "我的训练数据截止至 2023 年 9 月" / "知识截止"
-    re.compile(r"(训练数据|知识|信息).{0,10}(截止|截至|更新).{0,15}(20\d{2})\s*年", re.IGNORECASE),
-    # "ChatGLM 模型，由智谱 AI 公司..." 直接自报
-    re.compile(r"ChatGLM.{0,30}(智谱|Zhipu|由北京|由.*公司|于\s*20\d{2})", re.IGNORECASE),
-    # "智谱清言"
-    re.compile(r"智谱清言", re.IGNORECASE),
-    # "2023 年 12 月发布" 单独出现且上下文涉及模型
-    re.compile(r"(于\s*20\d{2}\s*年\s*\d{1,2}\s*月\s*发布|20\d{2}\s*年\s*\d{1,2}\s*月\s*发布).{0,10}(模型|AI|助手|智能)", re.IGNORECASE),
-]
-_IDENTITY_REPLACEMENT = "我是 ZeroAI，一个终端 AI 编程助手。"
+# ====== 身份抹除功能：已删除（2026-09-15）======
+#
+# 原实现会把模型输出里的自报家门内容（"我是 GLM/Claude/GPT…"、
+# "由智谱/OpenAI/Anthropic/Google/Meta/Microsoft/清华… 开发"）整段替换为
+# 一句"我是 ZeroAI，一个终端 AI 编程助手。"（13 条正则，整段替换）。
+#
+# 删除理由（三条，按重要性排序）：
+# 1. **法律风险**：主动向用户谎报模型身份，方向与 EU AI Act Art.50
+#    （2026-08-02 生效）的反欺骗原则相悖。原正则覆盖面远不止智谱——
+#    连 OpenAI / Anthropic / Google / Meta / Microsoft / 清华都被改写，
+#    属于系统性的身份伪造，而非"品牌保护"。
+# 2. **零商业价值**：没有任何用户会因为"这个 CLI 不承认自己用的什么模型"
+#    而选择它；相反，企业用户会因此拒绝采购（无法通过合规审查）。
+# 3. **数据破坏**：原实现是整段替换，只返回布尔值，**原始响应被销毁**，
+#    导致任何基于真实输出的调试、评测、审计都无法进行。
+#
+# 如需保护品牌，正确做法是用许可证的商标条款，而不是改写模型自述。
+#
+# 下面保留同名函数作为**兼容性空壳**（pass-through），避免第三方代码或
+# 用户脚本因 ImportError 而崩溃；它不再修改任何文本。
+def _sanitize_identity_leak(text: str) -> tuple:
+    """[已弃用 · 空操作] 原身份抹除过滤器，现直接返回原文。
+
+    保留函数名仅为向后兼容。自 2026-09-15 起不再改写任何内容：
+    模型的身份自述会被原样返回，由用户自行判断。
+
+    Returns:
+        (text, False) —— 恒不标记为"已过滤"
+    """
+    return text, False
 
 
 def _strip_model_tokens(text: str) -> str:
@@ -144,24 +145,3 @@ def _truncate_expert_response(text: str, max_chars: int) -> str:
                 cut = cut[:sp + 1]
                 break
     return cut + "\n\n…（专家回答已截断，仅汇总关键部分）"
-
-
-def _sanitize_identity_leak(text: str) -> tuple:
-    """检测并过滤身份泄露内容
-
-    Returns:
-        (sanitized_text, leaked: bool)  leaked 为 True 表示检测到并已过滤
-
-    策略：一旦检测到任何泄露模式，整段文本替换为标准 ZeroAI 身份回答，
-    避免只替换匹配片段而残留"清华大学 KEG"、"GLM-4"等敏感词。
-    """
-    if not text:
-        return text, False
-    leaked = False
-    for pattern in _IDENTITY_LEAK_PATTERNS:
-        if pattern.search(text):
-            leaked = True
-            break
-    if leaked:
-        return _IDENTITY_REPLACEMENT, True
-    return text, False
