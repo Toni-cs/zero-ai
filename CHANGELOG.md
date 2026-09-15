@@ -5,6 +5,48 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.6] - 2026-09-15
+
+本版为**紧急修复版**：修复 1.1.5 引入的致命回归 —— 终端交互模式在
+**所有平台**上均无法启动。无新增功能。
+
+### ⚠️ 升级提示（重要）
+- **所有安装了 1.1.5 的用户必须升级**。1.1.5 的打包配置将
+  `tui_agent.py` 排除出分发包，但 `zeroai/tui/` 下有 6 个模块（`app`、
+  `identity`、`markdown`、`screens`、`widgets` 及 `__init__`）仍是从该
+  文件转出的包装壳。结果是任何一条启动 TUI 的路径都会崩溃：
+
+  ```
+  ModuleNotFoundError: No module named 'tui_agent'
+  ```
+
+  受影响范围是全部操作系统（非仅限于 Linux/macOS），影响 1.1.5 的
+  `zeroai` 交互模式与 `zeroai --ui textual`。
+- **无头模式与自检不受影响**：`zeroai --task "..."`、`zeroai --check`、
+  `zeroai --version` 在 1.1.5 上均正常，本版未改动其行为。
+
+### 修复
+- **终端 UI 无法启动（1.1.5 回归）**：恢复 `tui_agent.py` 随包分发
+  （`py-modules = ["tui_agent"]`）。这是**有意识的技术债**：1.1.4 的问题是
+  包体积（成本），1.1.5 的问题是功能不可用（故障），二者不可比，先修故障。
+  `pyproject.toml` 中已写明解除该依赖的正确路径与「再次摘除时必须同时满足
+  的三条前置条件」，避免同类回归第三次发生
+- **`main.py` 把「依赖缺失」误判为「模块不存在」**：原实现的
+  `except ImportError: from tui_agent import ZeroAI` 依赖一个错误前提 ——
+  `ModuleNotFoundError` 是 `ImportError` 的子类（已实测确认），因此
+  「`zeroai.tui.app` 内部依赖装不上（如 rich/textual 缺失）」与「
+  `zeroai.tui.app` 本身不存在」会被同一条 except 吞成同一件事，静默降级，
+  用户只看到 `(UI: tui_agent)` 而不知真实病因。现改为按 `e.name` 判别并
+  分别给出可定位病因的提示，依赖缺失时直接报错而非降级
+- **`--ui zeroai-tui` 的静默降级同样掩盖病因**：原先仅在 `print` 后切换为
+  textual，用户不易察觉。现保留降级行为，但输出明确的降级原因
+
+### 其他
+- 版本号 `1.1.5` → `1.1.6`
+- 本版**未**处理 `tui_agent.py` 的骑墙状态（既是"备份"又是实际实现），
+  该重构需要先把它内部的模块级状态（如 `CURRENT_MODEL_KEY`）抽到
+  `zeroai.core.*`，工作量较大，不放在紧急修复版中
+
 ## [1.1.5] - 2026-09-15
 
 本版为**修复与合规版**：修正 1.1.4 中若干影响可用性与合规性的缺陷，

@@ -17,7 +17,7 @@ import asyncio
 import tempfile
 
 # 确保项目根目录在 path 中
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 本文件已移入 tests/，需上溯一级
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 

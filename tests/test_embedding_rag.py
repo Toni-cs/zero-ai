@@ -11,7 +11,7 @@ import asyncio
 import tempfile
 
 # 添加项目根目录到 path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 本文件已移入 tests/，需上溯一级
 
 
 def test_m1_llm_embed_signature():
@@ -68,7 +68,7 @@ def test_m2_embedding_backend_embed_func():
         assert vecs.shape == (2, 8), f"shape 应为 (2, 8), 实际 {vecs.shape}"
         return vecs
 
-    vecs = asyncio.get_event_loop().run_until_complete(_test())
+    vecs = asyncio.run(_test())
     print(f"  [OK] 嵌入结果 shape: {vecs.shape}")
 
 
@@ -284,7 +284,7 @@ ZeroAI 也可以作为 MCP 服务器，暴露 58+ 工具给外部客户端。
             count2 = await pipeline.index_text(doc2, source="mcp_doc.md")
             return count1 + count2
 
-        total = asyncio.get_event_loop().run_until_complete(_index())
+        total = asyncio.run(_index())
         assert total > 0, "应索引至少 1 个 chunk"
         print(f"  [OK] 索引 chunk 数: {total}")
 
@@ -347,7 +347,7 @@ def test_m3_rag_pipeline_with_fake_embed():
             result = pipeline.retrieve_sync("测试", top_k=2)
             return result
 
-        result = asyncio.get_event_loop().run_until_complete(_test())
+        result = asyncio.run(_test())
         print(f"  [OK] 注入 embed 后检索成功, 结果长度: {len(result)}")
 
 

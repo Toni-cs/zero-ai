@@ -13,7 +13,7 @@ import inspect
 from pathlib import Path
 
 # 确保项目根目录在 sys.path
-project_root = Path(__file__).parent.resolve()
+project_root = Path(__file__).resolve().parent.parent  # 本文件已移入 tests/，需上溯一级
 sys.path.insert(0, str(project_root))
 
 

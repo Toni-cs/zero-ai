@@ -19,7 +19,7 @@ import os
 import sys
 import tempfile
 
-_script_dir = os.path.dirname(os.path.abspath(__file__))
+_script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 本文件已移入 tests/，需上溯一级
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 

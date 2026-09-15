@@ -15,7 +15,7 @@ import sys
 import os
 import subprocess
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 本文件已移入 tests/，需上溯一级
 
 
 def test_version():
@@ -24,7 +24,7 @@ def test_version():
     import zeroai
     result = subprocess.run(
         [sys.executable, "-m", "zeroai", "--version"],
-        capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__))
+        capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 必须在项目根执行，否则 -m zeroai 找不到包
     )
     assert result.returncode == 0, f"zeroai --version 失败: {result.stderr}"
     assert zeroai.__version__ in result.stdout, \

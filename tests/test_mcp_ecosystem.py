@@ -2,11 +2,14 @@
 import sys
 import os
 import asyncio
-sys.path.insert(0, r"d:\C\C")
+# 原为 sys.path.insert(0, r"d:\C\C") —— 硬编码绝对路径，换机器/换目录即失效。
+# 改为从本文件位置推导项目根（本文件位于 tests/，需上溯一级）。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from zeroai.mcp import (
     get_health_monitor,
     get_audit_logger,
+    reset_audit_logger,
     get_ecosystem_manager,
     MCPHealthMonitor,
     MCPAuditLogger,
@@ -59,6 +62,11 @@ def test_health_record():
 def test_audit_logger():
     """F.4: 审计日志器创建和记录"""
     print("[F.4.1] Audit logger creation...")
+    # get_audit_logger() 是**进程级单例**，缓冲区跨测试累积。
+    # 本用例断言 buffer_size == 0（期望一个干净的起点），因此必须先重置，
+    # 否则在整套测试一起跑时会被前面用例留下的记录污染。
+    # 单独跑本文件时恰好无人污染，所以这个问题此前一直没被看见。
+    reset_audit_logger()
     logger = get_audit_logger()
     assert isinstance(logger, MCPAuditLogger)
     assert logger.buffer_size == 0

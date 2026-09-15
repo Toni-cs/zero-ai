@@ -16,7 +16,7 @@ import os
 import pytest
 
 # Add paths
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 本文件已移入 tests/，需上溯一级
 
 
 def test_full_integration():

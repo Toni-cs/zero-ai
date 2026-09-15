@@ -22,8 +22,8 @@ import time
 import statistics
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "zeroai-tui"))
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "zeroai-tui"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 本文件已移入 tests/，需上溯一级
 
 # 检测可用的渲染后端
 HAS_ZIG_RENDERER = False
@@ -409,7 +409,7 @@ def main():
 
     # 保存结果
     import json
-    output_file = os.path.join(os.path.dirname(__file__), "benchmark_results.json")
+    output_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "benchmark_results.json")
     try:
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2, default=str)

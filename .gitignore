@@ -81,3 +81,14 @@ reports/
 # 第三方仓库克隆副本（仅供本地比对，非本项目源码）
 zero-ai-repo/
 zeroai-dl/
+
+# 本地归档（从仓库根目录清理出的历史残留：模块备份、只读日志、一次性脚本）
+# 与 reports/ 的区别：reports/ 是过程性**结论文档**，本目录是**代码/日志残留**。
+# 两者都只存本地、不纳入版本控制。详见 .local_archive/README.md
+.local_archive/
+
+# 构建与打包产物
+# 注：此前这里的构建垃圾未被完全忽略，导致 build/ 下的旧副本
+# 会被 pytest 的 testpaths=["."] 重复收集（见 pyproject.toml 说明）
+*.egg-info/
+.eggs/

@@ -5,7 +5,7 @@ import sys
 import tempfile
 
 # 确保项目根目录在 sys.path
-_script_dir = os.path.dirname(os.path.abspath(__file__))
+_script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 本文件已移入 tests/，需上溯一级
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
@@ -102,10 +102,10 @@ def test_vector_store():
         store = VectorStore(db_path, embedding=embedding)
 
         # 添加文档
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             store.add("doc1#0", "test.py", "def hello(): print('hello world')")
         )
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             store.add("doc2#0", "main.py", "def main(): return 42")
         )
 
@@ -139,7 +139,7 @@ def test_project_indexer():
         store = VectorStore(db_path, embedding=embedding)
         indexer = ProjectIndexer(store=store)
 
-        stats = asyncio.get_event_loop().run_until_complete(
+        stats = asyncio.run(
             indexer.index_project(tmpdir)
         )
 
@@ -168,7 +168,7 @@ def test_retriever():
         embedding = EmbeddingBackend(api_key="")
         store = VectorStore(db_path, embedding=embedding)
         indexer = ProjectIndexer(store=store)
-        asyncio.get_event_loop().run_until_complete(indexer.index_project(tmpdir))
+        asyncio.run(indexer.index_project(tmpdir))
 
         retriever = Retriever(store=store)
         results = retriever("calculate sum")
@@ -246,7 +246,7 @@ def test_agent_loop_mock():
     loop.on_final_answer = on_final_answer
 
     messages = [{"role": "system", "content": "test"}]
-    final_answer, steps = asyncio.get_event_loop().run_until_complete(
+    final_answer, steps = asyncio.run(
         loop.run("查看系统信息", messages)
     )
 

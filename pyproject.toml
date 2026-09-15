@@ -86,16 +86,43 @@ zeroai = "zeroai.main:main"
 [tool.setuptools]
 # 包含模块
 #
-# 【重要】这里此前有 py-modules = ["tui_agent"]。
-# 后果（实测 1.1.4 已发布 wheel）：16,264 行 / 779KB 的遗留单体文件被原样
-# 打进客户端包，占整包体积的 90% 以上；而它自己的注释说该文件只是"备份"。
-# 已移除——tui_agent.py 保留在源码树中供 tui 层转发使用（见 zeroai/tui/），
-# 但不再作为顶层模块随 wheel 分发。
+# ---------------------------------------------------------------------------
+# 关于 tui_agent.py（16,264 行 / 779KB）—— 一段需要如实记录的决策历史
+# ---------------------------------------------------------------------------
 #
-# 若将来确实需要把 tui_agent 作为可导入的顶层模块分发，必须同时满足：
-#   1) zeroai/tui/* 完成解耦，不再 from tui_agent import；
-#   2) tui_agent.py 顶部不再有模块级副作用（当前已修为惰性代理）。
-py-modules = []
+# 1.1.4 及更早：py-modules = ["tui_agent"]
+#   该文件被原样打进客户端包，占整包体积 90% 以上。
+#
+# 1.1.5：改为 py-modules = []
+#   理由是「zeroai/tui/ 已提供模块化访问路径，tui_agent.py 只是备份」。
+#   **这个理由是错的**，造成了本仓库最严重的一次回归：
+#     - zeroai/tui/ 里 6 个文件（app/identity/markdown/screens/widgets + __init__）
+#       全部是 `from tui_agent import ...` 的转发壳，自己不含实现；
+#     - zeroai/tui/{markdown,identity}.py 转发的那批符号，在 tui_agent.py 中
+#       也已经是 `from zeroai.tools.* import ...` 的转发 —— 即依赖方向是
+#       tui_agent.py → zeroai.*，而不是反过来；
+#     - 于是摘掉 tui_agent.py 后，`zeroai` 的**交互模式在所有平台**直接崩溃：
+#         ModuleNotFoundError: No module named 'tui_agent'
+#       更糟的是 zeroai/tui/app.py 确实存在于 wheel 中（文件在），
+#       所以「检查文件是否存在」这种自检手段无法发现该问题，
+#       必须在真实环境里执行 `from zeroai.tui.app import ZeroAI` 才能暴露。
+#
+# 1.1.6：恢复 py-modules = ["tui_agent"]（本次修改）
+#   这是**有意识的技术债**，不是回到原点：1.1.4 的打包问题（体积）是成本，
+#   1.1.5 的打包问题是**故障**。二者不可比，先修故障。
+#
+# 解除该依赖的唯一正确路径（留给后续版本）：
+#   把 tui_agent.py 中的**真实实现**逐个搬进 zeroai/tui/*.py，改完一个就把
+#   对应的转发壳删掉，最后 tui_agent.py 退化为薄入口再移除。
+#   注意搬运顺序有约束：colors.py / icons.py 可以直接搬（已是独立实现），
+#   而 app.py / widgets.py / screens.py 依赖 tui_agent.py 内部的模块级状态
+#   （如 CURRENT_MODEL_KEY、MODEL_CONFIGS），必须先抽到 zeroai.core.* 才能动。
+#
+# 若将来再次把这里改回 []，必须同时满足下面三条 —— 缺一条即复现 1.1.5 故障：
+#   a) `grep -rn "from tui_agent\|import tui_agent" zeroai/` 返回空；
+#   b) 全平台真实执行 `python -c "from zeroai.tui.app import ZeroAI"` 通过；
+#   c) 打包后对 wheel 解压复测 (b)，而不是只看源码树。
+py-modules = ["tui_agent"]
 
 [tool.setuptools.dynamic]
 # 版本号从 zeroai/__init__.py 的 __version__ 读取（setuptools 优先做 AST
@@ -140,4 +167,10 @@ namespaces = false
 asyncio_mode = "auto"
 # 禁用 xonsh pytest 插件（与 Windows 控制台不兼容）
 addopts = "-p no:xonsh"
-testpaths = ["."]
+# 【重要】此前这里是 testpaths = ["."]，即从仓库根递归收集。
+# 后果：测试文件被不断丢在仓库根目录（实测一度有 16 个 test_*.py 与
+# pyproject.toml / README.md 平级），根目录因此变成"什么都往里放"的杂物间；
+# 而且从根收集会连带扫进 build/、zero-ai-repo/ 等目录里的**同名旧副本**，
+# 造成同一份测试被重复执行。
+# 现收敛为 tests/。若将来增设测试目录（如 zeroai-tui/tests/），在此追加。
+testpaths = ["tests"]

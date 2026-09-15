@@ -152,13 +152,90 @@ def main():
 
         if args.ui == "textual":
             # 使用 Textual UI
-            # 优先从 zeroai.tui 包导入（包装模式），回退到 tui_agent.py 直接导入
+            #
+            # 【为什么不用 `except ImportError: from tui_agent import ZeroAI`】
+            # ModuleNotFoundError 是 ImportError 的子类（已实测确认），所以
+            # 「zeroai.tui 这个包不存在」和「zeroai.tui 内部的某个依赖 import 失败」
+            # 会被同一条 except 混为一谈，静默降级到 tui_agent。用户只会看到
+            # "(UI: tui_agent)"，完全不知道真正的病因 —— 1.1.5 的 TUI 全平台
+            # 崩溃就是这样被掩盖成一次"正常降级"的。
+            #
+            # 判别依据是 e.name：它指出**具体哪个模块**没找到，而不是哪个 import
+            # 语句失败。据此分三类：
+            #   a) e.name 以 zeroai.tui 开头 → 包自身缺损（打包问题）
+            #   b) e.name 是 tui_agent       → 过渡期依赖缺失（见下方说明）
+            #   c) 其他（如 rich / textual） → 第三方依赖没装上
+            #
+            # 关于 (b)：zeroai/tui/* 目前有 6 个模块转发自 tui_agent.py。等到
+            # tui_agent.py 被真正剥离、但如果那时仍有转发残留，就会命中这里。
+            # 这是**已知的过渡期状态**，所以走降级并给出明确提示，而不是报错。
+            #
+            # 【为什么 except 同时接住 ImportError 而不只是 ModuleNotFoundError】
+            # 实测发现：依赖损坏不一定表现为 ModuleNotFoundError。当某个包的
+            # 目录存在但内部文件残损时（例如 pip 卸载/安装被中断、磁盘写入不完整），
+            # Python 会抛**普通 ImportError**，典型信息形如
+            #     ImportError: cannot import name 'OpenAI' from 'openai' (unknown location)
+            # —— 注意 "(unknown location)"，表示包被找到了但内容不完整。
+            # 此时 e.name 仍会被填上出问题的模块名，所以下面的 e.name 判别依旧可用；
+            # 但 except 子句若只写 ModuleNotFoundError，这类故障会直接冒泡成
+            # 未捕获回溯，用户看到一大片 traceback 而非一句可读的提示。
             try:
                 from zeroai.tui.app import ZeroAI
                 _import_source = "zeroai.tui.app"
-            except ImportError:
-                from tui_agent import ZeroAI
-                _import_source = "tui_agent"
+            except ImportError as e:
+                _missing = getattr(e, "name", "") or ""
+                _detail = str(e)
+
+                if _missing.startswith("zeroai.tui"):
+                    # (a) zeroai.tui 包自身缺损，安装包损坏。
+                    print(f"ZeroAI: 终端 UI 不可用 —— 安装包缺少 {_missing!r}。",
+                          file=sys.stderr)
+                    print("  该发行版未正确包含 zeroai.tui 子包，请重装：",
+                          file=sys.stderr)
+                    print("      pip install --upgrade --force-reinstall zero-ai-cli",
+                          file=sys.stderr)
+                    print("  无头模式不受影响：zeroai --task \"你的任务\"", file=sys.stderr)
+                    return 3
+
+                if _missing == "tui_agent":
+                    # (b) 过渡期：尝试兼容旧版入口，并把真实状态如实告诉用户。
+                    print("ZeroAI: 提示 —— zeroai.tui 尚未完全解耦，"
+                          "正在回退到 tui_agent。", file=sys.stderr)
+                    try:
+                        from tui_agent import ZeroAI
+                        _import_source = "tui_agent"
+                    except ImportError as e2:
+                        _m2 = getattr(e2, "name", "") or "（未知）"
+                        print(f"ZeroAI: 终端 UI 不可用 —— 缺少模块 {_m2!r}。",
+                              file=sys.stderr)
+                        print("  请重装：pip install --upgrade --force-reinstall zero-ai-cli",
+                              file=sys.stderr)
+                        return 3
+                elif _missing:
+                    # (c1) 已知具体是哪个模块出的问题。
+                    # **不降级** —— 降级会掩盖病因，而 tui_agent 的依赖集合是
+                    # zeroai.tui 的超集，这里缺的东西到那边同样缺，降级过去只会
+                    # 换个地方崩，还把真实原因藏得更深。
+                    print(f"ZeroAI: 无法加载终端 UI —— 模块 {_missing!r} 不可用。",
+                          file=sys.stderr)
+                    if "unknown location" in _detail:
+                        print("  该模块已安装但内容不完整（常见于安装/卸载被中断）。",
+                              file=sys.stderr)
+                    print("  可尝试：", file=sys.stderr)
+                    print(f"      pip install --force-reinstall {_missing.split('.')[0]}",
+                          file=sys.stderr)
+                    print("  或完整重装：pip install --upgrade --force-reinstall zero-ai-cli",
+                          file=sys.stderr)
+                    print("  用 zeroai --check 可查看依赖自检结果。", file=sys.stderr)
+                    return 3
+                else:
+                    # (c2) 拿不到 e.name（部分异常不填该属性）。此时无法给出
+                    # 针对性建议，但把原始信息原样透出，好过吞掉。
+                    print("ZeroAI: 无法加载终端 UI。原始错误：", file=sys.stderr)
+                    print(f"      {type(e).__name__}: {_detail}", file=sys.stderr)
+                    print("  请尝试重装：pip install --upgrade --force-reinstall zero-ai-cli",
+                          file=sys.stderr)
+                    return 3
 
             print(f"Starting ZeroAI v{version} (UI: {_import_source})...", file=sys.stderr)
             app = ZeroAI()
