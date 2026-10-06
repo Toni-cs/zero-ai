@@ -5,6 +5,31 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 重构
+- **拆分 `zeroai/tui/app.py` 的 `ZeroAI` 巨类**：3,664 行 / 单类 3,513 行
+  → `app.py` 563 行（生命周期与骨架）+ 8 个 `app_*.py` mixin，最大 734 行。
+  动因是外部评审对 779KB 单文件 `tui_agent.py` 的判断：「会写新功能，
+  不等于会控制复杂度」——拆包只是把巨类搬进了包里。
+  方法体**逐字节未改**，由 `_split_app.py` 按 AST 行区间原样搬运，
+  五道关卡验收：方法集合不变 / 方法体字节一致 / 无悬空全局名 /
+  可导入且 MRO 合法 / 全量测试通过。
+- **"读源码做断言"的测试改用单一事实来源**：新增 `tests/tui_sources.py`，
+  `test_agent_loop_advanced` / `test_proxy_mode_regression` /
+  `test_tool_invocation_unified` / `test_mcp_client_resilience` /
+  `test_ghost_names_regression` 不再硬编码 `app.py`。
+  此前其中 6 条会因拆分误报，另有 2 条（代理模式扫描、悬空名扫描）
+  属于**静默失去覆盖**——文件绿着，但新拆出的 8 个文件已经没人扫。
+
+### 新增
+- `tests/test_tui_source_budget.py`：清单完整性（解析 `ZeroAI` 类头反查
+  mixin 所在模块，防止漏登记）+ 单文件 800 行复杂度预算，防巨类复发。
+- `tests/test_app_runtime_smoke.py`：真实挂载 ZeroAI 并校验
+  BINDINGS / 8 个 mixin 方法可解析。此前 `tests/` 里**没有任何测试
+  实例化过 ZeroAI**（唯一两处 `run_test()` 起的是临时 App 与独立 Screen）。
+- 测试总数 304 → 326 passed。
+
 ## [1.1.6] - 2026-09-15
 
 本版为**紧急修复版**：修复 1.1.5 引入的致命回归 —— 终端交互模式在

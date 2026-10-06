@@ -22,6 +22,34 @@ import tempfile
 _script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 本文件已移入 tests/，需上溯一级
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
+_tests_dir = os.path.dirname(os.path.abspath(__file__))
+if _tests_dir not in sys.path:
+    sys.path.insert(0, _tests_dir)
+
+
+def _source_of(*relpaths):
+    """读取多个源文件的正文并拼接。
+
+    为什么要读多个文件：ZeroAI 主类已从 tui_agent.py 迁到 zeroai/tui/app.py，
+    2026-10-06 又从 app.py 拆成 app.py + 8 个 app_*.py。
+    这些测试原本只 grep tui_agent.py，迁移后字符串位置变了就误报失败 ——
+    那是**测试实现**的问题，不是功能回归。改为读取「全部权威源」，
+    这样再做后续解耦（app 内部再拆）也不会无谓打断测试。
+    """
+    chunks = []
+    for rel in relpaths:
+        fp = os.path.join(_script_dir, *rel.split("/"))
+        if os.path.exists(fp):
+            with open(fp, "r", encoding="utf-8") as f:
+                chunks.append(f.read())
+    return "\n".join(chunks)
+
+
+# 主应用类迁移后，源码分布在多处：tui_agent.py（旧壳）+ zeroai/tui/app*.py。
+# 清单由 tests/tui_sources.py 单一维护，再拆模块也不会漏扫。
+from tui_sources import core_sources_rels  # noqa: E402
+
+_CORE_SOURCES = core_sources_rels()
 
 
 def _pass(name):
@@ -159,10 +187,8 @@ def test_mcp_command_imports():
 
 def test_tui_mcp_handler_exists():
     """测试 TUI 中 _handle_mcp_command 方法已添加"""
-    # 解析 tui_agent.py 检查方法存在
-    tui_path = os.path.join(_script_dir, "tui_agent.py")
-    with open(tui_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    # 解析权威源码（tui_agent.py + zeroai/tui/app.py）检查方法存在
+    content = _source_of(*_CORE_SOURCES)
     assert "_handle_mcp_command" in content
     assert "/mcp" in content
     assert "_auto_init_mcp" in content
@@ -384,9 +410,7 @@ def test_multi_agent_callbacks():
 # ============================================================================
 def test_tui_react_turn_upgraded():
     """测试 TUI _run_react_turn 已升级为增强版"""
-    tui_path = os.path.join(_script_dir, "tui_agent.py")
-    with open(tui_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = _source_of(*_CORE_SOURCES)
 
     # 检查关键升级点
     assert "AdvancedAgentLoop" in content, "未升级到 AdvancedAgentLoop"
@@ -402,9 +426,7 @@ def test_tui_react_turn_upgraded():
 
 def test_tui_mcp_commands():
     """测试 TUI 中 /mcp 命令完整性"""
-    tui_path = os.path.join(_script_dir, "tui_agent.py")
-    with open(tui_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = _source_of(*_CORE_SOURCES)
 
     # 检查所有子命令
     assert "/mcp list" in content or '"list"' in content
@@ -417,9 +439,7 @@ def test_tui_mcp_commands():
 
 def test_tui_help_updated():
     """测试帮助信息已更新"""
-    tui_path = os.path.join(_script_dir, "tui_agent.py")
-    with open(tui_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = _source_of(*_CORE_SOURCES)
     assert "/mcp           MCP 协议管理" in content
 
 

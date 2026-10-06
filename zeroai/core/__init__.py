@@ -24,6 +24,9 @@
 - model_manager：get_client, get_model_name, get_model_label, detect_ollama_models
 - response_utils：_strip_model_tokens, _parse_think_tags, _jaccard_similarity,
   _truncate_expert_response, _sanitize_identity_leak
+- prompts：TOOL_USAGE_RULES, TOOL_CAPABILITY_PROMPT,
+  SYSTEM_PROMPT, SYSTEM_PROMPT_CORE（2026-09-15 从 tui_agent.py 搬入）
+- agents_md：_auto_generate_agents_md（2026-09-15 从 tui_agent.py 搬入）
 
 启动性能（2026-09-11 实测优化）：
 本包 __init__ 曾顶层 eager 导入全部子模块（expert→llm→openai 链 ~0.75s、
@@ -165,10 +168,24 @@ for _sym in (
 ):
     _LAZY_SYMBOL_MAP[_sym] = "response_utils"
 
+# 系统提示词与 AGENTS.md 生成（2026-09-15 从 tui_agent.py 搬入）
+# 搬入理由：ZeroAI 类（迟早要进 zeroai/tui/app.py）会引用这些符号。
+# 若它们留在 tui_agent.py，搬出去的 app.py 就得反过来 import tui_agent
+# —— 那正是 1.1.5 全平台故障的形态（发布包里 tui_agent.py 可能不存在）。
+for _sym in (
+    "TOOL_USAGE_RULES", "TOOL_CAPABILITY_PROMPT",
+    "SYSTEM_PROMPT", "SYSTEM_PROMPT_CORE",
+):
+    _LAZY_SYMBOL_MAP[_sym] = "prompts"
+
+for _sym in ("_auto_generate_agents_md",):
+    _LAZY_SYMBOL_MAP[_sym] = "agents_md"
+
 # 以子模块形式导出的迁移模块（按命名空间访问同名符号）
 _LAZY_SUBMODULES = (
     "paths", "runtime", "secrets", "constants",
     "expert_route", "context_compress", "model_manager", "response_utils",
+    "prompts", "agents_md",
     "agent", "expert", "llm", "context", "sandbox", "agent_bus",
     "dynamic_roles", "streaming", "code_knowledge_graph",
     "parallel_tools", "memory_optimizer",
@@ -210,6 +227,12 @@ __all__ = [
     # 迁移模块（命名空间）
     "paths", "runtime", "secrets", "constants",
     "expert_route", "context_compress", "model_manager", "response_utils",
+    "prompts", "agents_md",
+    # 系统提示词（prompts）
+    "TOOL_USAGE_RULES", "TOOL_CAPABILITY_PROMPT",
+    "SYSTEM_PROMPT", "SYSTEM_PROMPT_CORE",
+    # AGENTS.md 生成（agents_md）
+    "_auto_generate_agents_md",
     # 路径
     "_get_desktop_dir", "_resolve_save_path", "_find_resource_dir",
     "_ensure_user_dir", "_get_resource_dir", "CONFIG_FILE", "CUSTOM_MODELS_FILE",

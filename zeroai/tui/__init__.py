@@ -2,10 +2,10 @@
 
 从 tui_agent.py 迁移的终端 UI 组件（包装模式）。
 
-设计原则（国家级项目硬约束）：
-- 不删除 tui_agent.py 中任何原代码，保留作为备份
-- 本包通过 from tui_agent import 重新导出，提供模块化访问路径
-- 后续可逐步将实现迁移到本包，tui_agent.py 保留为薄入口
+设计原则：
+- 零反向依赖：本包**不** import tui_agent（方向是 tui_agent 从本包取实现）
+- 迁移期兜底：tui_agent.py 保留旧实现，靠 `_ZEROAI_IMPL_ACTIVE` 切换
+- 后续可逐步将剩余实现迁到本包，tui_agent.py 保留为薄入口
 
 模块结构：
 - colors.py: 配色常量（MiMo Code Agent 风格）
@@ -14,7 +14,10 @@
 - identity.py: 身份泄露过滤
 - widgets.py: 自定义组件（InfoBar, HintBar, TokenBar）
 - screens.py: 模态对话框（AddModelScreen, SettingsScreen, VoiceDialogScreen）
-- app.py: ZeroAI 主应用类（Textual App）
+- app.py: ZeroAI 主应用类（生命周期、消息块骨架、滚动）
+- app_*.py: 8 个 mixin，按职责承接 ZeroAI 的其余方法
+  （settings / clipboard / voice / commands / mcp / turn_loop / turn_multi / streaming），
+  2026-10-06 自 app.py 拆出，方法体逐字节未改
 """
 from .colors import (
     C_BG, C_BG2, C_FG, C_DIM, C_BORDER,
@@ -36,9 +39,10 @@ def __getattr__(name):
         return {"_IDENTITY_LEAK_PATTERNS": _IDENTITY_LEAK_PATTERNS,
                 "_IDENTITY_REPLACEMENT": _IDENTITY_REPLACEMENT,
                 "_sanitize_identity_leak": _sanitize_identity_leak}[name]
-    if name in ("InfoBar", "HintBar", "TokenBar"):
-        from .widgets import InfoBar, HintBar, TokenBar
-        return {"InfoBar": InfoBar, "HintBar": HintBar, "TokenBar": TokenBar}[name]
+    if name in ("InfoBar", "HintBar", "TokenBar", "MessageInput"):
+        from .widgets import InfoBar, HintBar, TokenBar, MessageInput
+        return {"InfoBar": InfoBar, "HintBar": HintBar,
+                "TokenBar": TokenBar, "MessageInput": MessageInput}[name]
     if name in ("AddModelScreen", "SettingsScreen", "VoiceDialogScreen"):
         from .screens import AddModelScreen, SettingsScreen, VoiceDialogScreen
         return {"AddModelScreen": AddModelScreen,
@@ -59,7 +63,7 @@ __all__ = [
     # UI 模块（按需导入）
     "render_markdown", "_safe_markdown", "render_latex_in_text", "render_image_preview",
     "_IDENTITY_LEAK_PATTERNS", "_IDENTITY_REPLACEMENT", "_sanitize_identity_leak",
-    "InfoBar", "HintBar", "TokenBar",
+    "InfoBar", "HintBar", "TokenBar", "MessageInput",
     "AddModelScreen", "SettingsScreen", "VoiceDialogScreen",
     "ZeroAI",
 ]

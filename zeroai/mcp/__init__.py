@@ -61,6 +61,7 @@ from .registry import (
     get_mcp_registry,
     initialize_mcp_tools,
     shutdown_mcp_tools,
+    force_kill_mcp_tools_sync,
 )
 from .server import (
     MCPServer,
@@ -129,7 +130,7 @@ __all__ = [
     "MCP_TOOL_PREFIX",
     "make_mcp_tool_name", "parse_mcp_tool_name",
     "MCPRegistry", "get_mcp_registry",
-    "initialize_mcp_tools", "shutdown_mcp_tools",
+    "initialize_mcp_tools", "shutdown_mcp_tools", "force_kill_mcp_tools_sync",
     # 服务器
     "MCPServer",
     "create_zeroai_server",

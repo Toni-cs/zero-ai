@@ -84,6 +84,9 @@ class MCPClient:
         self._pending: Dict[str, asyncio.Future] = {}
         self._write_lock = asyncio.Lock()
         self._read_task: Optional[asyncio.Task] = None
+        # 【2026-09-16】读循环连续失败计数。用于把"管道关闭后的忙等自旋"
+        # 转成明确断开（见 _read_loop）。
+        self._read_errors = 0
 
     # ========================================================================
     # 连接管理
@@ -173,6 +176,56 @@ class MCPClient:
     def is_connected(self) -> bool:
         return self._connected and self._initialized
 
+    def _mark_disconnected(self, reason: str) -> None:
+        """标记连接已断开，并唤醒所有在途请求（幂等）。
+
+        【修复 2026-09-16】此前读循环遇到 EOF 只 ``break``，**不重置状态、
+        也不唤醒在途 Future**，于是 ``is_connected`` 仍为 True：
+
+        - 包装函数里的 ``if not client.is_connected: await client.connect()``
+          永不触发 → **永不重连**；
+        - 在途请求的 Future 永不 ``set_result`` → 每个调用卡满默认 60s 超时。
+
+        实测：模拟服务器进程退出后，``is_connected`` 仍报 True，
+        ``call_tool`` 空转 5s（生产默认 60s）才返回超时。
+        """
+        self._connected = False
+        self._initialized = False
+        for fut in list(self._pending.values()):
+            if not fut.done():
+                fut.set_exception(MCPClientError(reason))
+        self._pending.clear()
+
+    def kill_sync(self) -> bool:
+        """同步强制终止 MCP 子进程（退出路径专用）。
+
+        【2026-09-16】为什么需要同步版本：``disconnect()`` 是协程，而退出路径
+        （atexit / 解释器收尾）上事件循环正在关闭，``ensure_future`` 出去的清理
+        协程**很可能永远不会被调度**，清理静默失败。
+
+        ``asyncio.subprocess.Process.kill()`` 本身是同步调用（底层直接
+        TerminateProcess / SIGKILL），因此可以脱离事件循环使用。
+
+        诚实说明：A/B 实测显示 ``uvx`` 在父进程退出后会**自行**退出（stdin EOF），
+        所以本方法并非"修复了一个已复现的泄漏"，而是针对**不响应 stdin EOF 的
+        MCP 服务器**的防御性兜底。详见 mcp/registry.py 的退出清理段落。
+
+        Returns:
+            True 表示确实终止了一个存活进程。
+        """
+        proc = self._process
+        if proc is None:
+            return False
+        try:
+            if proc.returncode is None:
+                proc.kill()
+                return True
+        except ProcessLookupError:
+            return False
+        except Exception:
+            return False
+        return False
+
     # ========================================================================
     # stdio 传输
     # ========================================================================
@@ -229,15 +282,29 @@ class MCPClient:
             try:
                 raw = await self._read_one_message()
                 if raw is None:
+                    # 【修复 2026-09-16】EOF（子进程退出 / 管道关闭）。
+                    # 此前只 break，不标记断开、不唤醒在途请求 —— 详见
+                    # _mark_disconnected 的说明。
+                    self._mark_disconnected("MCP 服务器连接已断开（EOF）")
                     break
+                self._read_errors = 0
                 msg = parse_message(raw)
                 if msg is None:
                     continue
                 await self._dispatch_message(msg)
             except asyncio.CancelledError:
                 break
-            except Exception:
-                # 读取异常不退出循环，尝试继续
+            except Exception as e:
+                # 【修复 2026-09-16】此前无条件 ``continue``。管道关闭后
+                # ``readline()`` 会**持续**抛 ValueError("I/O operation on
+                # closed pipe")，该循环于是变成**忙等自旋**——实测把 stdout
+                # 刷屏淹没，掩盖了真正的验证输出。现在连续失败达阈值即判定
+                # 断开并退出，同时唤醒在途请求。
+                self._read_errors += 1
+                if self._read_errors >= 3:
+                    self._mark_disconnected(f"MCP 读取连续失败 {self._read_errors} 次: {e}")
+                    break
+                await asyncio.sleep(0.05)
                 continue
 
     async def _read_one_message(self) -> Optional[str]:

@@ -135,6 +135,10 @@ class MCPAuditLogger:
         self._max_file_size = int(max_file_size_mb * 1024 * 1024)
         self._buffer: deque = deque(maxlen=max_memory_records)
         self._write_lock = asyncio.Lock()
+        # 【修复 2026-09-16】持有在途 Task 的强引用。
+        # asyncio 只保留 Task 的弱引用，不持引用时任务可能在完成前被 GC 回收
+        # （表现为 "Task was destroyed but it is pending!"），审计记录随之丢失。
+        self._pending: set = set()
         self._current_file: Optional[Path] = None
         self._current_size = 0
 
@@ -194,38 +198,61 @@ class MCPAuditLogger:
         self._buffer.append(record)
 
         # 异步写入磁盘（不阻塞）
+        # 【修复 2026-09-16】原先的写法是：
+        #     try: asyncio.ensure_future(self._write_to_disk(record))
+        #     except RuntimeError: pass
+        # 有两个缺陷（均已实测复现）：
+        #   1. 同步上下文（线程内无事件循环）时 ensure_future 抛 RuntimeError，
+        #      被 except 静默吞掉 —— 协程对象从未被 await，记录**只进内存、永不落盘**。
+        #      （即 pytest 中那条 RuntimeWarning: coroutine ... was never awaited）
+        #   2. 有循环时 Task 无强引用，可能在完成前被 GC 回收，同样丢记录。
+        # 审计日志属安全相关产物，静默丢记录不可接受，故改为显式分支：
+        #   有运行中的循环 -> create_task 并保留强引用；
+        #   否则           -> 同步落盘兜底，保证不丢。
         try:
-            asyncio.ensure_future(self._write_to_disk(record))
+            _loop = asyncio.get_running_loop()
         except RuntimeError:
-            # 没有事件循环（同步上下文），跳过磁盘写入
-            pass
+            _loop = None
+
+        if _loop is not None:
+            task = _loop.create_task(self._write_to_disk(record))
+            self._pending.add(task)
+            task.add_done_callback(self._pending.discard)
+        else:
+            self._write_record_sync(record)
 
         return record
 
+    def _write_record_sync(self, record: AuditRecord) -> None:
+        """同步写入一条审计记录（无事件循环时的兜底路径）
+
+        与 `_write_to_disk` 共享同一段落盘逻辑，避免两份实现漂移。
+        """
+        try:
+            self._log_dir.mkdir(parents=True, exist_ok=True)
+            date_str = time.strftime("%Y-%m-%d", time.localtime(record.timestamp))
+            log_file = self._log_dir / f"mcp_audit_{date_str}.jsonl"
+
+            # 检查文件大小，超过阈值则轮转
+            if log_file.exists():
+                size = log_file.stat().st_size
+                if size > self._max_file_size:
+                    timestamp_str = time.strftime(
+                        "%Y%m%d_%H%M%S", time.localtime(record.timestamp)
+                    )
+                    backup = self._log_dir / f"mcp_audit_{date_str}_{timestamp_str}.jsonl"
+                    log_file.rename(backup)
+
+            # 追加写入
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(record.to_json_line() + "\n")
+        except Exception:
+            pass  # 磁盘写入失败不影响主流程
+
     async def _write_to_disk(self, record: AuditRecord) -> None:
-        """异步写入磁盘"""
+        """异步写入磁盘（持锁，与并发写者互斥）"""
         async with self._write_lock:
-            try:
-                self._log_dir.mkdir(parents=True, exist_ok=True)
-                date_str = time.strftime("%Y-%m-%d", time.localtime(record.timestamp))
-                log_file = self._log_dir / f"mcp_audit_{date_str}.jsonl"
-
-                # 检查文件大小，超过阈值则轮转
-                if log_file.exists():
-                    size = log_file.stat().st_size
-                    if size > self._max_file_size:
-                        # 轮转：重命名为带时间戳的备份
-                        timestamp_str = time.strftime(
-                            "%Y%m%d_%H%M%S", time.localtime(record.timestamp)
-                        )
-                        backup = self._log_dir / f"mcp_audit_{date_str}_{timestamp_str}.jsonl"
-                        log_file.rename(backup)
-
-                # 追加写入
-                with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(record.to_json_line() + "\n")
-            except Exception:
-                pass  # 磁盘写入失败不影响主流程
+            self._write_record_sync(record)
 
     def query_records(
         self,

@@ -1037,14 +1037,18 @@ class AgentLoop:
                 return f"{result_str}\n[错误] 本地工具也未找到: {name}"
             return f"[错误] 未知工具: {name}"
 
-        # 过滤无效参数
-        try:
-            valid_params = set(inspect.signature(fn).parameters)
-            safe_args = {k: v for k, v in args.items() if k in valid_params}
-            extra = set(args.keys()) - valid_params
-        except (ValueError, TypeError):
-            safe_args = args
-            extra = set()
+        # 过滤无效参数（统一走单一真源）
+        # 【修复 2026-09-16】此前这里自行用
+        #     valid_params = set(inspect.signature(fn).parameters)
+        #     safe_args = {k: v for k, v in args.items() if k in valid_params}
+        # 过滤，对 **kwargs 型工具（MCP 包装函数 `async def _wrapper(**kwargs)`）
+        # 会把模型传的**每一个真实参数都当成幻觉参数丢掉** —— 实测
+        # `mcp__computer__type_text({"text": "hi"})` 到达服务器时是空参数，
+        # 报 `1 validation error for type_textArguments / text Field required`。
+        # filter_tool_args 对 **kwargs 与"签名不可解析"两种情况都全量透传。
+        from zeroai.tools.registry import filter_tool_args
+
+        safe_args, extra = filter_tool_args(fn, args)
 
         # 执行（支持同步和异步函数）
         try:

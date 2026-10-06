@@ -348,12 +348,13 @@ class ParallelToolScheduler:
                     error=f"未知工具: {request.name}",
                 )
 
-            # 过滤无效参数
-            try:
-                valid_params = set(inspect.signature(fn).parameters)
-                safe_args = {k: v for k, v in request.args.items() if k in valid_params}
-            except (ValueError, TypeError):
-                safe_args = request.args
+            # 过滤无效参数（统一走单一真源）
+            # 【修复 2026-09-16】此前自行用 inspect.signature 过滤，对 **kwargs
+            # 型工具（MCP 包装函数）会把真实参数全部丢掉。见
+            # zeroai/tools/registry.py 的 filter_tool_args。
+            from zeroai.tools.registry import filter_tool_args
+
+            safe_args, _ = filter_tool_args(fn, request.args)
 
             try:
                 # 执行（支持同步和异步）

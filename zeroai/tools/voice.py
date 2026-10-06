@@ -41,6 +41,75 @@ _SENSE_VOICE_DOWNLOAD_URLS = {
 }
 
 
+def get_asr_model():
+    """获取（惰性初始化并复用）SenseVoice 识别器单例。
+
+    【为什么需要这个函数】
+    此前「惰性初始化 sherpa-onnx 识别器」这段代码在**两个地方各写了一份**：
+      - 本文件 listen_asr()            （L488-504）
+      - tui_agent.py VoiceDialogScreen._recognize（L11722-11735）
+    两份代码各自 `global` 各自的 `_ASR_MODEL`（两个不同的模块命名空间变量）。
+    后果不是「代码重复」这么轻 —— 而是**运行时真的会加载两份模型实例**：
+    用户先用语音对话屏（走 _recognize）再用 listen_asr（或反之），
+    两边都会看到自己的 `_ASR_MODEL is None`，于是各加载一次。
+    SenseVoice int8 模型约 220MB，两次加载意味着双倍的模型内存与加载耗时。
+
+    因此把唯一初始化点收敛到本函数：它只写本模块的 `_ASR_MODEL`，
+    调用方拿到的是**同一个实例**。
+
+    Returns:
+        sherpa_onnx.OfflineRecognizer 实例
+
+    Raises:
+        ImportError: 未安装 sherpa-onnx
+        FileNotFoundError: 模型文件缺失且自动下载失败
+    """
+    global _ASR_MODEL
+    if _ASR_MODEL is not None:
+        return _ASR_MODEL
+
+    import sherpa_onnx
+    if not os.path.isfile(_SENSE_VOICE_MODEL) or not os.path.isfile(_SENSE_VOICE_TOKENS):
+        # 尝试自动下载模型（首次使用语音功能时）
+        # 保留这条提示：下载约 220MB 且耗时可观，用户需要知道进程没有卡死。
+        print("SenseVoice 模型未找到，正在自动下载（约 220MB）...", file=sys.stderr)
+        if not _download_sense_voice_model():
+            raise FileNotFoundError(
+                f"SenseVoice 模型下载失败。请手动下载并放到:\n  {_SENSE_VOICE_MODEL_DIR}\n"
+                f"或运行: pip install faster-whisper 作为替代方案"
+            )
+    _ASR_MODEL = sherpa_onnx.OfflineRecognizer.from_sense_voice(
+        model=_SENSE_VOICE_MODEL,
+        tokens=_SENSE_VOICE_TOKENS,
+        num_threads=2,
+        use_itn=True,  # 启用逆文本归一化（自动添加标点符号）
+    )
+    return _ASR_MODEL
+
+
+def recognize_audio(audio) -> str:
+    """识别一段已录好的音频（float32，范围 [-1,1]），返回文字。
+
+    供「自行录音」的调用方使用（如 TUI 语音对话屏已用自己的 VAD 录好音频）。
+    listen_asr 里的识别阶段也走同一路径，确保两边行为一致。
+
+    Args:
+        audio: numpy 数组，单声道 float32
+
+    Returns:
+        识别出的文字；无内容时返回 "（未识别到内容）"
+    """
+    import numpy as np
+
+    model = get_asr_model()
+    stream = model.create_stream()
+    audio_float32 = np.asarray(audio).flatten().astype(np.float32)
+    stream.accept_waveform(16000, audio_float32)
+    model.decode_stream(stream)
+    text = stream.result.text.strip()
+    return text if text else "（未识别到内容）"
+
+
 def _download_sense_voice_model() -> bool:
     """下载 SenseVoice 语音识别模型到用户目录 ~/.zeroai/models/sense-voice/
 
@@ -480,30 +549,16 @@ def listen_asr(max_seconds: int = 10, silence_seconds: float = 1.0) -> str:
         # 优先使用 sherpa-onnx + SenseVoice（本地离线，准确率最高，自带标点）
         sherpa_err = None
         try:
-            import sherpa_onnx
-            if _ASR_MODEL is None:
-                if not os.path.isfile(_SENSE_VOICE_MODEL) or not os.path.isfile(_SENSE_VOICE_TOKENS):
-                    # 尝试自动下载模型（首次使用语音功能时）
-                    print("SenseVoice 模型未找到，正在自动下载（约 220MB）...", file=sys.stderr)
-                    if not _download_sense_voice_model():
-                        raise FileNotFoundError(
-                            f"SenseVoice 模型下载失败。请手动下载并放到:\n  {_SENSE_VOICE_MODEL_DIR}\n"
-                            f"或运行: pip install faster-whisper 作为替代方案"
-                        )
-                _ASR_MODEL = sherpa_onnx.OfflineRecognizer.from_sense_voice(
-                    model=_SENSE_VOICE_MODEL,
-                    tokens=_SENSE_VOICE_TOKENS,
-                    num_threads=2,
-                    use_itn=True,  # 启用逆文本归一化（自动添加标点符号）
-                )
-            # 创建识别流，喂入音频数据
-            stream = _ASR_MODEL.create_stream()
-            # sounddevice 录制的是 float32，范围 [-1, 1]，sherpa-onnx 需要同样的 float32
-            audio_float32 = audio.flatten().astype(np.float32)
-            stream.accept_waveform(sample_rate, audio_float32)
-            _ASR_MODEL.decode_stream(stream)
-            text = stream.result.text.strip()
-            return text if text else "（未识别到内容）"
+            # 【统一初始化点】此前的内联初始化块已抽到 get_asr_model()，
+            # 与 TUI 语音对话屏共用同一个识别器单例（避免加载两份 220MB 模型）。
+            try:
+                text = recognize_audio(audio)
+                return text
+            except ImportError:
+                raise
+            except FileNotFoundError as _e_model:
+                # 模型缺失/下载失败：交给下方回退链处理
+                raise RuntimeError(str(_e_model))
         except ImportError:
             sherpa_err = "sherpa-onnx 未安装（pip install sherpa-onnx）"
         except Exception as e:

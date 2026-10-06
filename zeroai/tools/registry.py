@@ -13,7 +13,12 @@
 - TOOLS 中声明的函数名必须与 TOOL_MAP 的 key 完全一致
 - TOOL_MAP 的 value 必须是可调用对象（同步或异步函数均可）
 - 新增工具时，只需在对应子模块实现函数，然后在此导入并注册
+- 调用工具请一律走 `invoke_tool()` / `filter_tool_args()`，不要自己写参数过滤
 """
+import asyncio
+import inspect
+from typing import Any, Callable, Dict, Set, Tuple
+
 from zeroai.tools.file_manager import (
     read_file,
     write_file,
@@ -666,4 +671,95 @@ TOOL_MAP = {
 }
 
 
-__all__ = ["TOOLS", "TOOL_MAP"]
+# ============================================================================
+# 工具调用统一入口（单一真源）
+#
+# 【2026-09-16】"按签名过滤模型幻觉参数"这段逻辑此前在 tui/app.py、
+# core/agent.py、core/parallel_tools.py 各抄了一份，三份**漏了同一个 case**：
+# 当函数签名是 `**kwargs` 时，`set(inspect.signature(fn).parameters)` 得到
+# `{'kwargs'}`，于是模型传的真实参数被全部当成"幻觉参数"丢掉。
+#
+# MCP 工具包装函数正是 `async def _wrapper(**kwargs)`（见 mcp/registry.py），
+# 实测后果：模型调 mcp__computer__type_text({"text": "hi"}) → 实际收到 {} →
+# 服务器报 `1 validation error for type_textArguments / text Field required`。
+# 用户视角是"AI 看得见工具、点了没反应"。
+#
+# 这里收拢为单一真源，并把两类情况都按**全量透传**处理：
+#   1. 签名含 VAR_KEYWORD（**kwargs）—— 无法按名过滤；
+#   2. 签名不可解析（C 扩展、丢失签名的装饰器）。
+# 理由：无法按名过滤时，**丢掉真实参数远比透传多余参数危险**。
+# ============================================================================
+
+
+def filter_tool_args(
+    fn: Callable[..., Any],
+    args: Dict[str, Any],
+) -> Tuple[Dict[str, Any], Set[str]]:
+    """按函数签名过滤参数。
+
+    Returns:
+        ``(safe_args, extra)``：
+        - ``safe_args``：可以安全传给 ``fn`` 的参数；
+        - ``extra``：被判定为多余/幻觉的参数名集合（供上层提示模型）。
+        ``extra`` 恒为空集的两类情况见模块级注释（**kwargs / 签名不可解析）。
+    """
+    try:
+        params = inspect.signature(fn).parameters
+    except (ValueError, TypeError):
+        # 签名不可解析（C 扩展、某些装饰器）→ 全量透传，宁可多传不可少传
+        return dict(args), set()
+
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        # **kwargs 型工具无法按名过滤 → 全量透传
+        return dict(args), set()
+
+    safe_args = {k: v for k, v in args.items() if k in params}
+    return safe_args, set(args) - set(safe_args)
+
+
+async def invoke_tool(
+    name: str,
+    args: Dict[str, Any],
+    *,
+    sync_in_thread: bool = False,
+) -> Tuple[str, Set[str]]:
+    """按名调用 ``TOOL_MAP`` 中的工具，统一处理参数过滤与 sync/async 分派。
+
+    Args:
+        name: 工具名（含 ``mcp__<server>__<tool>`` 形式）。
+        args: 模型给出的原始参数。
+        sync_in_thread: 同步工具是否放入线程池执行。阻塞式工具
+            （如 command_exec 内部走 subprocess.run）在事件循环线程里直接
+            调用会堵死循环，使 ``asyncio.wait_for`` 的超时回调永不触发。
+            agent.py 走线程池；TUI 保持既有语义（False）。
+
+    Returns:
+        ``(结果字符串, 被忽略的多余参数集合)``
+
+    Raises:
+        KeyError: ``name`` 不在 ``TOOL_MAP`` 中。调用方自行处理未知工具，
+            以保留各自的提示文案。
+    """
+    fn = TOOL_MAP[name]
+    safe_args, extra = filter_tool_args(fn, args)
+
+    if inspect.iscoroutinefunction(fn):
+        result = await fn(**safe_args)
+    elif sync_in_thread:
+        result = await asyncio.to_thread(fn, **safe_args)
+        if inspect.isawaitable(result):
+            result = await result
+    else:
+        result = fn(**safe_args)
+        # 【修复 2026-09-16】此前 TUI 把结果当同步返回值直接使用，而 MCP
+        # 包装函数是 ``async def`` —— 拿到的是**协程对象**，从未被 await，
+        # 随后 `result += "..."` 抛 TypeError，被 `except TypeError` 吞成
+        # "参数错误：unsupported operand type(s) for +=: 'coroutine' and 'str'"。
+        # 症状：15 个电脑操作工具全部"点了没反应"，且报错文案完全误导。
+        if inspect.isawaitable(result):
+            result = await result
+
+    return str(result), extra
+
+
+__all__ = ["TOOLS", "TOOL_MAP", "filter_tool_args", "invoke_tool"]

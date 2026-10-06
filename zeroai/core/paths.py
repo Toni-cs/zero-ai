@@ -157,3 +157,20 @@ def _get_resource_dir() -> Path:
 
 ASSETS_DIR = _get_resource_dir()
 ICONS_DIR = ASSETS_DIR / "icons"
+
+
+# ====== 工作目录（单一真源）======
+# 语义：进程启动时的工作目录快照。
+#
+# 【为什么放在这里】此前 `WORK_DIR = os.getcwd()` 在三个模块里各写了一遍：
+#   - tui_agent.py:1961
+#   - zeroai/tools/command_exec.py:32
+#   - zeroai/tools/security.py:29
+# 三份独立副本的问题不是"重复"本身，而是**求值时机可能不同**：
+# 若某个模块被延迟导入（import 发生在用户 chdir 之后），它的 WORK_DIR
+# 就会指向另一个目录，而其余两份仍指向启动目录 —— 于是"展示给用户的工作目录"
+# 与"实际执行命令的工作目录"可能不一致，且没有任何报错。
+#
+# 因此统一到本模块：本模块处于导入链最上游，求值时机最早、最稳定。
+# 需要"启动时工作目录"语义的地方都应从这里导入，不要再自行 getcwd()。
+WORK_DIR = os.getcwd()
