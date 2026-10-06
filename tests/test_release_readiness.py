@@ -7,9 +7,11 @@
 4. zeroai.core 全部子模块可导入
 5. zeroai.tools 全部子模块可导入 + registry 一致性
 6. zeroai.tui 包装模块可导入
-7. tui_agent.py 向后兼容
-8. 阶段3 切换块激活（_ZEROAI_IMPL_ACTIVE=True）
-9. 关键工具函数实际调用
+7. 关键工具函数实际调用
+
+（原第 7/8/10 项是 tui_agent.py 的兼容性 / 切换块 / 循环导入校验，
+  该文件已于 2026-10-06 删除，三项随之移除；原第 9 项"实际调用"改指
+  zeroai 包的直接 import 后保留为现在的第 7 项。）
 """
 import sys
 import os
@@ -103,78 +105,44 @@ def test_tui_wrappers():
     print("  OK: 全部 7 个 tui 子模块导入成功（colors/markdown/identity/widgets/screens/app/icons）")
 
 
-def test_tui_agent_compat():
-    """测试 7：tui_agent.py 向后兼容"""
-    print("\n[Test 7] tui_agent.py 向后兼容...")
-    import tui_agent
-    assert hasattr(tui_agent, "ZeroAI"), "tui_agent.ZeroAI 不存在"
-    assert hasattr(tui_agent, "main"), "tui_agent.main 不存在"
-    assert hasattr(tui_agent, "TOOLS"), "tui_agent.TOOLS 不存在"
-    assert hasattr(tui_agent, "TOOL_MAP"), "tui_agent.TOOL_MAP 不存在"
-    assert tui_agent._ZEROAI_IMPL_ACTIVE is True, "切换块未激活"
-    print(f"  OK: tui_agent.py 兼容，_ZEROAI_IMPL_ACTIVE={tui_agent._ZEROAI_IMPL_ACTIVE}")
-
-
-def test_switch_active():
-    """测试 8：阶段3 切换块激活状态"""
-    print("\n[Test 8] 阶段3 切换块激活...")
-    import tui_agent
-    import zeroai.tools.registry as reg
-    # TOOLS 和 TOOL_MAP 应该是同一对象（切换成功）
-    assert tui_agent.TOOLS is reg.TOOLS, "tui_agent.TOOLS 未切换到 registry"
-    assert tui_agent.TOOL_MAP is reg.TOOL_MAP, "tui_agent.TOOL_MAP 未切换到 registry"
-    # 工具函数应来自 zeroai.tools.*
-    assert tui_agent.read_file.__module__.startswith("zeroai.tools"), \
-        f"read_file 未切换: {tui_agent.read_file.__module__}"
-    assert tui_agent.run_command.__module__.startswith("zeroai.tools"), \
-        f"run_command 未切换: {tui_agent.run_command.__module__}"
-    print("  OK: 切换块激活，工具函数来自 zeroai.tools.*")
-
-
 def test_real_calls():
-    """测试 9：关键功能实际调用"""
-    print("\n[Test 9] 关键功能实际调用...")
-    import tui_agent
+    """测试 7：关键功能实际调用"""
+    print("\n[Test 7] 关键功能实际调用...")
+    from zeroai.core.expert_route import route_expert
+    from zeroai.core.paths import _get_desktop_dir
+    from zeroai.tools.academic import render_formula
+    from zeroai.tools.file_manager import read_file
+    from zeroai.tools.system_check import system_info
 
     # read_file
-    result = tui_agent.read_file(__file__, max_length=50)
+    result = read_file(__file__, max_length=50)
     assert isinstance(result, str) and result
     print(f"  OK: read_file 成功（{len(result)} 字符）")
 
     # system_info
-    result = tui_agent.system_info()
+    result = system_info()
     assert isinstance(result, str)
     print(f"  OK: system_info 成功（{len(result)} 字符）")
 
     # route_expert
-    expert = tui_agent.route_expert("写一个 Python 函数")
+    expert = route_expert("写一个 Python 函数")
     assert isinstance(expert, str)
     print(f"  OK: route_expert 成功（{expert}）")
 
     # render_formula
-    result = tui_agent.render_formula("E=mc^2")
+    result = render_formula("E=mc^2")
     assert isinstance(result, str)
     print(f"  OK: render_formula 成功（{result[:30]}）")
 
     # _get_desktop_dir
-    desktop = tui_agent._get_desktop_dir()
+    desktop = _get_desktop_dir()
     assert isinstance(desktop, str) and desktop
     print(f"  OK: _get_desktop_dir 成功（{desktop}）")
 
 
-def test_no_circular():
-    """测试 10：循环导入验证"""
-    print("\n[Test 10] 循环导入验证...")
-    import importlib
-    import tui_agent
-    importlib.reload(tui_agent)
-    assert tui_agent._ZEROAI_IMPL_ACTIVE is True
-    print("  OK: 重载后切换块仍激活")
-
-
 def main():
     print("=" * 70)
-    print("ZeroAI v1.1.3 发布测试")
+    print("ZeroAI 发布测试")
     print("=" * 70)
 
     test_version()
@@ -183,23 +151,19 @@ def main():
     test_core_imports()
     test_tools_imports()
     test_tui_wrappers()
-    test_tui_agent_compat()
-    test_switch_active()
     test_real_calls()
-    test_no_circular()
 
     print("\n" + "=" * 70)
-    print("✅ 全部 10 项测试通过！v1.1.3 发布就绪")
+    print("✅ 全部 7 项测试通过，发布就绪")
     print("=" * 70)
     print("\n架构摘要：")
-    print("  zeroai/                    模块化包（推荐）")
-    print("  ├── core/                  核心层（8 个子模块）")
-    print("  ├── tools/                 工具层（10 个子模块，56 个工具）")
-    print("  ├── tui/                   TUI 包装层（7 个子模块）")
+    print("  zeroai/                    模块化包（唯一实现）")
+    print("  ├── core/                  核心层")
+    print("  ├── tools/                 工具层")
+    print("  ├── tui/                   TUI 层（app.py + 8 个 app_*.py mixin）")
     print("  ├── main.py                统一入口")
     print("  └── __main__.py            模块入口")
-    print("  tui_agent.py               原始实现（保留备份，向后兼容）")
-    print("  pyproject.toml             版本 1.1.3，入口 zeroai.main:main")
+    print("  pyproject.toml             入口 zeroai.main:main，py-modules = []")
 
 
 if __name__ == "__main__":

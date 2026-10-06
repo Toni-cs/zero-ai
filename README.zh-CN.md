@@ -327,7 +327,8 @@ python -m zeroai --version          # 查看版本号
 ```
 
 > **架构变更说明**：自 v1.1.3 起，项目从单文件 `tui_agent.py` 重构为模块化 `zeroai` 包。
-> `python -m zeroai` 为推荐入口，`python tui_agent.py` 仍可用（向后兼容，已添加弃用提示）。
+> `tui_agent.py` 已于 2026-10-06 彻底删除，唯一入口是 `python -m zeroai`（或 `zeroai` 命令）。
+> 需要查看旧文件时用 `git show <版本>:tui_agent.py`。
 
 ### 首次使用配置
 
@@ -682,7 +683,7 @@ pip install -e ".[dev]"    # 开发依赖（build、pyinstaller）
 pip install -e ".[voice]"  # 可选：语音依赖
 ```
 
-开发模式下修改 `zeroai/` 包或 `tui_agent.py` 即时生效，无需重新安装。
+开发模式下修改 `zeroai/` 包即时生效，无需重新安装。
 
 ### 构建
 
@@ -706,14 +707,11 @@ python setup.py build_ext --inplace --skip-zig # 仅构建 C 扩展（跳过 Zig
 ### 运行测试
 
 ```bash
-# 阶段3 切换块回归测试
-python test_phase3_regression.py
-
-# v1.1.3 发布集成测试
-python test_v1_1_3_release.py
+# 全量测试（单元 + 回归 + 集成，共 352 项）
+python -m pytest -q
 
 # C/Zig 加速层测试套件
-python -m pytest zeroai-tui/test_zeroai_tui.py zeroai-tui/tests/ -v -p no:xonsh
+python -m pytest zeroai-tui/tests/ -v -p no:xonsh
 ```
 
 ### 项目结构
@@ -741,17 +739,17 @@ zero-ai-cli/
 │   │   ├── window_mgr.py     # 窗口管理
 │   │   ├── ssh_ops.py        # SSH 远程运维
 │   │   └── registry.py       # 工具注册中心（TOOLS + TOOL_MAP）
-│   ├── tui/                  # TUI 包装层（7 个子模块）
+│   ├── tui/                  # TUI 层（app.py + 8 个 app_*.py mixin + 支撑模块）
 │   │   ├── colors.py         # 配色常量
 │   │   ├── markdown.py       # Markdown/LaTeX 渲染
 │   │   ├── identity.py       # 身份泄露过滤
 │   │   ├── widgets.py        # 自定义组件
 │   │   ├── screens.py        # 模态对话框
-│   │   ├── app.py            # ZeroAI 主应用类
+│   │   ├── app.py            # ZeroAI 主应用类（生命周期与骨架）
+│   │   ├── app_*.py          # 从原 3,664 行巨类拆出的 8 个 mixin
 │   │   └── icons.py          # 图标加载
 │   ├── main.py               # 统一入口
 │   └── __main__.py           # 模块入口（支持 python -m zeroai）
-├── tui_agent.py              # 原始实现（保留备份，向后兼容，已弃用）
 ├── zeroai-tui/               # C/Zig 加速 TUI 框架
 │   ├── zeroai_tui/           # TUI 组件包
 │   │   ├── src/_renderer.c   # C 渲染核心（动态加载 Zig）

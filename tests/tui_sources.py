@@ -35,8 +35,14 @@ def tui_app_rels():
 
 
 def core_sources_rels():
-    """旧壳 + 全部新实现（老测试原本是 ("tui_agent.py", "zeroai/tui/app.py")）。"""
-    return ("tui_agent.py",) + tui_app_rels()
+    """承载 ZeroAI 的源文件（相对路径，POSIX 分隔）。
+
+    2026-10-06 起与 `tui_app_rels()` 同义 —— 原本这里是
+    `("tui_agent.py",) + tui_app_rels()`，即"旧壳 + 新实现"；tui_agent.py
+    删除后只剩新实现。保留函数名是因为 `test_agent_loop_advanced` 等测试
+    以它为清单入口，改名会让"清单"这件事重新散落到各处。
+    """
+    return tui_app_rels()
 
 
 def read_sources(*rels):

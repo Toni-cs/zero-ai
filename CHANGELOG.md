@@ -29,6 +29,33 @@
   BINDINGS / 8 个 mixin 方法可解析。此前 `tests/` 里**没有任何测试
   实例化过 ZeroAI**（唯一两处 `run_test()` 起的是临时 App 与独立 Screen）。
 - 测试总数 304 → 326 passed。
+- **删除双实现 `tui_agent.py`（473KB / 14,614 行）**：外部评审指出
+  「一份逻辑两份实现必然发散」，且 1.1.5 的全平台故障正来自
+  「包里缺这个文件」。删除前逐条核对三条前置条件（见
+  `pyproject.toml` 决策历史块）：
+  1. `zeroai/` 内无任何 `import tui_agent`（AST 扫描为 `[]`，
+     `tests/test_ghost_names_regression.py` 守护，白名单已清空）；
+  2. `python -c "from zeroai.tui.app import ZeroAI"` 可用；
+  3. 构建 wheel 后解压复测：125 个文件、0 条 `tui_agent`，
+     （首次构建时发现陈旧 `build/lib/tui_agent.py` 泄漏进包，
+     删除 `build/` 后重建 —— **陈旧构建产物会污染 wheel**）。
+  `py-modules` 由 `["tui_agent"]` 改为 `[]`；`main.py` 的回退分支
+  摘除，保留 `e.name == "tui_agent"` 的**纯报错提示**（用于识别
+  「wheel 混入旧代码」的可读病因）。原文件备份于
+  `.local_archive/2026-10-06/`，历史版本可用 `git show <rev>:tui_agent.py` 查看。
+  配套改写 7 个测试文件（原 9 项 tui_agent 自测随之删除）。
+- **测试总数**：全量 `python -m pytest -q` → **352 passed**
+  （删除 tui_agent 自测前为 361，减少的 9 项全部属于该文件自身的
+  自测；`zeroai-tui/tests/` 已纳入 `testpaths`）。
+
+### 变更
+- **去中二化文案**：4 处活代码中的「国家级项目硬约束」改写为
+  中性表述（`prompts.py` 提示词标题、`file_manager.py` 注释等）；
+  `CONTRIBUTING.md` 同步删除「不得删除原有函数定义」等已失效约束，
+  运行测试段落指向真实存在的 `python -m pytest`。
+- **仓库结构**：`.zig-cache`（29.2MB）删除；`zeroai-tui/test_zeroai_tui.py`
+  迁入 `zeroai-tui/tests/`；两份 README 与 `tests/README.md` 同步目录树
+  与测试数量。
 
 ## [1.1.6] - 2026-09-15
 

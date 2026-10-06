@@ -80,17 +80,17 @@ dev = [
 
 [project.scripts]
 # 安装后终端输入 zeroai 即可启动
-# v1.1.3+：统一入口为 zeroai.main:main，tui_agent:main 仍保留向后兼容
+# v1.1.3+：统一入口为 zeroai.main:main（曾同时保留 tui_agent:main 向后兼容，
+#          该文件已于 2026-10-06 删除，见下方 [tool.setuptools] 注释）
 zeroai = "zeroai.main:main"
 
 [tool.setuptools]
 # 包含模块
 #
 # ---------------------------------------------------------------------------
-# 关于 tui_agent.py —— 一段需要如实记录的决策历史
+# 关于 tui_agent.py —— 一段需要如实记录的决策历史（终章）
 # ---------------------------------------------------------------------------
-# （规模随解耦推进而变化，此处不写死行数：曾写「16,264 行」后即失准。
-#   需要时用 `python -c "print(sum(1 for _ in open('tui_agent.py',encoding='utf-8')))"` 现查。）
+# 规模不写死行数：曾写「16,264 行」后即失准。历史值以 git 为准。
 #
 # 1.1.4 及更早：py-modules = ["tui_agent"]
 #   该文件被原样打进客户端包，占整包体积 90% 以上。
@@ -99,65 +99,37 @@ zeroai = "zeroai.main:main"
 #   理由是「zeroai/tui/ 已提供模块化访问路径，tui_agent.py 只是备份」。
 #   **这个理由是错的**，造成了本仓库最严重的一次回归：
 #     - zeroai/tui/ 下多个文件是 `from tui_agent import ...` 的转发壳，自己不含实现；
-#     - zeroai/tui/{markdown,identity}.py 转发的那批符号，在 tui_agent.py 中
-#       也已经是 `from zeroai.tools.* import ...` 的转发 —— 依赖方向含
-#       tui_agent.py → zeroai.* 这一向；
-#     - 于是摘掉 tui_agent.py 后，`zeroai` 的**交互模式在所有平台**直接崩溃：
+#     - 摘掉 tui_agent.py 后，`zeroai` 的**交互模式在所有平台**直接崩溃：
 #         ModuleNotFoundError: No module named 'tui_agent'
-#       更糟的是 zeroai/tui/app.py 确实存在于 wheel 中（文件在），
-#       所以「检查文件是否存在」这种自检手段无法发现该问题，
-#       必须在真实环境里执行 `from zeroai.tui.app import ZeroAI` 才能暴露。
+#   更糟的是 zeroai/tui/app.py 确实存在于 wheel 中（文件在），
+#   所以「检查文件是否存在」这种自检手段无法发现该问题。
 #
 # 1.1.6：恢复 py-modules = ["tui_agent"]
 #   这是**有意识的技术债**，不是回到原点：1.1.4 的打包问题（体积）是成本，
 #   1.1.5 的打包问题是**故障**。二者不可比，先修故障。
 #
-# 解除该依赖的唯一正确路径（进行中）：
-#   把 tui_agent.py 中的**真实实现**逐个搬进 zeroai/tui/*.py，改完一个就把
-#   对应的转发壳删掉，最后 tui_agent.py 退化为薄入口再移除。
-#
-#   ⚠️ 此前这里写过「app.py / widgets.py / screens.py 依赖 tui_agent.py 内部的
-#      模块级状态（CURRENT_MODEL_KEY、MODEL_CONFIGS），必须先抽到 zeroai.core.*
-#      才能动」—— **该判断经实测证明是错的，已作废，勿再据此排期。**
-#      实测（`is` 同一性）：L9091-9204 那个 try 块会重绑定 139 个名字，因此
-#      MODEL_CONFIGS / EXPERT_TEAM / WORK_MODE / CURRENT_MODEL_KEY / TOOLS / C_*
-#      在 tui_agent 命名空间里**早已是 zeroai 对象本身**（非副本）：
-#          MODEL_CONFIGS is zeroai.core.constants.MODEL_CONFIGS  -> True
-#          WORK_MODE     is zeroai.core.constants.WORK_MODE      -> True
-#     所以这些类依赖的不是「tui_agent 的状态」，而是 zeroai 的对象，
-#     直接显式 import 即可，无需先抽取。
-#
-#   真正的阻塞点只有三类（2026-09-15 用 AST 实测）：
-#     (1) 少数名字尚未存在于 zeroai.*。
-#         【已完成】WORK_DIR -> core/paths.py；MessageInput -> zeroai/tui/widgets.py；
-#         TOOL_USAGE_RULES / SYSTEM_PROMPT / SYSTEM_PROMPT_CORE /
-#         TOOL_CAPABILITY_PROMPT -> zeroai/core/prompts.py（新建）；
-#         _auto_generate_agents_md -> zeroai/core/agents_md.py（新建）。
-#         `client` 仍未单独搬（它属于 _LazyClientProxy，另行处理）。
-#     (2) ZeroAI 类中对全局名的**写操作**。⚠️ 旧记录写的"12 处"是错的
-#         （把 global 语句数当成了名字数，又漏了 on_proxy_result）。
-#         AST 实测：**7 条 global 语句 / 13 个写入点**
-#           WORK_MODE×6 / _GLOBAL_STOP×4 / PROXY_CONFIG×2 / _ASR_MODEL×1
-#         【已完成】全部改为 setter，两个类内 global 语句数均为 0：
-#           set_work_mode()        （constants.py:512，原本就有）
-#           _set_stop_flag()       （runtime.py:116，原本就有）
-#           _refresh_proxy_config()（secrets.py:175，**原本就有**，此前只是没被调用）
-#         注意：不需要"新增 PROXY_CONFIG 的 setter"，它早就存在。
-#     (3) VoiceDialogScreen 的 `global _ASR_MODEL`。
-#         【已完成】根因是识别器初始化在两处逐字重复（voice.listen_asr 与
-#         _recognize），各自 global 各自模块的 _ASR_MODEL → 会各加载一份
-#         约 220MB 的 SenseVoice 模型。现已收敛到 voice.get_asr_model() /
-#         recognize_audio()，两处共用同一单例。
-#   除上述之外，InfoBar/HintBar/MessageInput/TokenBar/AddModelScreen/SettingsScreen
-#   经 AST 确认**零 global**，可直接搬。
-#
-#   ⇒ 结论：VoiceDialogScreen 与 ZeroAI 的搬迁阻塞均已解除，可以搬了。
-#
-# 若将来再次把这里改回 []，必须同时满足下面三条 —— 缺一条即复现 1.1.5 故障：
-#   a) `grep -rn "from tui_agent\|import tui_agent" zeroai/` 返回空；
-#   b) 全平台真实执行 `python -c "from zeroai.tui.app import ZeroAI"` 通过；
-#   c) 打包后对 wheel 解压复测 (b)，而不是只看源码树。
-py-modules = ["tui_agent"]
+# 2026-10-06：py-modules = []（本次），tui_agent.py 从源码树**彻底删除**
+#   与 1.1.5 的区别在于：这次是真的解耦完了，不是"以为解耦完了"。三条退出
+#   条件（1.1.6 时在此自订，缺一条即复现 1.1.5 故障）逐条实测：
+#     a) 代码依赖归零 —— 不再是 grep 文案（那会命中注释里的迁移史料），
+#        改用 tests/test_ghost_names_regression.py 的 AST 判定：
+#        zeroai/ 内不存在任何 `import tui_agent` / `from tui_agent import`
+#        **语句**（模块级与函数级都扫）。该测试此前给 main.py 留了白名单
+#        （过渡期回退分支），本次一并摘除，现在全仓库无白名单。
+#        实现侧同步删除：zeroai/main.py 的 `if _missing == "tui_agent"`
+#        回退分支 —— 它不再 import，只对"残留旧代码的 wheel"给出可读报错。
+#     b) 全平台真实执行 `python -c "from zeroai.tui.app import ZeroAI"` 通过；
+#     c) 打包后对 wheel 解压复测 (b)，而不是只看源码树。
+#   删除前的实证（防"删了才发现有人用"）：
+#     - 10,017 行中 109 个顶层定义（5,688 行）被 zeroai/ 同名定义遮蔽，
+#       43/44 个"存活"函数在 zeroai/ 也有同名定义，真正独有的只有
+#       _LazyClientProxy（19 行，其职责已由 zeroai.core.secrets 承担）；
+#     - 隐藏该文件跑全量测试：16 项失败/错误**全部**是它自己的自测，
+#       生产代码零破损；
+#     - [project.scripts] 只有 zeroai，从未有过 tui_agent 控制台脚本。
+#   结论：该文件 99.9% 是与 zeroai/ 重复的第二份实现，保留它只会让
+#   "改哪一份"变成长期疑问。需要历史版本时用 git show <rev>:tui_agent.py。
+py-modules = []
 
 [tool.setuptools.dynamic]
 # 版本号从 zeroai/__init__.py 的 __version__ 读取（setuptools 优先做 AST

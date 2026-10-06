@@ -333,7 +333,7 @@ python -m zeroai --version          # print the version
 ```
 
 > **Architecture change note**: as of v1.1.3 the project was refactored from the single-file `tui_agent.py` into the modular `zeroai` package.
-> `python -m zeroai` is the recommended entry point; `python tui_agent.py` still works (backward compatible, with a deprecation notice).
+> `tui_agent.py` was removed entirely on 2026-10-06 — `python -m zeroai` (or the `zeroai` console script) is the one entry point. For the old file, use `git show <rev>:tui_agent.py`.
 
 ### First-Time Configuration
 
@@ -705,7 +705,7 @@ pip install -e ".[dev]"    # development dependencies (build, pyinstaller)
 pip install -e ".[voice]"  # optional: voice dependencies
 ```
 
-In development mode, changes to the `zeroai/` package or `tui_agent.py` take effect immediately with no reinstall.
+In development mode, changes to the `zeroai/` package take effect immediately with no reinstall.
 
 ### Building
 
@@ -729,14 +729,11 @@ Acceleration layer architecture: Python → C → Zig (falling back automaticall
 ### Running Tests
 
 ```bash
-# Phase 3 switch-block regression test
-python test_phase3_regression.py
-
-# v1.1.3 release integration test
-python test_v1_1_3_release.py
+# Full test suite (unit + regression + integration, 352 tests)
+python -m pytest -q
 
 # C/Zig acceleration layer test suite
-python -m pytest zeroai-tui/test_zeroai_tui.py zeroai-tui/tests/ -v -p no:xonsh
+python -m pytest zeroai-tui/tests/ -v -p no:xonsh
 ```
 
 ### Project Structure
@@ -764,17 +761,17 @@ zero-ai-cli/
 │   │   ├── window_mgr.py     # Window management
 │   │   ├── ssh_ops.py        # SSH remote operations
 │   │   └── registry.py       # Tool registry (TOOLS + TOOL_MAP)
-│   ├── tui/                  # TUI wrapper layer (7 submodules)
+│   ├── tui/                  # TUI layer (app.py + 8 app_*.py mixins + support modules)
 │   │   ├── colors.py         # Color constants
 │   │   ├── markdown.py       # Markdown/LaTeX rendering
 │   │   ├── identity.py       # Identity-leak filtering
 │   │   ├── widgets.py        # Custom widgets
 │   │   ├── screens.py        # Modal dialogs
-│   │   ├── app.py            # ZeroAI main application class
+│   │   ├── app.py            # ZeroAI main application class (lifecycle + skeleton)
+│   │   ├── app_*.py          # 8 mixins split out of the former 3,664-line class
 │   │   └── icons.py          # Icon loading
 │   ├── main.py               # Unified entry point
 │   └── __main__.py           # Module entry point (supports python -m zeroai)
-├── tui_agent.py              # Original implementation (kept as backup, backward compatible, deprecated)
 ├── zeroai-tui/               # C/Zig-accelerated TUI framework
 │   ├── zeroai_tui/           # TUI component package
 │   │   ├── src/_renderer.c   # C rendering core (dynamically loads Zig)

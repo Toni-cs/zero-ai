@@ -39,7 +39,7 @@ os.makedirs(BACKUP_DIR, exist_ok=True) if PERMISSION_LEVEL == "full" else None
 
 # 核心文件清单（修改前自动备份）
 CORE_FILES = {
-    "tui_agent.py", "settings.json", "requirements.txt", "README.md",
+    "settings.json", "requirements.txt", "README.md",
     "config.py", "tools.py", "prompts.py", "utils.py", "main.py",
 }
 
@@ -264,7 +264,7 @@ def delete_file(path: str) -> str:
         full = Path(path).resolve()
         if not full.exists():
             return f"错误：文件不存在 {path}"
-        # 国家级项目硬约束：删除核心文件前自动备份
+        # 删除核心文件前先自动备份
         backup_info = ""
         if PERMISSION_LEVEL == "full" and full.name in CORE_FILES:
             backup_path = auto_backup(str(full))

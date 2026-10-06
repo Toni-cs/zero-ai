@@ -55,7 +55,7 @@
 | `test_mcp_e2e.py` | MCP 端到端：起 Server 子进程 + Client 连接调用工具 |
 | `test_mcp_protocol.py` | MCP 协议层：JSON-RPC 编解码 / 配置 / 客户端 / 注册 / 服务器 |
 | `test_react_agent.py` | ReAct Agent 与向量记忆 |
-| `test_regression_tui_agent_wiring.py` | 回归：`tui_agent.py` 内部调用已切换到 `zeroai` 包 |
+| `test_regression_tui_agent_wiring.py` | 工具接线回归：`TOOLS`/`TOOL_MAP` 与 registry 单一真源一致、签名与真实调用（原为 `tui_agent.py` 校验，该文件已删除，改指 `zeroai`） |
 | `test_release_readiness.py` | 发布前全面体检（版本号 / 入口 / 模块导入 / 工具注册一致性） |
 | `test_render_benchmark.py` | Zig / C / Python 三层渲染性能对比 |
 | `test_render_benchmark_streaming.py` | 流式文本拼接的性能对比 |
@@ -90,7 +90,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ## 运行
 
 ```bash
-pytest                                   # 走 testpaths，跑两个目录（默认 247 项）
+pytest                                   # 走 testpaths，跑两个目录（默认 352 项）
 pytest tests/                            # 只跑主包测试
 pytest zeroai-tui/tests/                 # 只跑加速层测试
 pytest tests/test_mcp_e2e.py -v

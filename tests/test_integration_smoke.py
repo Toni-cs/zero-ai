@@ -3,12 +3,11 @@ ZeroAI Full Integration Test
 
 验证 ZeroAI 核心模块的完整集成：
 - zeroai 主包导入
-- tui_agent 入口模块
 - 专家系统 / LLM / 配置模块
 - zeroai_tui C/Zig 加速层（可选，未安装时降级测试）
 - MCP / Agent Loop / 向量记忆（阶段 3 新增）
 
-运行：python test_full_integration.py
+运行：python tests/test_integration_smoke.py
 """
 import sys
 import os
@@ -28,7 +27,6 @@ def test_full_integration():
 
     tests = [
         ("Import zeroai package", test_import_zeroai),
-        ("Import tui_agent", test_import_tui_agent),
         ("Expert system ready", test_expert_system),
         ("LLM module ready", test_llm_module),
         ("Config module ready", test_config),
@@ -36,6 +34,7 @@ def test_full_integration():
         ("Agent Loop ready", test_agent_loop),
         ("Vector memory ready", test_vector_memory),
         ("Tools registry ready", test_tools_registry),
+        ("TUI app importable", test_tui_app_importable),
         ("ZeroAI-TUI (optional)", test_zeroai_tui_optional),
     ]
 
@@ -67,10 +66,11 @@ def test_full_integration():
         print()
         print("Usage:")
         print("  # Run with Textual UI (default)")
-        print("  python tui_agent.py")
+        print("  zeroai")
+        print("  # or: python -m zeroai")
         print()
         print("  # Run with zeroai-tui UI (if installed)")
-        print("  python tui_agent.py --ui zeroai-tui")
+        print("  zeroai --ui zeroai-tui")
         print()
         print("  # Run ZeroAI as MCP Server")
         print("  python -m zeroai.mcp")
@@ -84,10 +84,10 @@ def test_import_zeroai():
     assert hasattr(zeroai, '__version__'), "zeroai 缺少 __version__ 属性"
 
 
-def test_import_tui_agent():
-    """Test importing tui_agent"""
-    import tui_agent
-    assert hasattr(tui_agent, 'main'), "tui_agent 缺少 main 函数"
+def test_tui_app_importable():
+    """Test importing the TUI app (tui_agent.py 删除后的唯一入口)"""
+    from zeroai.tui.app import ZeroAI
+    assert ZeroAI is not None, "ZeroAI 导入失败"
 
 
 def test_expert_system():

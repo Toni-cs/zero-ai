@@ -106,15 +106,6 @@ def test_app_py_has_no_ghost_names(path):
     )
 
 
-def test_tui_agent_has_no_ghost_names():
-    """tui_agent.py 同样不得有悬空全局名。"""
-    ghosts, n = find_ghosts(_ROOT / "tui_agent.py")
-    assert not ghosts, (
-        f"tui_agent.py 发现 {len(ghosts)} 个悬空全局名：\n"
-        + "\n".join(f"  {k}  出现于 {v[:3]}" for k, v in sorted(ghosts.items()))
-    )
-
-
 def test_screens_has_no_ghost_names():
     """zeroai/tui/screens.py 同样检查（本轮改动过该文件）。"""
     ghosts, n = find_ghosts(_ROOT / "zeroai" / "tui" / "screens.py")
@@ -236,25 +227,26 @@ def _lazy_tui_agent_imports(path):
     return out
 
 
-def test_no_lazy_reverse_dependency_outside_allowlist():
-    """zeroai/ 内不得再有对 tui_agent 的函数级 import（白名单除外）。
+def test_no_reverse_dependency_on_tui_agent():
+    """zeroai/ 内不得有任何对 tui_agent 的 import（模块级与函数级都扫）。
 
     【为什么加这条】2026-09-16 发现：此前的"模块级反向依赖 = 0"检查
     **只覆盖模块级 import**，因此 screens.py 里
     `from tui_agent import speak_tts`（在 TTS 分支内）一直没被发现 ——
     而且它还引入了一份与 zeroai.tools.voice 不同的**重复实现**。
 
-    白名单（有意保留）：
-      - zeroai/main.py  —— 显式的过渡期回退路径（有注释与条件判断）
+    【2026-10-06 更新】tui_agent.py 已彻底删除。原本给 zeroai/main.py 留的
+    白名单（"过渡期回退：zeroai.tui 导入失败时回退到 tui_agent"）随之撤销 ——
+    现在是**零白名单**，整个 zeroai/ 一棵树都不允许出现这类 import。
+
+    这条现在同时是 pyproject.toml 里退出条件 (a) 的执行者：那里原写
+    `grep -rn "from tui_agent\\|import tui_agent" zeroai/` 返回空，但 grep 会
+    命中注释与文档字符串里的迁移史料（"原先这里是 from tui_agent import …"），
+    而史料值得保留。故改用本测试的 AST 判定：只看**语句**，不看文字。
     """
-    ALLOW = {
-        "main.py",  # 过渡期回退：zeroai.tui 导入失败时回退到 tui_agent
-    }
     offenders = {}
     for py in sorted((_ROOT / "zeroai").rglob("*.py")):
         if "__pycache__" in py.parts:
-            continue
-        if py.name in ALLOW:
             continue
         found = _lazy_tui_agent_imports(py)
         if found:
@@ -263,19 +255,3 @@ def test_no_lazy_reverse_dependency_outside_allowlist():
         "zeroai/ 内存在对 tui_agent 的导入（含函数内懒加载）：\n"
         + "\n".join(f"  {k}: {v}" for k, v in offenders.items())
     )
-
-
-def test_allowlisted_fallback_is_guarded():
-    """白名单里的 main.py 回退必须是**有条件的**，不能是无条件导入。"""
-    import ast
-
-    src = (_ROOT / "zeroai" / "main.py").read_text(encoding="utf-8")
-    tree = ast.parse(src)
-    # 顶层不得直接 import tui_agent
-    for node in tree.body:
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("tui_agent"):
-            raise AssertionError(f"main.py 顶层直接导入了 tui_agent（行 {node.lineno}）")
-        if isinstance(node, ast.Import):
-            for a in node.names:
-                if a.name.startswith("tui_agent"):
-                    raise AssertionError(f"main.py 顶层直接导入了 tui_agent（行 {node.lineno}）")

@@ -1,11 +1,12 @@
 """测试 <tool_call> 伪 XML 解析"""
 import json
-import tui_agent
+
+from zeroai.core.tool_call_parser import parse_tool_call_xml
 
 
 def test_name_args_format():
     text = '<tool_call>local_monitor(check_ports="22,80,443")</tool_call>'
-    calls = tui_agent._parse_tool_call_xml(text)
+    calls = parse_tool_call_xml(text)
     assert len(calls) == 1, calls
     assert calls[0]["name"] == "local_monitor"
     args = json.loads(calls[0]["arguments"])
@@ -14,7 +15,7 @@ def test_name_args_format():
 
 def test_json_format():
     text = '<tool_call>{"name": "local_monitor", "arguments": {"check_ports": "22,80,443"}}</tool_call>'
-    calls = tui_agent._parse_tool_call_xml(text)
+    calls = parse_tool_call_xml(text)
     assert len(calls) == 1, calls
     assert calls[0]["name"] == "local_monitor"
     args = json.loads(calls[0]["arguments"])
@@ -27,7 +28,7 @@ def test_multiple_calls():
         '一些说明文字'
         '<tool_call>system_info()</tool_call>'
     )
-    calls = tui_agent._parse_tool_call_xml(text)
+    calls = parse_tool_call_xml(text)
     assert len(calls) == 2, calls
     assert calls[0]["name"] == "local_monitor"
     assert calls[1]["name"] == "system_info"
@@ -35,7 +36,7 @@ def test_multiple_calls():
 
 def test_no_args():
     text = '<tool_call>system_info()</tool_call>'
-    calls = tui_agent._parse_tool_call_xml(text)
+    calls = parse_tool_call_xml(text)
     assert len(calls) == 1, calls
     assert calls[0]["name"] == "system_info"
     assert json.loads(calls[0]["arguments"]) == {}

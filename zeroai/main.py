@@ -153,22 +153,24 @@ def main():
         if args.ui == "textual":
             # 使用 Textual UI
             #
-            # 【为什么不用 `except ImportError: from tui_agent import ZeroAI`】
+            # 【为什么不做"import 失败就回退/静默降级"】
             # ModuleNotFoundError 是 ImportError 的子类（已实测确认），所以
             # 「zeroai.tui 这个包不存在」和「zeroai.tui 内部的某个依赖 import 失败」
-            # 会被同一条 except 混为一谈，静默降级到 tui_agent。用户只会看到
-            # "(UI: tui_agent)"，完全不知道真正的病因 —— 1.1.5 的 TUI 全平台
+            # 会被同一条 except 混为一谈，静默降级到另一个实现。用户只会看到
+            # "(UI: 另一个入口)"，完全不知道真正的病因 —— 1.1.5 的 TUI 全平台
             # 崩溃就是这样被掩盖成一次"正常降级"的。
             #
-            # 判别依据是 e.name：它指出**具体哪个模块**没找到，而不是哪个 import
-            # 语句失败。据此分三类：
-            #   a) e.name 以 zeroai.tui 开头 → 包自身缺损（打包问题）
-            #   b) e.name 是 tui_agent       → 过渡期依赖缺失（见下方说明）
-            #   c) 其他（如 rich / textual） → 第三方依赖没装上
+            # 【历史】这里曾有第 (b) 类：e.name 是 tui_agent 时回退到
+            # `from tui_agent import ZeroAI`。tui_agent.py 已于 2026-10-06
+            # 彻底删除（见 pyproject.toml 的退出条件记录），回退目标不复存在，
+            # 该分支随之移除 —— 保留它只会把"包缺损"误报成"回退成功"。
             #
-            # 关于 (b)：zeroai/tui/* 目前有 6 个模块转发自 tui_agent.py。等到
-            # tui_agent.py 被真正剥离、但如果那时仍有转发残留，就会命中这里。
-            # 这是**已知的过渡期状态**，所以走降级并给出明确提示，而不是报错。
+            # 判别依据是 e.name：它指出**具体哪个模块**没找到，而不是哪个 import
+            # 语句失败。据此分四类：
+            #   a) e.name 以 zeroai.tui 开头 → 包自身缺损（打包问题）
+            #   b) e.name 是 tui_agent       → 残留代码引用了已删除的旧实现
+            #   c1) 其他已知模块（如 rich / textual）→ 第三方依赖没装上
+            #   c2) e.name 为空              → 拿不到模块名，原样透出
             #
             # 【为什么 except 同时接住 ImportError 而不只是 ModuleNotFoundError】
             # 实测发现：依赖损坏不一定表现为 ModuleNotFoundError。当某个包的
@@ -198,24 +200,18 @@ def main():
                     return 3
 
                 if _missing == "tui_agent":
-                    # (b) 过渡期：尝试兼容旧版入口，并把真实状态如实告诉用户。
-                    print("ZeroAI: 提示 —— zeroai.tui 尚未完全解耦，"
-                          "正在回退到 tui_agent。", file=sys.stderr)
-                    try:
-                        from tui_agent import ZeroAI
-                        _import_source = "tui_agent"
-                    except ImportError as e2:
-                        _m2 = getattr(e2, "name", "") or "（未知）"
-                        print(f"ZeroAI: 终端 UI 不可用 —— 缺少模块 {_m2!r}。",
-                              file=sys.stderr)
-                        print("  请重装：pip install --upgrade --force-reinstall zero-ai-cli",
-                              file=sys.stderr)
-                        return 3
+                    # (b) tui_agent.py 已于 2026-10-06 彻底删除，理论上不应
+                    # 再有模块 import 它；若真命中，说明 wheel 里混进了旧代码，
+                    # 如实报错而不是静默回退到一个已不存在的实现。
+                    print(f"ZeroAI: 终端 UI 不可用 —— 模块 {_missing!r} 依赖已删除的"
+                          "旧实现（tui_agent）。", file=sys.stderr)
+                    print("  请重装：pip install --upgrade --force-reinstall zero-ai-cli",
+                          file=sys.stderr)
+                    return 3
                 elif _missing:
                     # (c1) 已知具体是哪个模块出的问题。
-                    # **不降级** —— 降级会掩盖病因，而 tui_agent 的依赖集合是
-                    # zeroai.tui 的超集，这里缺的东西到那边同样缺，降级过去只会
-                    # 换个地方崩，还把真实原因藏得更深。
+                    # **不降级** —— 降级会掩盖病因：缺什么就报什么，
+                    # 把真实原因如实告诉用户。
                     print(f"ZeroAI: 无法加载终端 UI —— 模块 {_missing!r} 不可用。",
                           file=sys.stderr)
                     if "unknown location" in _detail:

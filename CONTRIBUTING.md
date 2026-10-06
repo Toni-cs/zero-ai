@@ -34,10 +34,9 @@ zero-ai-cli/
 ├── zeroai/                # 模块化包（推荐入口）
 │   ├── core/              # 核心层（8 个子模块）
 │   ├── tools/             # 工具层（10 个子模块，56 个工具）
-│   ├── tui/               # TUI 包装层（7 个子模块）
+│   ├── tui/               # TUI 层（app.py 骨架 + 8 个 app_*.py mixin 等）
 │   ├── main.py            # 统一入口
 │   └── __main__.py        # 模块入口
-├── tui_agent.py           # 原始实现（保留备份，向后兼容）
 ├── zeroai-tui/            # C/Zig 加速 TUI 框架
 ├── zeroai-proxy/          # 代理服务器
 ├── pyproject.toml         # 包配置
@@ -56,21 +55,20 @@ git checkout -b feature/your-feature
 
 - 遵循 PEP 8 风格
 - 新增功能必须配套测试
-- 修改 `tui_agent.py` 时，**不得删除原有函数定义**（国家级项目硬约束）
-  - 通过"切换块"将调用切换到 `zeroai` 包的实现
-  - 详见 `tui_agent.py` 顶部架构迁移说明
+- TUI 相关改动落在 `zeroai/tui/`（`app.py` 骨架 + 8 个 `app_*.py` mixin），
+  **不要重新引入单文件巨类**：`tests/test_tui_source_budget.py` 会拦截
+  单文件超 800 行或未登记进 `tests/tui_sources.py` 清单的改动
+- `tui_agent.py` 已于 2026-10-06 彻底删除（原为 473KB 双实现），
+  查看历史用 `git show <rev>:tui_agent.py`
 
 ### 3. 运行测试
 
 ```bash
-# 阶段3 切换块回归测试
-python test_phase3_regression.py
-
-# 发布集成测试
-python test_v1_1_3_release.py
+# 全量测试（单元 + 回归 + 集成）
+python -m pytest -q
 
 # C/Zig 加速层测试
-python -m pytest zeroai-tui/test_zeroai_tui.py zeroai-tui/tests/ -v
+python -m pytest zeroai-tui/tests/ -v
 ```
 
 ### 4. 提交代码
@@ -96,10 +94,11 @@ git push origin feature/your-feature
 
 在 GitHub 上发起 Pull Request，描述变更内容与测试结果。
 
-## 重要约束（国家级项目硬约束）
+## 重要约束
 
 1. **不删除任何与项目功能/安全/性能/用户/数据相关的代码**
-2. **修改或删除代码前必须备份**
+   （经确认冗余的实现、陈旧产物、无引用的备份可删，但须在提交信息中写明依据）
+2. **修改或删除代码前必须备份**（临时备份进 `.local_archive/<日期>/`）
 3. **修改前必须查看所有相关文件**
 4. **终端命令重复或运行时间过长时自动跳过**
 5. **能使用镜像源下载的都使用镜像源**
