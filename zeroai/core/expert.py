@@ -27,6 +27,14 @@ from collections import OrderedDict, deque
 from .config import get_config
 from .llm import LLMClient, MultiModelClient, get_multi_model_client
 
+# 专家标识的规范解析顺序（与 expert_route.route_expert 保持一致）。
+# 必须是固定顺序的序列而非 set：set 的迭代顺序受 PYTHONHASHSEED 影响，
+# 会使同一条输入在不同进程下解析出不同专家。
+_ROUTE_KEY_ORDER: Tuple[str, ...] = (
+    "vision", "coder", "security", "devops", "data",
+    "reasoner", "academic", "chinese", "pm", "knowledge",
+)
+
 
 # ============================================================================
 # LRU 缓存
@@ -114,25 +122,27 @@ class ExpertRouter:
     def __init__(self):
         self.config = get_config()
         self._route_cache = LRUCache(maxsize=256)
-        self._expert_team = self.config._config.get("experts", {})
-        self._embedding_cache: Dict[str, list] = {}  # 语义路由 embedding 缓存
+        # 关键词/提示词以 constants.EXPERT_TEAM 为唯一数据源。
+        # 此前读 config._config["experts"]，与 EXPERT_TEAM 已发生漂移：
+        # coder 关键词 19 vs 43、knowledge 11 vs 0、4 个专家 system_prompt 不同，
+        # 导致同名路由函数在 TUI 与 headless 路径下准确率相差 26.2pp。
+        from .constants import EXPERT_TEAM as _team
+        self._expert_team = _team
         self._embedding_cache: Dict[str, list] = {}  # 语义路由 embedding 缓存
 
     def route_by_keywords(self, user_input: str) -> str:
-        """Route to expert based on keyword matching"""
-        input_lower = user_input.lower()
-        scores = {}
+        """Route to expert based on keyword matching.
 
-        for expert_key, expert_config in self._expert_team.items():
-            keywords = expert_config.get("keywords", [])
-            score = sum(1 for kw in keywords if kw.lower() in input_lower)
-            if score > 0:
-                scores[expert_key] = score
+        委托给 expert_route.route_expert，保证 TUI 与 headless 两条路径
+        使用同一套匹配算法（vision 优先 + 固定顺序首命中 + knowledge 兜底）。
 
-        if scores:
-            return max(scores, key=scores.get)
-
-        return "pm"
+        此前本方法用「评分取 max + pm 兜底」，在同一批 217 条金标样本上
+        比 expert_route 的算法低 20.7pp（48.9% vs 69.6%，见
+        evals/results/ablation.md）；且 max() 在同分时依赖 dict 插入顺序，
+        结果不稳定。
+        """
+        from .expert_route import route_expert
+        return route_expert(user_input)
 
     async def route_by_glm(self, user_input: str) -> str:
         """Route to expert using GLM semantic analysis"""
@@ -176,12 +186,10 @@ class ExpertRouter:
                 return "pm"
 
             result = response.strip().lower()
-
-            valid_keys = set(self._expert_team.keys())
-            for vk in valid_keys:
-                if vk in result:
-                    self._route_cache.set(cache_key, vk)
-                    return vk
+            vk = self._parse_route_key(result)
+            if vk is not None:
+                self._route_cache.set(cache_key, vk)
+                return vk
 
             expert_key = self.route_by_keywords(user_input)
             self._route_cache.set(cache_key, expert_key)
@@ -191,6 +199,29 @@ class ExpertRouter:
             expert_key = self.route_by_keywords(user_input)
             self._route_cache.set(cache_key, expert_key)
             return expert_key
+
+    @staticmethod
+    def _parse_route_key(response: str) -> Optional[str]:
+        """从 LLM 的单词回复中确定性地解析出专家标识，未命中返回 None。
+
+        两处历史缺陷（evals/results/ 有复现）：
+        1. 原实现遍历 ``set(...)``，迭代顺序受 PYTHONHASHSEED 影响——
+           若响应同时命中多个标识，同一输入在不同进程会路由到不同专家。
+        2. 原实现用裸子串 ``vk in response``——"npm" 会命中 "pm"、
+           "dataviz" 会命中 "data"。
+
+        现改为固定顺序遍历 + ``\\b`` 词边界匹配；顺序与
+        ``expert_route.route_expert`` 一致（vision 优先，knowledge 最后）。
+        """
+        text = response.strip().lower().strip(".,;:!?\"'`()[]{}")
+        if not text:
+            return None
+        for vk in _ROUTE_KEY_ORDER:
+            if vk == text:
+                return vk
+            if re.search(r"\b" + re.escape(vk) + r"\b", text):
+                return vk
+        return None
 
     async def route_semantic(self, user_input: str) -> List[Tuple[str, float]]:
         """语义路由：用 embedding 相似度选择专家

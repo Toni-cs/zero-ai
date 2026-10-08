@@ -1,0 +1,341 @@
+{
+  "n_eval": 217,
+  "baseline_A_accuracy": 0.7512,
+  "trimmed_D_accuracy": 0.7834,
+  "delta_all_18": 0.0323,
+  "remove_one": [
+    {
+      "word": "文件",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "查看",
+      "accuracy": 0.7558,
+      "delta_vs_A": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "linux 怎么查看进程占用"
+      ]
+    },
+    {
+      "word": "看看",
+      "accuracy": 0.7604,
+      "delta_vs_A": 0.0092,
+      "n_changed": 3,
+      "changed": [
+        "帮我看看这个海报的设计",
+        "帮我做数据分析，看看销售趋势",
+        "帮我看看这个需求该怎么拆"
+      ]
+    },
+    {
+      "word": "读取",
+      "accuracy": 0.7558,
+      "delta_vs_A": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "用 pandas 读取 csv 并统计"
+      ]
+    },
+    {
+      "word": "读文件",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "目录",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "打开",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "浏览",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "修改",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "编辑",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "写入",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "创建",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "删除",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "搜索",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "查找",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "项目",
+      "accuracy": 0.7558,
+      "delta_vs_A": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "如何开始一个新项目"
+      ]
+    },
+    {
+      "word": "仓库",
+      "accuracy": 0.7512,
+      "delta_vs_A": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "配置",
+      "accuracy": 0.7742,
+      "delta_vs_A": 0.023,
+      "n_changed": 5,
+      "changed": [
+        "nginx 配置反向代理怎么写",
+        "配置防火墙开放 80 端口",
+        "负载均衡怎么配置",
+        "ssl 证书怎么配置",
+        "waf 规则怎么配置"
+      ]
+    }
+  ],
+  "add_back": [
+    {
+      "word": "文件",
+      "accuracy": 0.788,
+      "delta_vs_D": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "删除目录下所有 log 文件"
+      ]
+    },
+    {
+      "word": "查看",
+      "accuracy": 0.7788,
+      "delta_vs_D": -0.0046,
+      "n_changed": 1,
+      "changed": [
+        "linux 怎么查看进程占用"
+      ]
+    },
+    {
+      "word": "看看",
+      "accuracy": 0.7788,
+      "delta_vs_D": -0.0046,
+      "n_changed": 4,
+      "changed": [
+        "打开这个项目目录看看结构",
+        "帮我看看这个海报的设计",
+        "帮我做数据分析，看看销售趋势",
+        "帮我看看这个需求该怎么拆"
+      ]
+    },
+    {
+      "word": "读取",
+      "accuracy": 0.7788,
+      "delta_vs_D": -0.0046,
+      "n_changed": 1,
+      "changed": [
+        "用 pandas 读取 csv 并统计"
+      ]
+    },
+    {
+      "word": "读文件",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "目录",
+      "accuracy": 0.7926,
+      "delta_vs_D": 0.0092,
+      "n_changed": 2,
+      "changed": [
+        "删除目录下所有 log 文件",
+        "打开这个项目目录看看结构"
+      ]
+    },
+    {
+      "word": "打开",
+      "accuracy": 0.788,
+      "delta_vs_D": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "打开这个项目目录看看结构"
+      ]
+    },
+    {
+      "word": "浏览",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "修改",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "编辑",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "写入",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "创建",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "删除",
+      "accuracy": 0.788,
+      "delta_vs_D": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "删除目录下所有 log 文件"
+      ]
+    },
+    {
+      "word": "搜索",
+      "accuracy": 0.788,
+      "delta_vs_D": 0.0046,
+      "n_changed": 1,
+      "changed": [
+        "搜索项目里所有调用 login 的地方"
+      ]
+    },
+    {
+      "word": "查找",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "项目",
+      "accuracy": 0.788,
+      "delta_vs_D": 0.0046,
+      "n_changed": 3,
+      "changed": [
+        "搜索项目里所有调用 login 的地方",
+        "打开这个项目目录看看结构",
+        "如何开始一个新项目"
+      ]
+    },
+    {
+      "word": "仓库",
+      "accuracy": 0.7834,
+      "delta_vs_D": 0.0,
+      "n_changed": 0,
+      "changed": []
+    },
+    {
+      "word": "配置",
+      "accuracy": 0.7604,
+      "delta_vs_D": -0.023,
+      "n_changed": 5,
+      "changed": [
+        "nginx 配置反向代理怎么写",
+        "配置防火墙开放 80 端口",
+        "负载均衡怎么配置",
+        "ssl 证书怎么配置",
+        "waf 规则怎么配置"
+      ]
+    }
+  ],
+  "conclusion": {
+    "harmful_alone": [
+      "配置",
+      "看看",
+      "查看",
+      "读取",
+      "项目"
+    ],
+    "harmful_in_context": [
+      "配置",
+      "查看",
+      "看看",
+      "读取"
+    ],
+    "safe_to_keep": [
+      "文件",
+      "读文件",
+      "目录",
+      "打开",
+      "浏览",
+      "修改",
+      "编辑",
+      "写入",
+      "创建",
+      "删除",
+      "搜索",
+      "查找",
+      "项目",
+      "仓库"
+    ],
+    "sum_of_individual_deltas": 0.046,
+    "actual_delta_remove_all": 0.0323
+  }
+}

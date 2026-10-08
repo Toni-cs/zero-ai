@@ -1,83 +1,53 @@
 {
   "metrics": {
     "n": 217,
-    "accuracy": 0.4885,
-    "correct": 106,
+    "accuracy": 0.7972,
+    "correct": 173,
     "recall_by_gold": {
-      "academic": 0.2759,
-      "chinese": 0.2273,
-      "coder": 0.5556,
-      "data": 0.6522,
-      "devops": 0.7059,
-      "knowledge": 0.0435,
-      "pm": 1.0,
-      "reasoner": 0.4545,
-      "security": 0.7059,
-      "vision": 0.4706
+      "academic": 0.7586,
+      "chinese": 0.6364,
+      "coder": 1.0,
+      "data": 0.8696,
+      "devops": 1.0,
+      "knowledge": 0.6087,
+      "pm": 0.75,
+      "reasoner": 0.6364,
+      "security": 0.8824,
+      "vision": 0.8824
     },
     "precision_by_pred": {
-      "academic": 1.0,
+      "academic": 0.9565,
       "chinese": 1.0,
-      "coder": 0.8333,
-      "data": 0.9375,
-      "devops": 1.0,
-      "knowledge": 1.0,
-      "pm": 0.1639,
-      "reasoner": 0.7692,
-      "security": 0.9231,
-      "vision": 0.8889
+      "coder": 0.75,
+      "data": 0.7143,
+      "devops": 0.8947,
+      "knowledge": 0.7,
+      "pm": 0.625,
+      "reasoner": 0.6667,
+      "security": 0.9375,
+      "vision": 0.9375
     },
     "accuracy_by_tag": {
-      "": 0.4889,
-      "conflict": 0.5833,
-      "short": 0.5,
-      "vision-priority": 0.4
+      "": 0.8,
+      "conflict": 0.75,
+      "short": 0.7,
+      "vision-priority": 0.8667
     },
     "top_confusions": [
       {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
         "gold": "knowledge",
         "pred": "pm",
-        "n": 22
-      },
-      {
-        "gold": "academic",
-        "pred": "pm",
-        "n": 18
-      },
-      {
-        "gold": "chinese",
-        "pred": "pm",
-        "n": 13
-      },
-      {
-        "gold": "coder",
-        "pred": "pm",
-        "n": 11
-      },
-      {
-        "gold": "reasoner",
-        "pred": "pm",
-        "n": 11
-      },
-      {
-        "gold": "vision",
-        "pred": "pm",
-        "n": 9
-      },
-      {
-        "gold": "data",
-        "pred": "pm",
-        "n": 8
-      },
-      {
-        "gold": "devops",
-        "pred": "pm",
         "n": 5
       },
       {
-        "gold": "security",
-        "pred": "pm",
-        "n": 5
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
       },
       {
         "gold": "academic",
@@ -85,31 +55,66 @@
         "n": 3
       },
       {
-        "gold": "chinese",
-        "pred": "coder",
+        "gold": "pm",
+        "pred": "data",
         "n": 3
       },
       {
-        "gold": "coder",
-        "pred": "vision",
-        "n": 1
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "security",
+        "pred": "coder",
+        "n": 2
       },
       {
         "gold": "reasoner",
-        "pred": "security",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "knowledge",
+        "n": 2
+      },
+      {
+        "gold": "academic",
+        "pred": "knowledge",
+        "n": 1
+      },
+      {
+        "gold": "academic",
+        "pred": "pm",
         "n": 1
       },
       {
         "gold": "chinese",
-        "pred": "data",
+        "pred": "knowledge",
+        "n": 1
+      },
+      {
+        "gold": "vision",
+        "pred": "knowledge",
+        "n": 1
+      },
+      {
+        "gold": "vision",
+        "pred": "pm",
+        "n": 1
+      },
+      {
+        "gold": "data",
+        "pred": "coder",
         "n": 1
       }
     ],
     "latency_ms": {
-      "p50": 0.0223,
-      "p95": 0.0262,
-      "max": 0.0544,
-      "mean": 0.0227
+      "p50": 0.017,
+      "p95": 0.0243,
+      "max": 0.0302,
+      "mean": 0.0153
     },
     "errors": {},
     "backend": "l1_alt",
@@ -161,23 +166,23 @@
     {
       "text": "HTML 表单提交后页面空白是什么原因",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "CSS 怎么让元素垂直居中",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "Java 的 HashMap 和 TreeMap 有什么区别",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "创建一个 API 接口，返回用户列表",
@@ -203,16 +208,16 @@
     {
       "text": "删除目录下所有 log 文件",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "搜索项目里所有调用 login 的地方",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "写一个爬虫脚本抓取网页标题",
@@ -224,9 +229,9 @@
     {
       "text": "这段 error 日志是什么意思",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我实现一个二叉树的遍历",
@@ -238,9 +243,9 @@
     {
       "text": "Python 怎么读写 CSV 文件",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "封装一个函数处理文件上传",
@@ -252,9 +257,9 @@
     {
       "text": "js 的闭包是什么，举个例子",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我写一个单元测试",
@@ -266,30 +271,30 @@
     {
       "text": "这个函数的入参类型怎么定义",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "打开这个项目目录看看结构",
       "gold": "coder",
-      "pred": "vision",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "怎么用 html 做一个登录页",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "yaml 配置文件的语法是什么",
       "gold": "coder",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我写一篇论文的引言部分",
@@ -322,37 +327,37 @@
     {
       "text": "什么是假设检验，怎么用",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "回归分析的结果怎么解读",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
       "ok": false
     },
     {
       "text": "帮我设计一个实验方案",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
       "ok": false
     },
     {
       "text": "期刊投稿的格式要求是什么",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "参考文献格式 GB/T 7714 怎么写",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "定理证明的步骤是什么",
@@ -364,28 +369,28 @@
     {
       "text": "怎么求这个积分",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "论文摘要怎么写才规范",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "research method 该怎么选",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我分析这篇 paper 的方法论",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
       "ok": false
     },
@@ -399,30 +404,30 @@
     {
       "text": "方程组怎么解",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "微分方程的通解怎么求",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "引用格式怎么统一",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "论文的创新点怎么提炼",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "peer review 的意见怎么回复",
@@ -434,9 +439,9 @@
     {
       "text": "怎么查某个学者的引用数",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这段 LaTeX 编译报错",
@@ -448,9 +453,9 @@
     {
       "text": "研究方法里的对照组怎么设置",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "求这个定理的数学证明",
@@ -490,7 +495,7 @@
     {
       "text": "写一个产品介绍的文案",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
       "ok": false
     },
@@ -511,37 +516,37 @@
     {
       "text": "写一篇演讲稿",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这篇摘要太啰嗦了，帮我精简",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我写一份周报",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "小说的开头怎么写吸引人",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "把这段话改写得更有文采",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "写一个通知的公文",
@@ -553,21 +558,21 @@
     {
       "text": "写一首关于秋天的诗",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这封邮件的语气怎么更客气",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我写一个自我介绍",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
       "ok": false
     },
@@ -581,14 +586,14 @@
     {
       "text": "文章的标题怎么起更吸引人",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我起草一份合作意向书",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
       "ok": false
     },
@@ -602,16 +607,16 @@
     {
       "text": "帮我把这段内容扩写一下",
       "gold": "chinese",
-      "pred": "pm",
+      "pred": "chinese",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这张图片里是什么",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我看看这张截图报了什么错",
@@ -623,16 +628,16 @@
     {
       "text": "识别图中的文字",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这个 png 文件里画的是什么",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "看这张图，描述一下内容",
@@ -644,16 +649,16 @@
     {
       "text": "jpg 图片里的表格数据是什么",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我看看这个海报的设计",
       "gold": "vision",
-      "pred": "vision",
+      "pred": "knowledge",
       "tag": "vision-priority",
-      "ok": true
+      "ok": false
     },
     {
       "text": "图里这个人穿的什么颜色",
@@ -665,9 +670,9 @@
     {
       "text": "把这张 gif 动图的过程讲一下",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "看这张照片拍的是哪里",
@@ -679,9 +684,9 @@
     {
       "text": "分析这张图片的构图",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这张 bmp 图片的分辨率是多少",
@@ -700,16 +705,16 @@
     {
       "text": "截图里的报错信息是什么",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "视觉上这个配色怎么样",
       "gold": "vision",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "vision-priority",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我做数据分析，看看销售趋势",
@@ -742,9 +747,9 @@
     {
       "text": "机器学习模型怎么选特征",
       "gold": "data",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这份 excel 报表怎么做透视",
@@ -763,16 +768,16 @@
     {
       "text": "numpy 数组怎么 reshape",
       "gold": "data",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "聚类分析用什么算法好",
       "gold": "data",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我做个数据可视化大屏",
@@ -819,16 +824,16 @@
     {
       "text": "这批数据的异常值怎么处理",
       "gold": "data",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "分类模型的准确率怎么提升",
       "gold": "data",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "数据看板用什么工具",
@@ -840,14 +845,14 @@
     {
       "text": "怎么用 sql 查询做数据汇总",
       "gold": "data",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
       "ok": false
     },
     {
       "text": "这张图表怎么画得更清楚",
       "gold": "data",
-      "pred": "pm",
+      "pred": "vision",
       "tag": "",
       "ok": false
     },
@@ -868,16 +873,16 @@
     {
       "text": "k8s 的 pod 处于 Pending 怎么排查",
       "gold": "devops",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "nginx 配置反向代理怎么写",
       "gold": "devops",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "ssh 连不上服务器了",
@@ -917,9 +922,9 @@
     {
       "text": "ci/cd 流水线怎么搭建",
       "gold": "devops",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "jenkins 构建总是失败",
@@ -931,9 +936,9 @@
     {
       "text": "kubernetes 怎么扩容",
       "gold": "devops",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "怎么看服务器的日志",
@@ -952,9 +957,9 @@
     {
       "text": "负载均衡怎么配置",
       "gold": "devops",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这个系统有什么安全漏洞",
@@ -966,14 +971,14 @@
     {
       "text": "怎么做渗透测试",
       "gold": "security",
-      "pred": "pm",
+      "pred": "security",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "sql注入怎么防御",
       "gold": "security",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "",
       "ok": false
     },
@@ -987,9 +992,9 @@
     {
       "text": "帮我做代码安全审计",
       "gold": "security",
-      "pred": "security",
+      "pred": "coder",
       "tag": "",
-      "ok": true
+      "ok": false
     },
     {
       "text": "ssl 证书怎么配置",
@@ -1001,9 +1006,9 @@
     {
       "text": "密码加密应该用什么算法",
       "gold": "security",
-      "pred": "pm",
+      "pred": "security",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "权限认证该怎么设计",
@@ -1036,16 +1041,16 @@
     {
       "text": "token 被盗用了怎么办",
       "gold": "security",
-      "pred": "pm",
+      "pred": "security",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "waf 规则怎么配置",
       "gold": "security",
-      "pred": "pm",
+      "pred": "security",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "传输加密用 tls 还是 ssl",
@@ -1092,7 +1097,7 @@
     {
       "text": "为什么会出现这个现象，分析原因",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
       "ok": false
     },
@@ -1113,21 +1118,21 @@
     {
       "text": "这道数学题怎么解",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "推理：所有 A 都是 B，B 是 C，能推出什么",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "复杂度分析怎么做",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
       "ok": false
     },
@@ -1141,9 +1146,9 @@
     {
       "text": "为什么 1 加 1 在二进制下会进位",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "概率论这个题怎么算",
@@ -1155,7 +1160,7 @@
     {
       "text": "求这个数列的极限",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
       "ok": false
     },
@@ -1176,14 +1181,14 @@
     {
       "text": "优化问题的求解思路是什么",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "线性代数这个方程怎么解",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "",
       "ok": false
     },
@@ -1204,9 +1209,9 @@
     {
       "text": "帮我分析一下这个任务",
       "gold": "pm",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": true
+      "ok": false
     },
     {
       "text": "制定一个学习计划",
@@ -1253,9 +1258,9 @@
     {
       "text": "解释一下什么是微服务",
       "gold": "pm",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "",
-      "ok": true
+      "ok": false
     },
     {
       "text": "帮我看看这个需求该怎么拆",
@@ -1281,16 +1286,16 @@
     {
       "text": "帮我规划一下时间安排",
       "gold": "pm",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": true
+      "ok": false
     },
     {
       "text": "这个方案可行吗，分析一下",
       "gold": "pm",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": true
+      "ok": false
     },
     {
       "text": "总结上周的工作重点",
@@ -1302,9 +1307,9 @@
     {
       "text": "怎么入门机器学习",
       "gold": "pm",
-      "pred": "pm",
+      "pred": "data",
       "tag": "",
-      "ok": true
+      "ok": false
     },
     {
       "text": "帮助我理解这个概念",
@@ -1344,23 +1349,23 @@
     {
       "text": "地球到月球有多远",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "拿破仑是哪国人",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "光速是多少",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "法国的首都在哪里",
@@ -1379,9 +1384,9 @@
     {
       "text": "谁发明了电话",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "京剧是怎么来的",
@@ -1393,44 +1398,44 @@
     {
       "text": "珠穆朗玛峰有多高",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "海王星为什么是蓝色的",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
       "ok": false
     },
     {
       "text": "DNA 双螺旋结构是谁发现的",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "长城有多长",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "为什么天空是蓝色的",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
       "ok": false
     },
     {
       "text": "企鹅会飞吗",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "碳酸钙的化学式是什么",
@@ -1442,21 +1447,21 @@
     {
       "text": "唐朝有多少位皇帝",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "为什么一年有 365 天",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
       "ok": false
     },
     {
       "text": "蚂蚁为什么能搬动比自己重的东西",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "reasoner",
       "tag": "",
       "ok": false
     },
@@ -1470,16 +1475,16 @@
     {
       "text": "人体有多少块骨头",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "太阳系有几颗行星",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我写一篇论文，需要查一些参考文献",
@@ -1512,9 +1517,9 @@
     {
       "text": "翻译这段论文的摘要",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "conflict",
-      "ok": false
+      "ok": true
     },
     {
       "text": "分析一下这个安全漏洞的原因",
@@ -1540,21 +1545,21 @@
     {
       "text": "帮我总结这篇文献的主要观点",
       "gold": "academic",
-      "pred": "pm",
+      "pred": "academic",
       "tag": "conflict",
-      "ok": false
+      "ok": true
     },
     {
       "text": "怎么优化数据库查询的性能",
       "gold": "data",
-      "pred": "pm",
+      "pred": "devops",
       "tag": "conflict",
       "ok": false
     },
     {
       "text": "为什么这个函数运行很慢，帮我分析原因",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "coder",
       "tag": "conflict",
       "ok": false
     },
@@ -1568,21 +1573,21 @@
     {
       "text": "你好",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "short",
-      "ok": false
+      "ok": true
     },
     {
       "text": "你是谁",
       "gold": "knowledge",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "short",
-      "ok": false
+      "ok": true
     },
     {
       "text": "1+1等于几",
       "gold": "reasoner",
-      "pred": "pm",
+      "pred": "knowledge",
       "tag": "short",
       "ok": false
     },

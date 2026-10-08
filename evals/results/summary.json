@@ -3,34 +3,34 @@
   "backends": {
     "l1": {
       "n": 217,
-      "accuracy": 0.7512,
-      "correct": 163,
+      "accuracy": 0.7972,
+      "correct": 173,
       "recall_by_gold": {
         "academic": 0.7586,
         "chinese": 0.6364,
         "coder": 1.0,
-        "data": 0.7826,
-        "devops": 0.7647,
+        "data": 0.8696,
+        "devops": 1.0,
         "knowledge": 0.6087,
-        "pm": 0.65,
+        "pm": 0.75,
         "reasoner": 0.6364,
-        "security": 0.7647,
+        "security": 0.8824,
         "vision": 0.8824
       },
       "precision_by_pred": {
         "academic": 0.9565,
         "chinese": 1.0,
-        "coder": 0.5745,
-        "data": 0.6923,
-        "devops": 0.8667,
-        "knowledge": 0.7368,
-        "pm": 0.5909,
+        "coder": 0.75,
+        "data": 0.7143,
+        "devops": 0.8947,
+        "knowledge": 0.7,
+        "pm": 0.625,
         "reasoner": 0.6667,
-        "security": 0.9286,
+        "security": 0.9375,
         "vision": 0.9375
       },
       "accuracy_by_tag": {
-        "": 0.7444,
+        "": 0.8,
         "conflict": 0.75,
         "short": 0.7,
         "vision-priority": 0.8667
@@ -47,16 +47,6 @@
           "n": 5
         },
         {
-          "gold": "devops",
-          "pred": "coder",
-          "n": 4
-        },
-        {
-          "gold": "security",
-          "pred": "coder",
-          "n": 4
-        },
-        {
           "gold": "knowledge",
           "pred": "reasoner",
           "n": 4
@@ -67,11 +57,6 @@
           "n": 3
         },
         {
-          "gold": "data",
-          "pred": "coder",
-          "n": 3
-        },
-        {
           "gold": "pm",
           "pred": "data",
           "n": 3
@@ -82,6 +67,11 @@
           "n": 2
         },
         {
+          "gold": "security",
+          "pred": "coder",
+          "n": 2
+        },
+        {
           "gold": "reasoner",
           "pred": "data",
           "n": 2
@@ -89,11 +79,6 @@
         {
           "gold": "reasoner",
           "pred": "knowledge",
-          "n": 2
-        },
-        {
-          "gold": "pm",
-          "pred": "coder",
           "n": 2
         },
         {
@@ -110,13 +95,28 @@
           "gold": "chinese",
           "pred": "knowledge",
           "n": 1
+        },
+        {
+          "gold": "vision",
+          "pred": "knowledge",
+          "n": 1
+        },
+        {
+          "gold": "vision",
+          "pred": "pm",
+          "n": 1
+        },
+        {
+          "gold": "data",
+          "pred": "coder",
+          "n": 1
         }
       ],
       "latency_ms": {
-        "p50": 0.0145,
-        "p95": 0.0221,
-        "max": 0.027,
-        "mean": 0.0132
+        "p50": 0.0154,
+        "p95": 0.0234,
+        "max": 0.144,
+        "mean": 0.0146
       },
       "errors": {},
       "backend": "l1",
@@ -124,83 +124,53 @@
     },
     "l1_alt": {
       "n": 217,
-      "accuracy": 0.4885,
-      "correct": 106,
+      "accuracy": 0.7972,
+      "correct": 173,
       "recall_by_gold": {
-        "academic": 0.2759,
-        "chinese": 0.2273,
-        "coder": 0.5556,
-        "data": 0.6522,
-        "devops": 0.7059,
-        "knowledge": 0.0435,
-        "pm": 1.0,
-        "reasoner": 0.4545,
-        "security": 0.7059,
-        "vision": 0.4706
+        "academic": 0.7586,
+        "chinese": 0.6364,
+        "coder": 1.0,
+        "data": 0.8696,
+        "devops": 1.0,
+        "knowledge": 0.6087,
+        "pm": 0.75,
+        "reasoner": 0.6364,
+        "security": 0.8824,
+        "vision": 0.8824
       },
       "precision_by_pred": {
-        "academic": 1.0,
+        "academic": 0.9565,
         "chinese": 1.0,
-        "coder": 0.8333,
-        "data": 0.9375,
-        "devops": 1.0,
-        "knowledge": 1.0,
-        "pm": 0.1639,
-        "reasoner": 0.7692,
-        "security": 0.9231,
-        "vision": 0.8889
+        "coder": 0.75,
+        "data": 0.7143,
+        "devops": 0.8947,
+        "knowledge": 0.7,
+        "pm": 0.625,
+        "reasoner": 0.6667,
+        "security": 0.9375,
+        "vision": 0.9375
       },
       "accuracy_by_tag": {
-        "": 0.4889,
-        "conflict": 0.5833,
-        "short": 0.5,
-        "vision-priority": 0.4
+        "": 0.8,
+        "conflict": 0.75,
+        "short": 0.7,
+        "vision-priority": 0.8667
       },
       "top_confusions": [
         {
+          "gold": "chinese",
+          "pred": "coder",
+          "n": 5
+        },
+        {
           "gold": "knowledge",
           "pred": "pm",
-          "n": 22
-        },
-        {
-          "gold": "academic",
-          "pred": "pm",
-          "n": 18
-        },
-        {
-          "gold": "chinese",
-          "pred": "pm",
-          "n": 13
-        },
-        {
-          "gold": "coder",
-          "pred": "pm",
-          "n": 11
-        },
-        {
-          "gold": "reasoner",
-          "pred": "pm",
-          "n": 11
-        },
-        {
-          "gold": "vision",
-          "pred": "pm",
-          "n": 9
-        },
-        {
-          "gold": "data",
-          "pred": "pm",
-          "n": 8
-        },
-        {
-          "gold": "devops",
-          "pred": "pm",
           "n": 5
         },
         {
-          "gold": "security",
-          "pred": "pm",
-          "n": 5
+          "gold": "knowledge",
+          "pred": "reasoner",
+          "n": 4
         },
         {
           "gold": "academic",
@@ -208,31 +178,66 @@
           "n": 3
         },
         {
-          "gold": "chinese",
-          "pred": "coder",
+          "gold": "pm",
+          "pred": "data",
           "n": 3
         },
         {
-          "gold": "coder",
-          "pred": "vision",
-          "n": 1
+          "gold": "academic",
+          "pred": "data",
+          "n": 2
+        },
+        {
+          "gold": "security",
+          "pred": "coder",
+          "n": 2
         },
         {
           "gold": "reasoner",
-          "pred": "security",
+          "pred": "data",
+          "n": 2
+        },
+        {
+          "gold": "reasoner",
+          "pred": "knowledge",
+          "n": 2
+        },
+        {
+          "gold": "academic",
+          "pred": "knowledge",
+          "n": 1
+        },
+        {
+          "gold": "academic",
+          "pred": "pm",
           "n": 1
         },
         {
           "gold": "chinese",
-          "pred": "data",
+          "pred": "knowledge",
+          "n": 1
+        },
+        {
+          "gold": "vision",
+          "pred": "knowledge",
+          "n": 1
+        },
+        {
+          "gold": "vision",
+          "pred": "pm",
+          "n": 1
+        },
+        {
+          "gold": "data",
+          "pred": "coder",
           "n": 1
         }
       ],
       "latency_ms": {
-        "p50": 0.0223,
-        "p95": 0.0262,
-        "max": 0.0544,
-        "mean": 0.0227
+        "p50": 0.017,
+        "p95": 0.0243,
+        "max": 0.0302,
+        "mean": 0.0153
       },
       "errors": {},
       "backend": "l1_alt",
@@ -242,9 +247,9 @@
   "skipped": {},
   "l1_knowledge_fallback": {
     "n_eval": 217,
-    "n_keyword_hit_non_knowledge": 198,
-    "n_fallback_to_llm": 19,
-    "llm_fallback_rate": 0.0876,
+    "n_keyword_hit_non_knowledge": 197,
+    "n_fallback_to_llm": 20,
+    "llm_fallback_rate": 0.0922,
     "note": "仅当 route_expert 返回 knowledge 时才会调用 GLM 语义路由"
   }
 }

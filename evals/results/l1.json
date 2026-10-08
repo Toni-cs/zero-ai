@@ -1,34 +1,34 @@
 {
   "metrics": {
     "n": 217,
-    "accuracy": 0.7512,
-    "correct": 163,
+    "accuracy": 0.7972,
+    "correct": 173,
     "recall_by_gold": {
       "academic": 0.7586,
       "chinese": 0.6364,
       "coder": 1.0,
-      "data": 0.7826,
-      "devops": 0.7647,
+      "data": 0.8696,
+      "devops": 1.0,
       "knowledge": 0.6087,
-      "pm": 0.65,
+      "pm": 0.75,
       "reasoner": 0.6364,
-      "security": 0.7647,
+      "security": 0.8824,
       "vision": 0.8824
     },
     "precision_by_pred": {
       "academic": 0.9565,
       "chinese": 1.0,
-      "coder": 0.5745,
-      "data": 0.6923,
-      "devops": 0.8667,
-      "knowledge": 0.7368,
-      "pm": 0.5909,
+      "coder": 0.75,
+      "data": 0.7143,
+      "devops": 0.8947,
+      "knowledge": 0.7,
+      "pm": 0.625,
       "reasoner": 0.6667,
-      "security": 0.9286,
+      "security": 0.9375,
       "vision": 0.9375
     },
     "accuracy_by_tag": {
-      "": 0.7444,
+      "": 0.8,
       "conflict": 0.75,
       "short": 0.7,
       "vision-priority": 0.8667
@@ -45,16 +45,6 @@
         "n": 5
       },
       {
-        "gold": "devops",
-        "pred": "coder",
-        "n": 4
-      },
-      {
-        "gold": "security",
-        "pred": "coder",
-        "n": 4
-      },
-      {
         "gold": "knowledge",
         "pred": "reasoner",
         "n": 4
@@ -65,11 +55,6 @@
         "n": 3
       },
       {
-        "gold": "data",
-        "pred": "coder",
-        "n": 3
-      },
-      {
         "gold": "pm",
         "pred": "data",
         "n": 3
@@ -80,6 +65,11 @@
         "n": 2
       },
       {
+        "gold": "security",
+        "pred": "coder",
+        "n": 2
+      },
+      {
         "gold": "reasoner",
         "pred": "data",
         "n": 2
@@ -87,11 +77,6 @@
       {
         "gold": "reasoner",
         "pred": "knowledge",
-        "n": 2
-      },
-      {
-        "gold": "pm",
-        "pred": "coder",
         "n": 2
       },
       {
@@ -108,13 +93,28 @@
         "gold": "chinese",
         "pred": "knowledge",
         "n": 1
+      },
+      {
+        "gold": "vision",
+        "pred": "knowledge",
+        "n": 1
+      },
+      {
+        "gold": "vision",
+        "pred": "pm",
+        "n": 1
+      },
+      {
+        "gold": "data",
+        "pred": "coder",
+        "n": 1
       }
     ],
     "latency_ms": {
-      "p50": 0.0145,
-      "p95": 0.0221,
-      "max": 0.027,
-      "mean": 0.0132
+      "p50": 0.0154,
+      "p95": 0.0234,
+      "max": 0.144,
+      "mean": 0.0146
     },
     "errors": {},
     "backend": "l1",
@@ -656,7 +656,7 @@
     {
       "text": "帮我看看这个海报的设计",
       "gold": "vision",
-      "pred": "coder",
+      "pred": "knowledge",
       "tag": "vision-priority",
       "ok": false
     },
@@ -719,16 +719,16 @@
     {
       "text": "帮我做数据分析，看看销售趋势",
       "gold": "data",
-      "pred": "coder",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "用 pandas 读取 csv 并统计",
       "gold": "data",
-      "pred": "coder",
+      "pred": "data",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "画一个 matplotlib 折线图",
@@ -880,9 +880,9 @@
     {
       "text": "nginx 配置反向代理怎么写",
       "gold": "devops",
-      "pred": "coder",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "ssh 连不上服务器了",
@@ -894,9 +894,9 @@
     {
       "text": "linux 怎么查看进程占用",
       "gold": "devops",
-      "pred": "coder",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "systemd 服务启动失败怎么处理",
@@ -908,9 +908,9 @@
     {
       "text": "配置防火墙开放 80 端口",
       "gold": "devops",
-      "pred": "coder",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "服务器负载太高怎么调优",
@@ -957,9 +957,9 @@
     {
       "text": "负载均衡怎么配置",
       "gold": "devops",
-      "pred": "coder",
+      "pred": "devops",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "这个系统有什么安全漏洞",
@@ -999,9 +999,9 @@
     {
       "text": "ssl 证书怎么配置",
       "gold": "security",
-      "pred": "coder",
+      "pred": "security",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "密码加密应该用什么算法",
@@ -1048,9 +1048,9 @@
     {
       "text": "waf 规则怎么配置",
       "gold": "security",
-      "pred": "coder",
+      "pred": "security",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "传输加密用 tls 还是 ssl",
@@ -1265,9 +1265,9 @@
     {
       "text": "帮我看看这个需求该怎么拆",
       "gold": "pm",
-      "pred": "coder",
+      "pred": "pm",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "你有什么建议",
@@ -1279,9 +1279,9 @@
     {
       "text": "如何开始一个新项目",
       "gold": "pm",
-      "pred": "coder",
+      "pred": "pm",
       "tag": "",
-      "ok": false
+      "ok": true
     },
     {
       "text": "帮我规划一下时间安排",
