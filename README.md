@@ -69,7 +69,7 @@ Seven experts collaborate on a single research question, coordinated by the proj
 
 - Offline speech recognition engine based on SenseVoice (Alibaba DAMO Academy)
 - Support for five languages — Chinese, English, Japanese, Korean, and Cantonese — for international collaboration
-- Runs fully offline; research data never leaves the machine, meeting data-security requirements of confidential research projects
+- Speech recognition, document generation, and formatting run locally; agent tasks call a configured model API (GLM / OpenRouter / Ollama), so task text does leave the machine unless a local model is used
 - Document generation and formatting run locally with no API key; academic search uses public APIs and may be rate-limited
 
 ### 6. Team Collaboration and API Key Isolation

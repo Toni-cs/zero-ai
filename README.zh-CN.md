@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.3-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.3/)
+[![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.6-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.6/)
 [![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/gt17641001169-design/zero-ai)
 
 </div>
@@ -34,7 +34,7 @@ ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系
 - 按关键词、作者、DOI 检索文献
 - 按引用数、影响力、发表年份智能排序
 - 自动生成文献综述初稿，辅助研究者快速了解领域全貌
-- 免费无 API Key 限制，适合科研经费有限的课题组
+- 排版与格式化免费离线使用，适合科研经费有限的课题组；学术检索调用公开 API，可能被限流
 
 ### 2. 学术公式推导与渲染
 
@@ -65,8 +65,8 @@ ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系
 
 - 基于 SenseVoice（阿里达摩院）的离线语音识别引擎
 - 中英日韩粤 5 语言支持，适用于国际协作
-- 完全离线运行，科研数据不出本机，符合涉密科研项目数据安全要求
-- 无需 API Key，无云端调用，无数据泄露风险
+- 语音识别、文档生成与排版完全在本机运行；智能体任务需调用所配置的模型 API（GLM / OpenRouter / Ollama），使用本地模型时任务文本才不会出本机
+- 语音识别无需 API Key；文档生成与格式化无需 API Key，学术检索调用公开 API 可能被限流
 
 ### 6. 团队协作与 API Key 隔离
 
