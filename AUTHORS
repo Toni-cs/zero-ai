@@ -8,5 +8,6 @@ ZeroAI Team <gt17641001169@design.com>
 - Textual — TUI 框架
 - asyncssh — 异步 SSH 客户端
 - sherpa-onnx — 语音识别引擎
-- Semantic Scholar — 学术文献数据
+- OpenAlex — 开放学术索引（主检索源）
+- Crossref — DOI 注册机构与文献元数据（兜底检索源）
 - FastAPI — 代理服务框架

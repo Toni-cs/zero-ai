@@ -100,7 +100,7 @@ TOOL_USAGE_RULES = r"""# 工具使用规则
 - `local_monitor(threshold_cpu, threshold_disk, threshold_memory, check_ports)`：本地综合监控告警（跨平台）。用户说"体检/监控/系统健康检查/告警/有什么异常"时用。一次性检查 CPU/内存/磁盘/端口/防火墙，返回结构化告警报告（危急/警告/正常/建议）
 
 ## 学术研究（5 个）
-- `academic_search(query, num_results, year_from, year_to, sort_by)`：学术文献搜索（Semantic Scholar 2亿+论文，含引用数/影响力/DOI）。查论文/文献/引用时用
+- `academic_search(query, num_results, year_from, year_to, sort_by)`：学术文献搜索（OpenAlex 主源 + Crossref 兜底，无需 API Key，含引用数/DOI）。查论文/文献/引用时用
 - `arxiv_search(query, num_results, sort_by, category)`：arXiv 预印本搜索（物理/数学/CS/统计）。查最新研究/未发表论文时用，英文关键词效果更佳
 - `render_formula(latex, style)`：渲染 LaTeX 公式为 Unicode（希腊字母/上下标/分数/根号/求和/积分）
 - `citation_check(title, doi, arxiv_id)`：引用真实性校验。引用任何文献前必须调用此工具验证文献是否真实存在，防止编造
@@ -121,7 +121,7 @@ TOOL_USAGE_RULES = r"""# 工具使用规则
 12. 用户说"打开XX/启动XX/开一下XX" → `open_app`（自动搜索本地，保证能打开任何文件）
 13. 用户写数学/物理/统计公式 → `render_formula`（LaTeX → Unicode 终端显示）
 14. 用户说"论文/学术/研究" → `generate_word` 或 `generate_pdf` 用 `academic` 模板
-15. 用户查论文/文献/引用/DOI → `academic_search`（Semantic Scholar 2亿+论文，支持年份/引用数筛选）
+15. 用户查论文/文献/引用/DOI → `academic_search`（OpenAlex + Crossref，支持年份筛选与引用数排序）
 16. 用户查最新研究/预印本/arXiv → `arxiv_search`（英文关键词效果更佳，支持分类筛选）
 17. 用户写综述/文献分析 → `literature_review`（双源检索+PRISMA流程+对比分析+研究空白）
 18. 引用任何文献前 → `citation_check`（校验真实性，防止编造！这条是红线）
@@ -505,12 +505,12 @@ AI：已完成！Windows 资源管理器输入 \\\\192.168.71.132\\shared 即可
    - `web_search(query)` 搜索 → 获取结果 → 如需详情 `web_fetch(url)` 抓取网页
    - 搜索关键词要精准，避免过长句子作为查询
    - 搜索后基于结果回答，标注信息来源
-4. **学术搜索**优先用 `academic_search`（Semantic Scholar 2亿+论文）和 `arxiv_search`（arXiv 预印本），覆盖更全面
+4. **学术搜索**优先用 `academic_search`（OpenAlex 主源 + Crossref 兜底，无需 API Key）和 `arxiv_search`（arXiv 预印本），覆盖更全面
 
 ## 联网搜索工具
 - `web_search(query, num_results=5)`：网络搜索（Bing 优先 → DuckDuckGo → 百度），返回标题+URL+摘要
 - `web_fetch(url, max_length=4000)`：抓取网页正文（全权限模式无 SSRF 限制）
-- `academic_search(query)`：Semantic Scholar 学术论文搜索
+- `academic_search(query)`：OpenAlex 学术论文搜索（Crossref 兜底）
 - `arxiv_search(query)`：arXiv 预印本搜索
 
 # 学术研究支持（已启用）
@@ -518,7 +518,7 @@ AI：已完成！Windows 资源管理器输入 \\\\192.168.71.132\\shared 即可
 - **LaTeX 公式渲染**：终端自动将 `$E=mc^2$` 渲染为 `E=mc²`，`$\\sum_{{i=1}}^{{n}} x_i^2$` 渲染为 `Σᵢ₌₁ⁿ xᵢ²`
 - **学术论文模板**：generate_word/generate_pdf 的 `academic` 模板支持摘要/关键词/参考文献自动编号/双倍行距
 - **公式工具**：`render_formula(latex)` 将 LaTeX 转为 Unicode 终端显示
-- **文献搜索**：`academic_search(query)` 搜索 Semantic Scholar 2亿+论文（含引用数/DOI/影响力）
+- **文献搜索**：`academic_search(query)` 搜索 OpenAlex + Crossref（含引用数/DOI）
 - **预印本搜索**：`arxiv_search(query)` 搜索 arXiv 最新研究（物理/数学/CS/统计，英文关键词效果更佳）
 - **引用校验**：`citation_check(title/doi/arxiv_id)` 校验文献引用真实性，防止编造不存在的文献（引用前必调！）
 - **文献综述**：`literature_review(topic)` 双源检索+PRISMA流程+对比分析+研究空白识别

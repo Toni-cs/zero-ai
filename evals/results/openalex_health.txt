@@ -1,0 +1,24 @@
+# OpenAlex 健康检查（8 次）
+
+| # | HTTP | 延迟 | 说明 |
+|---|---|---|---|
+| 1 | 429 | 941ms | {"error":"Rate limit exceeded","message":"Insufficient budget. This request has  |
+| 2 | 429 | 858ms | {"error":"Rate limit exceeded","message":"Insufficient budget. This request has  |
+| 3 | -1 | 17259ms | URLError: <urlopen error _ssl.c:993: The handshake operation timed out> |
+| 4 | 429 | 743ms | {"error":"Rate limit exceeded","message":"Insufficient budget. This request has  |
+| 5 | 429 | 937ms | {"error":"Rate limit exceeded","message":"Insufficient budget. This request has  |
+| 6 | 429 | 855ms | {"error":"Rate limit exceeded","message":"Insufficient budget. This request has  |
+| 7 | 429 | 787ms | {"error":"Rate limit exceeded","message":"Insufficient budget. This request has  |
+| 8 | -1 | 14398ms | TimeoutError: The read operation timed out |
+
+- 状态码分布: `[-1, 429]`
+- 成功(200): **0/8**
+- 429: **6**
+- 网络失败(-1): 2
+- 延迟 p50: 898ms   max: 17259ms
+
+## 对照：Crossref 同样打法
+
+- 状态码分布: `[200, 500]`
+- 成功(200): 3/4
+- 延迟 p50: 1208ms

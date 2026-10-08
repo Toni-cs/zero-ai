@@ -1,0 +1,19 @@
+# 编辑前编码体检
+
+| 文件 | 字节 | 非ASCII字节 | FFFD | UTF-8 | GB18030 | 结论 |
+|---|---|---|---|---|---|---|
+| `README.md` | 41656 | 956 | 0 | OK | FAIL | **可安全编辑** |
+| `README.zh-CN.md` | 35079 | 21176 | 0 | OK | FAIL | **可安全编辑** |
+| `AUTHORS` | 424 | 261 | 0 | OK | FAIL | **可安全编辑** |
+| `CHANGELOG.md` | 26125 | 15362 | 0 | OK | FAIL | **可安全编辑** |
+| `CONTRIBUTING.md` | 3530 | 2016 | 0 | OK | FAIL | **可安全编辑** |
+| `pyproject.toml` | 13183 | 6579 | 0 | OK | FAIL | **可安全编辑** |
+| `zeroai/tools/academic.py` | 67150 | 18804 | 0 | OK | FAIL | **可安全编辑** |
+| `zeroai/tools/registry.py` | 57529 | 19251 | 0 | OK | FAIL | **可安全编辑** |
+| `zeroai/core/prompts.py` | 60089 | 40648 | 0 | OK | FAIL | **可安全编辑** |
+| `tests/test_text_encoding_integrity.py` | 4564 | 1479 | 0 | OK | FAIL | **可安全编辑** |
+| `evals/probe_literature_apis.py` | 13832 | 1179 | 0 | OK | FAIL | **可安全编辑** |
+| `evals/recheck_literature_apis.py` | 7468 | 924 | 0 | OK | FAIL | **可安全编辑** |
+| `evals/verify_literature_design.py` | 8879 | 1359 | 0 | OK | FAIL | **可安全编辑** |
+
+## 全部可安全编辑（均为纯 UTF-8，且当前无 U+FFFD）

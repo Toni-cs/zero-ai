@@ -363,7 +363,7 @@ TOOLS = [
             "required": ["latex"],
             "additionalProperties": False}}},
     {"type": "function", "function": {
-        "name": "academic_search", "description": "学术文献搜索（Semantic Scholar，2亿+论文）。当用户查找论文、文献、学术研究、引用、DOI时调用。支持按年份、引用数、影响力筛选。",
+        "name": "academic_search", "description": "学术文献搜索（OpenAlex 主源 + Crossref 兜底，无需 API Key）。当用户查找论文、文献、学术研究、引用、DOI时调用。支持按年份筛选与按引用数排序。",
         "parameters": {"type": "object", "properties": {
             "query": {"type": "string", "description": "搜索关键词（中英文均可），如 'attention is all you need' 或 '深度学习综述'"},
             "num_results": {"type": "integer", "description": "返回结果数量，默认5，最大20"},
@@ -390,7 +390,7 @@ TOOLS = [
             "required": [],
             "additionalProperties": False}}},
     {"type": "function", "function": {
-        "name": "literature_review", "description": "文献综述自动分析。双源检索(Semantic Scholar+arXiv)+去重+结构化对比分析表+趋势统计+PRISMA筛选流程+研究空白识别。用户写综述/文献分析时调用。",
+        "name": "literature_review", "description": "文献综述自动分析。双源检索(OpenAlex 兜底 Crossref + arXiv)+去重+结构化对比分析表+趋势统计+PRISMA筛选流程+研究空白识别。用户写综述/文献分析时调用。",
         "parameters": {"type": "object", "properties": {
             "topic": {"type": "string", "description": "研究主题（中英文均可），如 '钠离子电池层状氧化物正极' 或 'sodium-ion battery layered oxide cathode'"},
             "num_papers": {"type": "integer", "description": "分析文献数量，默认10，最大20"},

@@ -22,7 +22,7 @@
 
 ZeroAI is a terminal AI collaboration platform built for researchers and developers. It uses a multi-expert collaboration architecture that brings task planning, code generation, deep reasoning, academic writing, literature search, document generation, security auditing, and remote operations into a single terminal environment — cutting down the cost of switching between tools and improving research throughput.
 
-The system is purpose-built for research workflows: it integrates the Semantic Scholar academic database (200M+ papers) with intelligent filtering by citation count, influence, and year; it ships a LaTeX formula rendering engine that converts fractions, radicals, matrices, limits, summations, and integrals into Unicode and high-resolution PDF images; it generates Word/PDF academic documents that follow the GB/T 7713.1-2025 national standard; it provides an offline speech recognition engine to keep research data private; and its proxy server architecture delivers zero API key exposure for secure team collaboration.
+The system is purpose-built for research workflows: it queries the open OpenAlex index with Crossref as an automatic fallback — neither requires an API key — with filtering by publication year and ranking by citation count; it ships a LaTeX formula rendering engine that converts fractions, radicals, matrices, limits, summations, and integrals into Unicode and high-resolution PDF images; it generates Word/PDF academic documents that follow the GB/T 7713.1-2025 national standard; it provides an offline speech recognition engine to keep research data private; and its proxy server architecture delivers zero API key exposure for secure team collaboration.
 
 ---
 
@@ -30,12 +30,12 @@ The system is purpose-built for research workflows: it integrates the Semantic S
 
 ### 1. Academic Literature Search and Review Assistance
 
-Integrates the Semantic Scholar academic database (200M+ peer-reviewed papers) and supports:
+Queries the open OpenAlex scholarly index with Crossref as an automatic fallback — neither requires an API key — and supports:
 
 - Literature search by keyword, author, or DOI
-- Intelligent ranking by citation count, influence, and publication year
+- Ranking by citation count and filtering by publication year
 - Automatic generation of a literature review draft, helping researchers grasp a field quickly
-- Free to use and offline-capable for formatting, suitable for research groups with limited funding; academic search may require an API key to avoid rate limits
+- Free to use: formatting runs offline and literature search needs no API key. Each source still enforces its own server-side quota — when one is rate-limited the tool automatically falls back to the other, and reports failure honestly if both are unavailable
 
 ### 2. Academic Formula Derivation and Rendering
 
@@ -607,7 +607,7 @@ For detailed deployment documentation, see [zeroai-proxy/README.md](zeroai-proxy
 | Speech synthesis | Edge TTS |
 | Document generation | python-docx + reportlab + matplotlib |
 | Academic formulas | LaTeX → Unicode + matplotlib mathtext |
-| Literature search | Semantic Scholar API |
+| Literature search | OpenAlex API (Crossref fallback, no key) |
 | Proxy service | FastAPI + httpx |
 
 ---
@@ -632,7 +632,7 @@ User: Write a Python function that computes the Fibonacci sequence, and analyze 
 ```
 User: Search for papers on Transformer acceleration from the last three years, ranked by citations
 
--> Academic Research expert calls the Semantic Scholar API
+-> Academic Research expert calls the OpenAlex API (Crossref fallback)
 -> Returns 10 highly cited papers (title/author/year/citations/abstract)
 -> Automatically generates a literature review draft
 ```
@@ -895,7 +895,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 - [Textual](https://textual.textualize.io/) - TUI framework
 - [asyncssh](https://asyncssh.readthedocs.io/) - asynchronous SSH client
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - speech recognition
-- [Semantic Scholar](https://www.semanticscholar.org/) - academic literature data
+- [OpenAlex](https://openalex.org/) - open scholarly index (primary literature source)
+- [Crossref](https://www.crossref.org/) - DOI registry and literature metadata (fallback)
 - [FastAPI](https://fastapi.tiangolo.com/) - proxy service framework
 
 ---

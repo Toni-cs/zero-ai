@@ -5,25 +5,61 @@
 
 提供以下纯函数：
 - _latex_to_unicode：将 LaTeX 公式转换为 Unicode 终端可显示文本
-- academic_search：学术文献搜索（Semantic Scholar API）
+- academic_search：学术文献搜索（OpenAlex 主源 + Crossref 兜底）
 - arxiv_search：arXiv 预印本论文搜索
 - citation_check：校验文献引用真实性
 - _format_citation_result：格式化引用校验结果
 - literature_review：多文献综合对比分析
-- _lit_review_search_ss：Semantic Scholar 检索辅助
+- _lit_review_search_papers：OpenAlex/Crossref 检索辅助
 - _lit_review_search_arxiv：arXiv 检索辅助
 - render_formula：渲染 LaTeX 公式
 
 依赖：
-- 标准库：re, json, urllib, difflib
+- 标准库：re, json, time, urllib, difflib
 - .network.web_fetch（可选，本模块实际直接使用 urllib.request 以获得更细粒度控制）
 - zeroai.core.response_utils._jaccard_similarity（可选，本模块实际使用 difflib.SequenceMatcher 做标题相似度）
 
-注意：本模块的学术检索函数直接使用 urllib.request 调用 Semantic Scholar / arXiv API，
-未通过 web_fetch 中转，以保证对 API 响应格式（JSON/XML）的精确控制。
+注意：本模块的学术检索函数直接使用 urllib.request 调用
+OpenAlex / Crossref / arXiv API，未通过 web_fetch 中转，
+以保证对 API 响应格式（JSON/XML）的精确控制。
+
+检索后端迁移（2026-10-08）：
+原本使用 Semantic Scholar Graph API。连续 5 次请求实测 5/5 返回 429
+（"Too Many Requests"），无法使用，故迁到 OpenAlex（主）+ Crossref（备）。
+两者均无需 API key，均为开放许可，但**都不等于不限流**：
+
+- OpenAlex 对匿名调用发放**日预算**。本会话累计约 170 次请求后触发 429，
+  响应为 `Retry-After: 49335`（约 13.7 小时后恢复）、
+  body `{"error":"Rate limit exceeded","message":"Insufficient budget..."}`
+  —— 是配额耗尽，不是突发。证据见
+  evals/results/openalex_429_character.txt
+- Crossref 无 key、无明确日配额，但服务端会间歇性返回 500
+  （Elasticsearch `CancellationException`），实测单轮 6 次中出现 3 次 500。
+
+因此**双源互备是必需设计而非可选优化**：任一源单独使用都会在某个时刻
+不可用。任一源失效时另一源顶上，两者都失效时如实告知"检索失败"，
+绝不谎报成功、也绝不用故障冒充"文献不存在"。
+
+实测依据见 evals/results/ 下：
+- lit_api_probe.md      首轮全量探针
+- lit_api_recheck.md    三个异常的复测（含逐次延迟）
+- lit_api_design.md     迁移设计的逐条验证
+
+关键约束（实测得出，改动前请先看这三条）：
+1. OpenAlex 的 sort=cited_by_count:desc 会绕过搜索条件 ——
+   实测返回 AlphaFold、香农《A Mathematical Theory of Communication》
+   等与查询无关的高被引论文。因此"按引用数排序"一律取相关性结果后
+   在客户端重排，绝不传该 sort 参数。
+2. 未知名 DOI 不总是返回 404：Crossref 实测 5 次中 4 次 404、1 次 500；
+   因此 DOI 校验必须双源兜底，不能单看一次 404。
+3. 虚构标题不会返回空结果：实测查询
+   "A Complete Theory of Zero-Shot Quantum Consciousness Routing"
+   仍返回 3 条无关论文（相似度 0.27）。判定虚构只能靠 SequenceMatcher
+   相似度阈值，不能靠"结果为空"。
 """
 import re
 import json
+import time
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -429,73 +465,327 @@ def _latex_to_unicode(latex: str) -> str:
     return s
 
 
+# ====== 文献检索后端：OpenAlex（主）+ Crossref（备）+ arXiv（备）======
+#
+# 迁移原因见模块 docstring。所有常量与重试策略均由实测定出，
+# 证据在 evals/results/lit_api_*.md，改动前请先读。
+
+_UA = "ZeroAI/1.1 (academic-research; mailto:zeroai@example.com)"
+_OA_BASE = "https://api.openalex.org"
+_CR_BASE = "https://api.crossref.org"
+_ARXIV_API = "https://export.arxiv.org/api/query"
+_MAILTO = "zeroai@example.com"
+
+# 实测：OpenAlex 成功请求 p50≈1.3-1.5s，但失败请求会挂到 21-33s 才超时
+# （lit_api_recheck.md #07/#09/#19 三次 -1，分别 33386/31200/26156ms）。
+# 故超时收紧到 10s，宁可早失败早走兜底，也不让用户干等半分钟。
+_LIT_TIMEOUT = 10
+
+# 实测：Crossref 的 500 是服务端抖动而非限流，重试一次成功率明显回升；
+# OpenAlex 无 429 但约 15% 请求超时，同样值得重试一次。
+_LIT_RETRY = 1
+_LIT_BACKOFF = 0.5
+
+# 可重试的**瞬时**错误。
+#
+# 429 被刻意排除在重试之外，理由是实测出来的，不是拍脑袋：
+# OpenAlex 的 429 不是突发限流，而是**日预算耗尽** ——
+#   Retry-After: 49335（约 13.7 小时后才恢复）
+#   body: {"error":"Rate limit exceeded","message":"Insufficient budget..."}
+# 对一个 13.7 小时后才恢复的错误做 0.5 秒重试毫无意义，只会白白多等；
+# 直接交给兜底源更快也更诚实。
+# 证据：evals/results/openalex_429_character.txt
+# （本模块迁移初期曾把 429 放进可重试集合，是基于轻载下 0/20 的
+#  采样得出的错误结论，采样不足已由上表推翻。）
+_RETRYABLE = {500, 502, 503, 504}
+
+
+def _json_or_none(body: bytes):
+    """bytes -> dict/list，任何异常返回 None。"""
+    try:
+        return json.loads(body.decode("utf-8", errors="ignore"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _lit_get(url: str, timeout: int = _LIT_TIMEOUT):
+    """GET 一个文献 API，返回 (status, body_bytes)。
+
+    status < 0 表示网络层失败（超时/连接错误）。
+    429/5xx 与网络失败各重试 _LIT_RETRY 次；其余 4xx 直接返回。
+    **不向外抛异常** —— 调用方一律按 status 分支，避免一个接口挂掉
+    把整个工具打成未捕获异常。
+    """
+    code, body = -1, b""
+    for attempt in range(_LIT_RETRY + 1):
+        req = urllib.request.Request(url, headers={
+            "User-Agent": _UA,
+            "Accept": "application/json, application/xml, */*",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            body = e.read() if e.fp else b""
+            code = e.code
+            if code in _RETRYABLE and attempt < _LIT_RETRY:
+                time.sleep(_LIT_BACKOFF)
+                continue
+            return code, body
+        except Exception:  # noqa: BLE001  超时/连接重置/DNS
+            if attempt < _LIT_RETRY:
+                time.sleep(_LIT_BACKOFF)
+                continue
+            return -1, b""
+    return code, body
+
+
+def _oa_abstract(work: dict) -> str:
+    """把 OpenAlex 的 abstract_inverted_index 还原成可读文本。
+
+    OpenAlex 不给摘要原文，只给 {词: [位置...]} 的倒排索引，必须重建。
+    实测（lit_api_design.md D3）：还原后词序连贯，"The dominant sequence
+    transduction models are based on complex recurrent..."，118 个 token
+    还原为 1136 字符，无跳序、无重复。
+    """
+    inv = work.get("abstract_inverted_index")
+    if not isinstance(inv, dict) or not inv:
+        return ""
+    pos = {}
+    for word, offsets in inv.items():
+        if not isinstance(offsets, list):
+            continue
+        for x in offsets:
+            pos[x] = word
+    return " ".join(pos[i] for i in sorted(pos))
+
+
+def _strip_jats(text: str) -> str:
+    """Crossref 摘要带 JATS XML 标签（<jats:p> 等），去掉标签留正文。"""
+    if not text:
+        return ""
+    t = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _oa_to_s2(work: dict) -> dict:
+    """把 OpenAlex work 归一化成本模块沿用的 Semantic Scholar 形状。
+
+    归一化而不是重写消费方，是为了让 _format_citation_result、
+    literature_review 等下游拿到的字段名保持不变。
+
+    差异（诚实标注，不编造）：
+    - influentialCitationCount -> None：OpenAlex 不提供该指标，
+      显示层据此隐藏"影响力"一列，而不是填 0 冒充。
+    - citations 对应 cited_by_count。
+    """
+    if not isinstance(work, dict):
+        return {}
+    authors = []
+    for a in (work.get("authorships") or []):
+        name = ((a.get("author") or {}).get("display_name")) or ""
+        if name:
+            authors.append({"name": name})
+    doi = work.get("doi") or ""
+    if doi.startswith("https://doi.org/"):
+        doi = doi[len("https://doi.org/"):]
+    loc = work.get("primary_location") or {}
+    url = loc.get("landing_page_url") or ""
+    if not url and doi:
+        url = "https://doi.org/" + doi
+    if not url:
+        url = work.get("id") or ""
+    arxiv_id = ""
+    m = re.search(r"arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5})(?:v\d+)?",
+                  url or "", re.I)
+    if m:
+        arxiv_id = m.group(1)
+    return {
+        "title": work.get("title") or work.get("display_name") or "",
+        "authors": authors,
+        "year": work.get("publication_year") or "未知",
+        "citationCount": work.get("cited_by_count") or 0,
+        "influentialCitationCount": None,
+        "abstract": _oa_abstract(work),
+        "externalIds": {"DOI": doi, "ArXiv": arxiv_id},
+        "url": url,
+        "_source": "OpenAlex",
+    }
+
+
+def _cr_to_s2(item: dict) -> dict:
+    """把 Crossref work item 归一化成同上形状。"""
+    if not isinstance(item, dict):
+        return {}
+    titles = item.get("title") or []
+    title = titles[0] if titles else ""
+    authors = []
+    for a in (item.get("author") or []):
+        nm = " ".join(x for x in (a.get("given") or "", a.get("family") or "")
+                      if x).strip()
+        if nm:
+            authors.append({"name": nm})
+    year = "未知"
+    parts = ((item.get("issued") or {}).get("date-parts") or [])
+    if parts and parts[0] and parts[0][0]:
+        year = parts[0][0]
+    doi = item.get("DOI") or ""
+    url = item.get("URL") or (("https://doi.org/" + doi) if doi else "")
+    arxiv_id = ""
+    m = re.search(r"arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5})(?:v\d+)?",
+                  url or "", re.I)
+    if m:
+        arxiv_id = m.group(1)
+    return {
+        "title": title,
+        "authors": authors,
+        "year": year,
+        # Crossref 只有 is-referenced-by-count，语义接近被引数
+        "citationCount": item.get("is-referenced-by-count") or 0,
+        "influentialCitationCount": None,
+        "abstract": _strip_jats(item.get("abstract") or ""),
+        "externalIds": {"DOI": doi, "ArXiv": arxiv_id},
+        "url": url,
+        "_source": "Crossref",
+    }
+
+
+def _oa_search(query: str, limit: int, year_from: int = 0,
+               year_to: int = 0):
+    """OpenAlex 关键词检索。
+
+    返回 (papers, total)；失败返回 None（调用方据此走 Crossref 兜底）。
+    **不传 sort 参数** —— 实测 sort=cited_by_count:desc 会绕过搜索条件。
+    """
+    params = {"search": query, "per_page": str(limit), "mailto": _MAILTO}
+    if year_from or year_to:
+        params["filter"] = ("from_publication_date:%d-01-01,"
+                            "to_publication_date:%d-12-31"
+                            % (year_from or 1900, year_to or 2099))
+    url = _OA_BASE + "/works?" + urllib.parse.urlencode(params)
+    code, body = _lit_get(url)
+    if code != 200:
+        return None
+    data = _json_or_none(body)
+    if not isinstance(data, dict):
+        return None
+    results = data.get("results")
+    if not isinstance(results, list):
+        return None
+    total = ((data.get("meta") or {}).get("total")
+             or (data.get("meta") or {}).get("count") or 0)
+    return [_oa_to_s2(w) for w in results], total
+
+
+def _cr_search(query: str, limit: int, year_from: int = 0,
+               year_to: int = 0):
+    """Crossref 关键词检索（兜底源）。
+
+    用 query.title 而非 query.bibliographic：实测后者的相关性明显更差
+    （搜 attention 却返回 CISO 论文，且 is-referenced-by-count 全为 0），
+    而 query.title 能直接命中《Attention Is All You Need》。
+    """
+    params = {"query.title": query, "rows": str(limit), "mailto": _MAILTO}
+    if year_from or year_to:
+        params["filter"] = ("from-pub-date:%d-01-01,"
+                            "until-pub-date:%d-12-31"
+                            % (year_from or 1900, year_to or 2099))
+    url = _CR_BASE + "/works?" + urllib.parse.urlencode(params)
+    code, body = _lit_get(url)
+    if code != 200:
+        return None
+    data = _json_or_none(body)
+    if not isinstance(data, dict):
+        return None
+    msg = data.get("message")
+    if not isinstance(msg, dict):
+        return None
+    items = msg.get("items")
+    if not isinstance(items, list):
+        return None
+    return [_cr_to_s2(it) for it in items], msg.get("total-results") or 0
+
+
+def _search_any(query: str, limit: int, year_from: int = 0,
+                year_to: int = 0):
+    """双源检索：OpenAlex 优先，失败落 Crossref。
+
+    返回 (papers, total, source_name)；两个源都失败返回 (None, 0, None)。
+    """
+    res = _oa_search(query, limit, year_from, year_to)
+    if res is not None:
+        return res[0], res[1], "OpenAlex"
+    res = _cr_search(query, limit, year_from, year_to)
+    if res is not None:
+        return res[0], res[1], "Crossref"
+    return None, 0, None
+
+
+def _sort_by_citations(papers: list) -> list:
+    """按被引数降序，在**已取回的相关性结果内**重排。
+
+    不能改用 OpenAlex 服务端 sort=cited_by_count:desc：实测该参数会
+    让搜索条件失效（lit_api_design.md D1，两种写法都试过，均返回
+    AlphaFold / HISTORIAE 等无关论文）。因此这里是刻意的客户端重排，
+    排序范围受限于已取回条数，属于近似 —— 输出文案已注明。
+    """
+    return sorted(papers, key=lambda p: (p.get("citationCount") or 0),
+                  reverse=True)
+
+
 def academic_search(query: str, num_results: int = 5, year_from: int = 0,
                     year_to: int = 0, sort_by: str = "relevance") -> str:
-    """学术文献搜索（Semantic Scholar API，2亿+论文，含引用网络和影响力）
+    """学术文献搜索（OpenAlex 主源 + Crossref 兜底，均无需 API Key）
 
     参数：
     - query: 搜索关键词（中英文均可）
     - num_results: 返回结果数量，默认5，最大20
     - year_from: 起始年份（如 2020），0表示不限
     - year_to: 结束年份（如 2024），0表示不限
-    - sort_by: 排序方式：relevance(相关性，默认) / citations(引用数) / influence(影响力)
+    - sort_by: 排序方式：relevance(相关性，默认) / citations(引用数)
+               / influence(影响力，OpenAlex 无此指标，退化为按引用数)
 
     返回：格式化的文献列表，含标题、作者、年份、引用数、摘要、DOI
 
     迁移来源：tui_agent.py 行 4392-4491
     """
     try:
-        q = urllib.parse.quote(query)
-        # 构建年份过滤
-        year_filter = ""
-        if year_from or year_to:
-            yf = year_from if year_from else 1900
-            yt = year_to if year_to else 2099
-            year_filter = f"&year={yf}-{yt}"
+        limit = min(num_results, 20)
+        want_citation_order = sort_by in ("citations", "influence")
 
-        # 排序参数
-        sort_map = {
-            "relevance": "",  # 默认相关性
-            "citations": "&sort=citationCount:desc",
-            "influence": "&sort=influentialCitationCount:desc",
-        }
-        sort_param = sort_map.get(sort_by, "")
+        # 按引用数排序时多取一些再客户端重排：服务端 sort 会让搜索条件
+        # 失效（见 _sort_by_citations 与模块 docstring 约束 1）。
+        fetch = max(limit, 50) if want_citation_order else limit
 
-        # Semantic Scholar Graph API（无需 API Key，免费 2万次/小时）
-        url = (f"https://api.semanticscholar.org/graph/v1/paper/search?query={q}"
-               f"&limit={min(num_results, 20)}&fields=title,authors,year,abstract,"
-               f"citationCount,influentialCitationCount,externalIds,url"
-               f"{year_filter}{sort_param}")
+        papers, total, source = _search_any(query, fetch, year_from, year_to)
 
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "ZeroAI/1.0 (Academic Research)",
-            "Accept": "application/json"
-        })
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-
-        papers = data.get("data", [])
+        if papers is None:
+            return (f"学术搜索失败：OpenAlex 与 Crossref 均未响应。"
+                    f"可能是网络问题或两个源同时抖动，请稍后重试")
         if not papers:
             return f"(未找到关于「{query}」的学术文献，试试更换关键词或扩大年份范围)"
 
+        if want_citation_order:
+            papers = _sort_by_citations(papers)[:limit]
+
         results = []
         for i, p in enumerate(papers, 1):
-            title = p.get("title", "无标题")
-            authors = p.get("authors", [])
+            title = p.get("title") or "无标题"
+            authors = p.get("authors") or []
             author_str = ", ".join(a.get("name", "?") for a in authors[:5])
             if len(authors) > 5:
                 author_str += f" 等 {len(authors)} 人"
-            year = p.get("year", "未知年份")
-            citations = p.get("citationCount", 0)
-            influential = p.get("influentialCitationCount", 0)
-            abstract = p.get("abstract", "")
+            year = p.get("year") or "未知年份"
+            citations = p.get("citationCount")
+            influential = p.get("influentialCitationCount")
+            abstract = p.get("abstract") or ""
             if abstract:
                 # 摘要截断到300字
                 abstract = abstract[:300] + ("..." if len(abstract) > 300 else "")
             else:
                 abstract = "(无摘要)"
 
-            ext_ids = p.get("externalIds", {})
+            ext_ids = p.get("externalIds") or {}
             doi = ext_ids.get("DOI", "")
             arxiv_id = ext_ids.get("ArXiv", "")
             paper_url = p.get("url", "")
@@ -503,7 +793,12 @@ def academic_search(query: str, num_results: int = 5, year_from: int = 0,
             # 格式化输出
             line = f"[{i}] {title}\n"
             line += f"    作者: {author_str}\n"
-            line += f"    年份: {year}    引用: {citations}    影响力: {influential}\n"
+            meta = f"    年份: {year}    引用: {citations if citations is not None else '未知'}"
+            # OpenAlex / Crossref 均不提供 influentialCitationCount，
+            # 为 None 时隐藏该列，而不是显示 0 冒充真实指标。
+            if influential is not None:
+                meta += f"    影响力: {influential}"
+            line += meta + "\n"
             if doi:
                 line += f"    DOI: {doi}\n"
             if arxiv_id:
@@ -513,23 +808,28 @@ def academic_search(query: str, num_results: int = 5, year_from: int = 0,
             line += f"    摘要: {abstract}\n"
             results.append(line)
 
-        total = data.get("total", 0)
         header = f"=== 学术搜索: 「{query}」 ===\n"
-        header += f"共找到 {total} 篇相关论文，显示前 {len(papers)} 篇"
+        # 「关键词命中数」而非「相关论文」—— OpenAlex 的 meta.count 与
+        # Crossref 的 total-results 都只是匹配数，Crossref 实测
+        # query.title 对该查询给出 1,033,389，说成"篇相关论文"会严重高估。
+        header += (f"关键词命中 {total} 篇（匹配数），"
+                   f"显示前 {len(papers)} 篇")
+        notes = []
         if year_from or year_to:
-            header += f"（年份: {year_from or '不限'}-{year_to or '至今'}"
+            notes.append(f"年份: {year_from or '不限'}-{year_to or '至今'}")
         if sort_by != "relevance":
-            sort_label = {"citations": "引用数", "influence": "影响力"}.get(sort_by, sort_by)
-            header += f"，按{sort_label}排序"
-        header += "）\n\n"
+            if sort_by == "influence":
+                notes.append("按引用数排序（数据源无影响力指标，此为近似）")
+            else:
+                notes.append("按引用数排序（在相关性结果内重排）")
+        notes.append(f"数据源: {source}")
+        if notes:
+            header += "（" + "，".join(notes) + "）"
+        header += "\n\n"
 
         return header + "\n".join(results)
 
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            return f"学术搜索过于频繁，请稍后再试（Semantic Scholar 限制: 2万次/小时）"
-        return f"学术搜索错误（HTTP {e.code}）：{e}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  兜底，工具不能把异常抛给调用方
         return f"学术搜索错误：{e}"
 
 
@@ -651,11 +951,15 @@ def _format_citation_result(data: dict, method: str, query: str, similarity: flo
     if len(authors) > 5:
         author_str += f" 等 {len(authors)} 人"
     year = data.get("year", "未知")
-    citations = data.get("citationCount", 0)
+    # arXiv 官方 API 不提供被引数；OpenAlex/Crossref 之外的源也可能缺失。
+    # 缺失时显示"未知"，不填 0 —— 0 是一个会被读成真实数据的数字。
+    citations = data.get("citationCount")
+    citations_str = "未知" if citations is None else str(citations)
     ext_ids = data.get("externalIds", {})
     doi = ext_ids.get("DOI", "")
     arxiv = ext_ids.get("ArXiv", "")
     paper_url = data.get("url", "")
+    source = data.get("_source", "")
 
     # 判定状态
     if similarity >= 0.95:
@@ -674,7 +978,9 @@ def _format_citation_result(data: dict, method: str, query: str, similarity: flo
     result += f"文献信息：\n"
     result += f"  标题：{title}\n"
     result += f"  作者：{author_str}\n"
-    result += f"  年份：{year}    引用数：{citations}\n"
+    result += f"  年份：{year}    引用数：{citations_str}\n"
+    if source:
+        result += f"  数据源：{source}\n"
     if doi:
         result += f"  DOI：{doi}\n"
     if arxiv:
@@ -684,11 +990,129 @@ def _format_citation_result(data: dict, method: str, query: str, similarity: flo
     return result
 
 
+def _oa_by_doi(doi: str):
+    """OpenAlex 按 DOI 精确查。
+
+    返回 (state, paper)，state ∈ {"found", "not_found",
+                                   "rate_limited", "error"}。
+    **必须区分 not_found 与 error** —— 把网络失败当成"文献不存在"，
+    等于用工具的故障去指控用户编造引用，是最不能犯的错。
+    单列 rate_limited 是因为实测 OpenAlex 的 429 源自日配额耗尽
+    （Retry-After 49335s），混进 error 会让用户看不出真实原因，
+    也看不出过几小时就能恢复。
+    """
+    url = _OA_BASE + "/works/https://doi.org/" + urllib.parse.quote(doi.strip())
+    code, body = _lit_get(url)
+    if code == 200:
+        data = _json_or_none(body)
+        if isinstance(data, dict) and data.get("id"):
+            return "found", _oa_to_s2(data)
+        return "error", None
+    if code == 404:
+        return "not_found", None
+    if code == 429:
+        return "rate_limited", None
+    return "error", None
+
+
+def _cr_by_doi(doi: str):
+    """Crossref 按 DOI 精确查（DOI 注册机构，权威）。
+
+    同样返回 (state, paper)。实测未知名 DOI 5 次中 4 次 404、1 次 500，
+    所以单靠 Crossref 判"不存在"不可靠，必须双源交叉。
+
+    更关键的是：Crossref 只收录其自己注册的 DOI，DataCite 系
+    （10.48550/arXiv.*、10.5281/zenodo.* 等）在 Crossref 上一律 404。
+    因此 **Crossref 单源 404 绝不能推出"该文献不存在"** ——
+    这正是 citation_check 要求双源都明确 not_found 才下结论的原因。
+    """
+    url = _CR_BASE + "/works/" + urllib.parse.quote(doi.strip())
+    code, body = _lit_get(url)
+    if code == 200:
+        data = _json_or_none(body)
+        msg = data.get("message") if isinstance(data, dict) else None
+        if isinstance(msg, dict) and msg.get("DOI"):
+            return "found", _cr_to_s2(msg)
+        return "error", None
+    if code in (404, 400):
+        return "not_found", None
+    if code == 429:
+        return "rate_limited", None
+    return "error", None
+
+
+def _arxiv_by_id(arxiv_id: str):
+    """arXiv 官方 API 按 ID 查询。返回 (state, paper)。
+
+    arXiv 是 arXiv 编号的权威源，但**不提供被引数**，故
+    citationCount=None（显示层渲染为"未知"，不填 0）。
+    """
+    aid = (arxiv_id or "").strip()
+    if not aid:
+        return "error", None
+    url = _ARXIV_API + "?id_list=" + urllib.parse.quote(aid)
+    code, body = _lit_get(url, timeout=12)
+    if code in (400, 404):
+        return "not_found", None
+    if code != 200 or not body:
+        return "error", None
+    txt = body.decode("utf-8", errors="ignore")
+    if "<entry>" not in txt:
+        return "not_found", None
+    entry = txt.split("<entry>", 1)[1].split("</entry>", 1)[0]
+
+    def _tag(name):
+        m = re.search(r"<%s>(.*?)</%s>" % (name, name), entry, re.S)
+        return m.group(1).strip() if m else ""
+
+    title = re.sub(r"\s+", " ", _tag("title"))
+    # arXiv 对不存在/格式非法的 ID 有时返回 HTTP 200 + 标题为 Error 的
+    # 占位条目，不能当成真实文献。
+    if not title or "error" in title.lower():
+        return "not_found", None
+    published = _tag("published")
+    authors = [{"name": a.strip()}
+               for a in re.findall(r"<author>\s*<name>(.*?)</name>",
+                                   entry, re.S) if a.strip()]
+    idm = re.search(r"<id>https?://arxiv\.org/abs/([^<]+)</id>", entry)
+    arx = re.sub(r"v\d+$", "", (idm.group(1).strip() if idm else aid))
+    return "found", {
+        "title": title,
+        "authors": authors,
+        "year": (published[:4] if published else "未知"),
+        "citationCount": None,
+        "influentialCitationCount": None,
+        "abstract": re.sub(r"\s+", " ", _tag("summary")),
+        "externalIds": {"DOI": _tag("doi"), "ArXiv": arx},
+        "url": "https://arxiv.org/abs/" + arx,
+        "_source": "arXiv",
+    }
+
+
+def _fabricated_warning(title: str, why: str, ratio=None) -> str:
+    """标题校验不通过时的结论。
+
+    这里刻意说得比原来更硬：实测虚构标题不会返回空结果（会返回无关
+    论文，相似度 0.27），所以只可能在相似度过低时才走到这里，
+    此时给出"很可能虚构"的结论是有依据的。
+    """
+    lines = [
+        "⚠ 引用校验结果：未找到标题足够接近的文献",
+        f"  查询条件：标题「{title}」",
+        f"  {why}",
+    ]
+    if ratio is not None:
+        lines.append(f"  最佳候选相似度：{ratio:.0%}（阈值 60%，低于此判定为不匹配）")
+    lines.append("  该引用很可能是 AI 编造的虚构文献，请勿在学术写作中使用")
+    lines.append("  建议：使用 academic_search 搜索真实存在的文献替代")
+    return "\n".join(lines)
+
+
 def citation_check(title: str = "", doi: str = "", arxiv_id: str = "") -> str:
     """校验文献引用真实性（防止 AI 编造不存在的文献）
 
-    通过 Semantic Scholar API 交叉验证文献是否真实存在。
-    支持三种查询方式：标题精确匹配、DOI 查询、arXiv ID 查询。
+    通过 OpenAlex + Crossref 双源交叉验证文献是否真实存在。
+    支持三种查询方式：标题匹配、DOI 查询、arXiv ID 查询。
 
     参数：
     - title: 文献标题（精确或近似标题）
@@ -697,108 +1121,141 @@ def citation_check(title: str = "", doi: str = "", arxiv_id: str = "") -> str:
 
     返回：校验结果，含文献真实状态、正确标题、作者、年份等元数据
 
+    判定原则：
+    - 只有「双源都明确查无此记录」才下「不存在」结论；
+      任一源网络失败则如实说明无法确认，绝不把工具故障说成引用造假。
+    - 标题匹配取多条结果里相似度最高的那条，不只看首条；
+      相似度 < 60% 判为不匹配。
+
     迁移来源：tui_agent.py 行 4599-4671
     """
     try:
-        # 优先用 DOI 查询（最精确）
+        # ── DOI：OpenAlex 优先，Crossref 兜底 ──
         if doi:
-            url = f"https://api.semanticscholar.org/graph/v1/paper/DOI:{urllib.parse.quote(doi)}?fields=title,authors,year,abstract,citationCount,externalIds,url"
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "ZeroAI/1.0 (Academic Citation Check)",
-                "Accept": "application/json"
-            })
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-            return _format_citation_result(data, "DOI", doi)
+            oa_state, oa_paper = _oa_by_doi(doi)
+            cr_state, cr_paper = _cr_by_doi(doi)
+            if oa_state == "found":
+                return _format_citation_result(oa_paper, "DOI", doi)
+            if cr_state == "found":
+                return _format_citation_result(cr_paper, "DOI", doi)
+            # rate_limited 同样不能下「不存在」结论 —— 它表示源没查成，
+            # 而不是查到了"没有"。
+            if any(s in ("error", "rate_limited") for s in (oa_state, cr_state)):
+                lines = [
+                    "⚠ 引用校验未完成：无法确认该 DOI 是否真实存在",
+                    f"  查询条件：DOI:{doi}",
+                    f"  OpenAlex: {oa_state}    Crossref: {cr_state}",
+                ]
+                if "rate_limited" in (oa_state, cr_state):
+                    lines.append(
+                        "  原因：OpenAlex 日配额已用尽（服务端给出的恢复时间"
+                        "约十几小时），与该引用本身无关。")
+                lines.append("  注意：这**不代表该引用是假的**，"
+                             "只是本次两个源没有全部查询成功。")
+                lines.append("  请稍后重试，或用 academic_search 搜索确认。")
+                return "\n".join(lines)
+            return (
+                "✗ 引用校验结果：文献不存在\n"
+                f"  查询条件：DOI:{doi}\n"
+                "  校验源：OpenAlex + Crossref（双源均明确返回「无此记录」）\n"
+                "  该引用很可能是 AI 编造的虚构文献，请勿在学术写作中使用\n"
+                "  建议：使用 academic_search 搜索该领域的真实文献")
 
-        # arXiv ID 查询
+        # ── arXiv ID：arXiv 官方 API（该编号的权威源）──
         if arxiv_id:
-            url = f"https://api.semanticscholar.org/graph/v1/paper/arXiv:{arxiv_id.strip()}?fields=title,authors,year,abstract,citationCount,externalIds,url"
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "ZeroAI/1.0 (Academic Citation Check)",
-                "Accept": "application/json"
-            })
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-            return _format_citation_result(data, "arXiv", arxiv_id)
+            state, paper = _arxiv_by_id(arxiv_id)
+            if state == "found":
+                return _format_citation_result(paper, "arXiv", arxiv_id)
+            if state == "error":
+                return (
+                    "⚠ 引用校验未完成：arXiv API 未响应\n"
+                    f"  查询条件：arXiv:{arxiv_id.strip()}\n"
+                    "  注意：这**不代表该引用是假的**，请稍后重试。")
+            return (
+                "✗ 引用校验结果：文献不存在\n"
+                f"  查询条件：arXiv:{arxiv_id.strip()}\n"
+                "  校验源：arXiv 官方 API\n"
+                "  该引用很可能是 AI 编造的虚构文献，请勿在学术写作中使用")
 
-        # 标题查询（模糊匹配）
+        # ── 标题：双源检索 + 最高相似度匹配 ──
         if title:
-            q = urllib.parse.quote(title)
-            url = f"https://api.semanticscholar.org/graph/v1/paper/search/match?query={q}&fields=title,authors,year,abstract,citationCount,externalIds,url"
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "ZeroAI/1.0 (Academic Citation Check)",
-                "Accept": "application/json"
-            })
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            papers, _total, _src = _search_any(title, 5)
+            if papers is None:
+                return (
+                    "⚠ 引用校验未完成：OpenAlex 与 Crossref 均未响应\n"
+                    f"  查询条件：标题「{title}」\n"
+                    "  注意：这**不代表该引用是假的**，只是本次请求失败，"
+                    "请稍后重试。")
+            if not papers:
+                return _fabricated_warning(
+                    title, "OpenAlex 与 Crossref 均无任何匹配结果")
 
-            papers = data.get("data", [])
-            if papers:
-                # 找最匹配的
-                best = papers[0]
-                # 计算标题相似度
-                from difflib import SequenceMatcher
-                ratio = SequenceMatcher(None, title.lower().strip(), best.get("title", "").lower().strip()).ratio()
-                return _format_citation_result(best, "标题匹配", title, similarity=ratio)
-            else:
-                return (f"⚠ 引用校验失败：未找到与「{title}」匹配的论文\n"
-                        f"  该引用可能为 AI 编造的虚构文献，请勿使用\n"
-                        f"  建议：使用 academic_search 搜索真实存在的文献替代")
+            from difflib import SequenceMatcher
+            best, best_ratio = None, -1.0
+            for p in papers:
+                ratio = SequenceMatcher(
+                    None, title.lower().strip(),
+                    (p.get("title") or "").lower().strip()).ratio()
+                if ratio > best_ratio:
+                    best, best_ratio = p, ratio
+            if best_ratio < 0.60:
+                return _fabricated_warning(
+                    title, "检索到的候选文献中没有标题足够接近的", best_ratio)
+            return _format_citation_result(best, "标题匹配", title,
+                                           similarity=best_ratio)
 
         return "请提供文献标题、DOI 或 arXiv ID 中的至少一个参数"
 
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return (f"✗ 引用校验结果：文献不存在\n"
-                    f"  查询条件：{('DOI:' + doi) if doi else ('arXiv:' + arxiv_id) if arxiv_id else ('标题:' + title)}\n"
-                    f"  该引用很可能是 AI 编造的虚构文献，请勿在学术写作中使用\n"
-                    f"  建议：使用 academic_search 搜索该领域的真实文献")
-        if e.code == 429:
-            return "引用校验过于频繁，请稍后再试（Semantic Scholar 限制: 2万次/小时）"
-        return f"引用校验错误（HTTP {e.code}）：{e}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  工具不能把异常抛给调用方
         return f"引用校验错误：{e}"
 
 
-def _lit_review_search_ss(topic: str, num: int, year_from: int, year_to: int) -> list:
-    """literature_review 辅助：从 Semantic Scholar 检索
+def _lit_review_search_papers(topic: str, num: int, year_from: int,
+                              year_to: int) -> tuple:
+    """literature_review 辅助：从 OpenAlex 检索，失败自动落 Crossref。
+
+    返回 (papers, source_name)：
+      - papers      归一化后的文献列表，可能为空
+      - source_name 实际**成功返回数据**的源名；两个源都没成功时为 None
+
+    source_name 必须由调用方拿到而不是硬编码在报告里 —— 验收时发现过
+    一次静默降级：OpenAlex 与 Crossref 全部失败、结果全来自 arXiv，
+    报告却仍打印「数据来源：OpenAlex」，等于谎报出处（见
+    evals/results/academic_migration.md E 组）。
 
     迁移来源：tui_agent.py 行 4866-4900
+    （原实现用 Semantic Scholar 的 sort=citationCount:desc 做服务端引用排序）
+
+    OpenAlex 做不到「保持相关性的同时按引用排序」—— 实测
+    sort=cited_by_count:desc 会让搜索条件失效（见模块 docstring 约束 1）。
+    因此改为多取一些**相关性**结果，排序交给 literature_review 拿到后
+    按 citations 客户端完成。排序范围受限于取回条数，属近似。
     """
     papers = []
     try:
-        q = urllib.parse.quote(topic)
-        year_filter = ""
-        if year_from or year_to:
-            yf = year_from if year_from else 1900
-            yt = year_to if year_to else 2099
-            year_filter = f"&year={yf}-{yt}"
-        url = (f"https://api.semanticscholar.org/graph/v1/paper/search?query={q}"
-               f"&limit={min(num, 20)}&fields=title,authors,year,abstract,citationCount,externalIds,url"
-               f"{year_filter}&sort=citationCount:desc")
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "ZeroAI/1.0 (Academic Literature Review)",
-            "Accept": "application/json"
-        })
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-        for p in data.get("data", []):
-            ext = p.get("externalIds", {})
+        fetch = min(100, max(num * 3, 30))
+        rows, _total, source = _search_any(topic, fetch, year_from, year_to)
+        if not rows:
+            # rows 为 None（两源都失败）时 _search_any 已把 source 置为
+            # None；rows 为 []（查询确实无结果）时 source 仍是成功的源名。
+            return papers, source
+        for p in rows:
+            ext = p.get("externalIds") or {}
             papers.append({
                 "title": p.get("title", ""),
                 "authors": p.get("authors", []),
                 "year": p.get("year", 0),
-                "citations": p.get("citationCount", 0),
+                "citations": p.get("citationCount") or 0,
                 "abstract": p.get("abstract", ""),
                 "doi": ext.get("DOI", ""),
                 "arxiv_id": ext.get("ArXiv", ""),
                 "url": p.get("url", ""),
-                "source": "Semantic Scholar",
+                # 展示侧会截断到 10 字符，OpenAlex/Crossref 均放得下
+                "source": source or "?",
             })
-    except Exception:
-        pass
-    return papers
+        return papers, source
+    except Exception:  # noqa: BLE001
+        return papers, None
 
 
 def _lit_review_search_arxiv(topic: str, num: int) -> list:
@@ -851,7 +1308,7 @@ def literature_review(topic: str, num_papers: int = 10, year_from: int = 0,
     """多文献综合对比分析（自动检索+结构化对比+研究空白识别）
 
     自动执行完整的文献综述流程：
-    1. 检索相关文献（Semantic Scholar + arXiv 双源）
+    1. 检索相关文献（OpenAlex + arXiv 双源，OpenAlex 失败自动落 Crossref）
     2. 按引用数筛选高质量文献
     3. 结构化提取每篇文献的方法/结论/局限
     4. 生成对比分析表
@@ -871,9 +1328,11 @@ def literature_review(topic: str, num_papers: int = 10, year_from: int = 0,
         # ── 第1步：双源检索 ──
         all_papers = []
 
-        # Semantic Scholar（按引用数排序，筛选高影响力文献）
-        ss_papers = _lit_review_search_ss(topic, num_papers, year_from, year_to)
-        all_papers.extend(ss_papers)
+        # OpenAlex（取相关性结果，多取一些便于后续按引用数排序；
+        # 无法用服务端引用排序，原因见 _lit_review_search_papers）
+        scholar_papers, scholar_source = _lit_review_search_papers(
+            topic, num_papers, year_from, year_to)
+        all_papers.extend(scholar_papers)
 
         # arXiv（最新研究，按提交日期排序）
         arxiv_papers = _lit_review_search_arxiv(topic, min(num_papers // 2, 5))
@@ -907,7 +1366,20 @@ def literature_review(topic: str, num_papers: int = 10, year_from: int = 0,
         report += f"研究主题：{topic}\n"
         report += f"检索范围：{year_from or '不限'} - {year_to or '至今'}\n"
         report += f"分析文献数：{len(top_papers)} 篇（去重后共 {len(unique_papers)} 篇）\n"
-        report += f"数据来源：Semantic Scholar + arXiv\n\n"
+        # 数据来源必须反映**实际贡献了结果**的源，不能硬编码。
+        # 验收时发现过一次静默降级：主源全挂、结果全来自 arXiv，
+        # 报告却仍打印「数据来源：OpenAlex」（见 academic_migration.md E 组）。
+        if scholar_source:
+            report += f"数据来源：{scholar_source} + arXiv\n"
+        else:
+            report += "数据来源：仅 arXiv\n"
+            report += ("⚠ 主检索源不可用：OpenAlex 与 Crossref 本次均未响应，"
+                       "以下结果只覆盖 arXiv 预印本，领域覆盖不完整，"
+                       "结论请勿直接引用。\n")
+        if len(top_papers) < num_papers:
+            report += (f"⚠ 仅凑到 {len(top_papers)} 篇（目标 {num_papers} 篇），"
+                       f"可用文献不足，对比分析的样本量偏小。\n")
+        report += "\n"
 
         # ── 文献概览表 ──
         report += "── 一、文献概览 ──\n\n"

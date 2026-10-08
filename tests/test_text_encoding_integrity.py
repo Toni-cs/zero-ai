@@ -25,6 +25,13 @@ TEXT_EXTS = {".py", ".md", ".toml", ".yaml", ".yml", ".json", ".txt",
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# 诊断证据目录：这些 .txt/.md 是脚本生成的实测记录，其中允许**原样引用**
+# 含 U+FFFD 的坏字节（例如 gitignore_encoding.txt 记录的就是被损坏前后的
+# 字节对比）。把它们排除在外，是因为守卫的目标是保护源码与文档不被编码
+# 损坏，而不是禁止证据里出现被损坏的样本。
+# 注意：evals/*.py 仍在扫描范围内 —— 若编辑工具损坏了脚本本身，照样报警。
+EVIDENCE_PREFIX = os.path.join("evals", "results") + os.sep
+
 
 def tracked_files():
     """列出受跟踪文件；git 不可用时退回本地扫描。"""
@@ -62,6 +69,10 @@ def test_no_unicode_replacement_char_in_tracked_files():
     offenders = []
     scanned = 0
     for p in paths:
+        rel = os.path.relpath(p, ROOT)
+        # 跳过诊断证据目录（见 EVIDENCE_PREFIX 注释）
+        if rel.replace("\\", "/").startswith("evals/results/"):
+            continue
         try:
             if os.path.getsize(p) > MAX_BYTES:
                 continue
@@ -73,7 +84,6 @@ def test_no_unicode_replacement_char_in_tracked_files():
         if looks_binary(buf):
             continue
         if FFFD in buf:
-            rel = os.path.relpath(p, ROOT)
             offenders.append("%s  x%d" % (rel, buf.count(FFFD)))
 
     assert scanned > 0, "没有扫到可读文件"

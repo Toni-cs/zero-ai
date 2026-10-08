@@ -1,0 +1,22 @@
+# OpenAlex 429 性质判定
+
+打法：6 次，间隔 5 秒
+
+| # | HTTP | 延迟 | Retry-After | body 片段 |
+|---|---|---|---|---|
+| 1 | 429 | 756ms | 49335 | {"error":"Rate limit exceeded","message":"Insufficient budget. This re |
+| 2 | 429 | 645ms | 49329 | {"error":"Rate limit exceeded","message":"Insufficient budget. This re |
+| 3 | 429 | 1026ms | 49323 | {"error":"Rate limit exceeded","message":"Insufficient budget. This re |
+| 4 | 429 | 1044ms | 49317 | {"error":"Rate limit exceeded","message":"Insufficient budget. This re |
+| 5 | 429 | 785ms | 49311 | {"error":"Rate limit exceeded","message":"Insufficient budget. This re |
+| 6 | 429 | 783ms | 49306 | {"error":"Rate limit exceeded","message":"Insufficient budget. This re |
+
+状态码分布: `[429]`
+成功(200): **0/6**
+429: 6
+
+## 结论判读
+- 全 200 => 突发限流，5 秒退避即可恢复，客户端必须做退避重试
+- 仍 429 => 配额维度限制（很可能按日/按小时），短时无法恢复，
+  必须依靠 Crossref 兜底，且不能对用户声称「不限流」
+- 有 Retry-After => 服务端已给出明确等待时长，应遵从

@@ -22,7 +22,7 @@
 
 ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系统采用多专家协同架构，将任务规划、代码生成、深度推理、学术写作、文献检索、文档生成、安全审计、远程运维等能力集成于单一终端环境，旨在降低科研与工程协作中的工具切换成本，提升研究产出效率。
 
-系统针对科研场景进行了针对性设计：集成 Semantic Scholar 学术数据库（2 亿+ 论文），支持按引用数、影响力、年份智能筛选；内置 LaTeX 公式渲染引擎，支持分数、根号、矩阵、极限、求和、积分等学术公式的 Unicode 化与 PDF 高清图片输出；按 GB/T 7713.1-2025 国标格式生成 Word/PDF 学术文档；离线语音识别引擎保障科研数据隐私；代理服务器架构实现 API Key 零泄露，支持团队安全协作。
+系统针对科研场景进行了针对性设计：检索开放的 OpenAlex 学术索引（失败自动降级 Crossref，两者均无需 API Key），支持按发表年份筛选、按引用数排序；内置 LaTeX 公式渲染引擎，支持分数、根号、矩阵、极限、求和、积分等学术公式的 Unicode 化与 PDF 高清图片输出；按 GB/T 7713.1-2025 国标格式生成 Word/PDF 学术文档；离线语音识别引擎保障科研数据隐私；代理服务器架构实现 API Key 零泄露，支持团队安全协作。
 
 ---
 
@@ -30,11 +30,11 @@ ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系
 
 ### 1. 学术文献检索与综述辅助
 
-集成 Semantic Scholar 学术数据库（覆盖 2 亿+ peer-reviewed 论文），支持：
+检索开放的 OpenAlex 学术索引（失败自动降级 Crossref，两者均无需 API Key），支持：
 - 按关键词、作者、DOI 检索文献
-- 按引用数、影响力、发表年份智能排序
+- 按引用数排序、按发表年份筛选
 - 自动生成文献综述初稿，辅助研究者快速了解领域全貌
-- 排版与格式化免费离线使用，适合科研经费有限的课题组；学术检索调用公开 API，可能被限流
+- 排版与格式化免费离线使用，适合科研经费有限的课题组；文献检索免费且无需 API Key。各源仍有服务端配额，任一源被限流时自动切换到另一源，两源皆不可用时如实报告失败
 
 ### 2. 学术公式推导与渲染
 
@@ -587,7 +587,7 @@ cert.key
 | 语音合成 | Edge TTS |
 | 文档生成 | python-docx + reportlab + matplotlib |
 | 学术公式 | LaTeX → Unicode + matplotlib mathtext |
-| 文献检索 | Semantic Scholar API |
+| 文献检索 | OpenAlex API（Crossref 兜底，无需 Key） |
 | 代理服务 | FastAPI + httpx |
 
 ---
@@ -610,7 +610,7 @@ cert.key
 ```
 用户：检索近三年关于 Transformer 加速的论文，按引用数排序
 
-→ 学术研究专家调用 Semantic Scholar API
+→ 学术研究专家调用 OpenAlex API（Crossref 兜底）
 → 返回 10 篇高引论文（标题/作者/年份/引用数/摘要）
 → 自动生成文献综述初稿
 ```
@@ -872,7 +872,8 @@ ZeroAI Team。详见 [AUTHORS](AUTHORS)。
 - [Textual](https://textual.textualize.io/) - TUI 框架
 - [asyncssh](https://asyncssh.readthedocs.io/) - 异步 SSH 客户端
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - 语音识别
-- [Semantic Scholar](https://www.semanticscholar.org/) - 学术文献数据
+- [OpenAlex](https://openalex.org/) - 开放学术索引（主检索源）
+- [Crossref](https://www.crossref.org/) - DOI 注册机构与文献元数据（兜底）
 - [FastAPI](https://fastapi.tiangolo.com/) - 代理服务框架
 
 ---
