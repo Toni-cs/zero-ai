@@ -1,6 +1,6 @@
 {
   "A_const": {
-    "desc": "constants.EXPERT_TEAM（现状·TUI 用）",
+    "desc": "constants.EXPERT_TEAM（4c99f06 快照·当时 TUI 用）",
     "accuracy": 0.7512,
     "delta_vs_A": 0.0,
     "recall_by_gold": {
@@ -70,7 +70,7 @@
     "n_keywords": 212
   },
   "B_yaml": {
-    "desc": "zeroai/config.yaml（现状·包导出用）",
+    "desc": "zeroai/config.yaml experts 段（历史存档·当时包导出用）",
     "accuracy": 0.6959,
     "delta_vs_A": -0.0553,
     "recall_by_gold": {

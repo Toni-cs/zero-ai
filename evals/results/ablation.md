@@ -14,8 +14,8 @@
 
 ## 各变体描述
 
-- **A_const**: constants.EXPERT_TEAM（现状·TUI 用）（212 词）
-- **B_yaml**: zeroai/config.yaml（现状·包导出用）（181 词）
+- **A_const**: constants.EXPERT_TEAM（4c99f06 快照·当时 TUI 用）（212 词）
+- **B_yaml**: zeroai/config.yaml experts 段（历史存档·当时包导出用）（181 词）
 - **C_union**: 两者并集（233 词）
 - **D_const_trim**: constants 去掉 coder 18 个泛词（194 词）
 - **E_trim_plus_knowledge**: D + 补 knowledge 11 词（205 词）

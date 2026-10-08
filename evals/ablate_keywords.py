@@ -3,8 +3,16 @@
 
 目的：在同一批 217 条金标样本上，回答"统一两套路由时，关键词表该以谁为准"。
 
-所有变体共用 expert_route.route_expert 的匹配算法（固定顺序首命中 + vision 优先），
+所有变体共用**本脚本自带的**匹配算法（固定顺序首命中 + vision 优先），
 只改关键词表本身，保证唯一变量。
+
+⚠ 该算法是 2026-10-08 改造前的 `route_expert` 实现。live 代码当日已改为
+  竞争式评分（见 evals/results/route_variants.md），本脚本**刻意不跟随** ——
+  它要复现的是当时做决策那一刻的实验条件，跟过去就复现不了历史结论。
+  若要在新算法上重做消融，另开脚本。
+
+⚠ B 变体的 config.yaml 词表来自历史存档 evals/results/
+  config_experts_before.json —— config.yaml 的 experts 段已删除。
 
 用法：
     python evals/ablate_keywords.py
@@ -96,9 +104,32 @@ def main():
     rows = load_eval()
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    const_tbl = {k: list(v["keywords"]) for k, v in EXPERT_TEAM.items()}
+    # A 变体必须用**消融执行那一刻**的 constants 词表，不能读活的
+    # EXPERT_TEAM —— 后者在 2026-10-08 的路由改造中已被修改（coder
+    # 43 词 -> 38 词，且各专家补删过词）。读活数据会让本实验永远
+    # 复现不出当时记录的结论。
+    # 快照由 evals/snapshot_keywords_before.py <rev> <out> 生成：
+    #   python evals/snapshot_keywords_before.py 4c99f06 \
+    #          evals/results/keywords_ablation_time.json
+    snap_path = os.path.join(OUT_DIR, "keywords_ablation_time.json")
+    if os.path.exists(snap_path):
+        const_tbl = {k: list(v) for k, v in
+                     json.load(io.open(snap_path, encoding="utf-8")).items()}
+    else:
+        # 快照缺失时退回活数据，并明确标注结果不可与历史记录对比
+        print("警告: 缺 keywords_ablation_time.json，退回活的 EXPERT_TEAM，"
+              "结果不可与历史 ablation 记录对比")
+        const_tbl = {k: list(v["keywords"]) for k, v in EXPERT_TEAM.items()}
+    # config.yaml 的 `experts` 段已于 2026-10-08 删除（专家配置统一到
+    # constants.EXPERT_TEAM，见 evals/results/config_experts_drift.md）。
+    # B 变体改从历史存档读，保证本实验仍可复跑。
+    archive = os.path.join(OUT_DIR, "config_experts_before.json")
+    if not os.path.exists(archive):
+        raise SystemExit(
+            "缺 evals/results/config_experts_before.json\n"
+            "config.yaml 已不再包含 experts 段，B 变体依赖该历史存档。")
     yaml_tbl = {k: list((v or {}).get("keywords") or [])
-                for k, v in yaml.safe_load(io.open(YAML_PATH, encoding="utf-8"))["experts"].items()}
+                for k, v in json.load(io.open(archive, encoding="utf-8")).items()}
 
     # union：两者并集（constants 为基准 + yaml 独有项）
     union_tbl = {}
@@ -120,8 +151,8 @@ def main():
     patched_tbl["knowledge"] = list(yaml_tbl.get("knowledge", []))
 
     variants = {
-        "A_const": ("constants.EXPERT_TEAM（现状·TUI 用）", const_tbl),
-        "B_yaml": ("zeroai/config.yaml（现状·包导出用）", yaml_tbl),
+        "A_const": ("constants.EXPERT_TEAM（4c99f06 快照·当时 TUI 用）", const_tbl),
+        "B_yaml": ("zeroai/config.yaml experts 段（历史存档·当时包导出用）", yaml_tbl),
         "C_union": ("两者并集", union_tbl),
         "D_const_trim": ("constants 去掉 coder 18 个泛词", trimmed_tbl),
         "E_trim_plus_knowledge": ("D + 补 knowledge 11 词", patched_tbl),

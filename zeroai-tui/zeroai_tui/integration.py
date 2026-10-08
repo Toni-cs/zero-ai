@@ -34,11 +34,19 @@ class ZeroAIIntegration:
             self._router = get_expert_router()
             self._llm_client = get_multi_model_client()
             self._context = get_context_manager()
-            
-            # Load expert configs
-            config = get_config()
-            self._experts = config._config.get("experts", {})
-            
+
+            # 保留 get_config() 调用以维持 config.yaml 的加载时机
+            # （models/api_key 仍从它读）；但专家配置不再取自它。
+            get_config()
+
+            # 专家配置一律取 constants.EXPERT_TEAM —— 唯一数据源。
+            # 此前读 config._config.get("experts", {})，该段与
+            # EXPERT_TEAM 已漂移（10/10 keywords、4/10 system_prompt 不同；
+            # academic 的 config 版缺整套「禁止编造文献」规则）。本模块
+            # 随 wheel 分发，读它等于把过期提示词打包带出去。
+            from zeroai.core.constants import EXPERT_TEAM
+            self._experts = EXPERT_TEAM
+
             return True
         except ImportError as e:
             print(f"Warning: Could not import zeroai core: {e}")

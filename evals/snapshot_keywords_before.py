@@ -21,6 +21,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "evals", "results", "keywords_before.json")
+if len(sys.argv) > 2:
+    OUT = os.path.join(ROOT, sys.argv[2])
 
 
 def read_source():

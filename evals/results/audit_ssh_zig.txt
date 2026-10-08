@@ -1,0 +1,57 @@
+# ssh_ops 摸底
+
+- 文件: `zeroai/tools/ssh_ops.py`  86670 字节
+- 工具名注册数 (`"name":`): **0**
+  - 
+- 顶层函数数: 24
+  - _ssh_run_async, _ssh_is_conn_closed, _ssh_detect_os, _ssh_audit, _ssh_format_prefix, _ssh_check_dangerous, _ssh_validate_host, ssh_connect, ssh_exec, ssh_upload, ssh_download, _ssh_cmd_ok, ssh_deploy, ssh_setup_samba_share, ssh_list, ssh_disconnect, ssh_service_manage, ssh_log_view, ssh_process_check, ssh_disk_analyze, ssh_network_diag, ssh_docker_manage, ssh_firewall_manage, ssh_health_check
+
+### 安全相关检查
+- `except: pass` 模式: 8 处
+- 裸 `except:`: 0 处
+- return True/False 的分支: 8 / 9
+
+### 测试覆盖
+- `tests/` 下 ssh 相关测试文件:
+  - **无**
+- 全量测试中名字含 ssh 的用例: **0**
+
+# Zig/C 层摸底
+
+- .zig 文件 2 个:
+  - `zeroai-tui\build.zig`
+  - `zeroai-tui\src\zig_render.zig`
+- .c/.h 文件 3 个:
+  - `zeroai-tui\zeroai_tui\_terminal.c`
+  - `zeroai-tui\zeroai_tui\src\_renderer.c`
+  - `zeroai-tui\zeroai_tui\src\_terminal.c`
+- zeroai/ 里引用它的 .py 文件: 1 个
+  - `zeroai\main.py`
+
+### wheel 打包情况
+- 最新 wheel: `zero_ai_cli-1.1.6-py3-none-any.whl`
+- 条目总数: 125
+- 二进制产物 (.pyd/.so/.dll/.dylib): **0 个**
+- 是否包含 zeroai_tui/: 是
+- 是否包含 .zig/.c 源码: 是
+
+# config.yaml experts 段漂移
+
+- config.yaml experts 条目: 10
+- constants.EXPERT_TEAM 条目: 10
+
+| expert | config 词数 | constants 词数 | system_prompt 是否相同 |
+|---|---|---|---|
+| pm | 10 | 17 | 是 |
+| coder | 19 | 38 | 是 |
+| reasoner | 14 | 23 | 是 |
+| knowledge | 11 | 16 | **否** |
+| chinese | 12 | 28 | **否** |
+| vision | 10 | 19 | **否** |
+| academic | 17 | 36 | **否** |
+| devops | 30 | 36 | 是 |
+| security | 31 | 37 | 是 |
+| data | 27 | 38 | 是 |
+
+- system_prompt 漂移条目数: **4 / 10**
+- 词表逐专家是否完全相同: **False**
