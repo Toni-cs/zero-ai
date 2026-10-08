@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.3-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.3/)
+[![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.6-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.6/)
 [![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/gt17641001169-design/zero-ai)
 
 </div>
@@ -35,7 +35,7 @@ Integrates the Semantic Scholar academic database (200M+ peer-reviewed papers) a
 - Literature search by keyword, author, or DOI
 - Intelligent ranking by citation count, influence, and publication year
 - Automatic generation of a literature review draft, helping researchers grasp a field quickly
-- Free, no API key required, suitable for research groups with limited funding
+- Free to use and offline-capable for formatting, suitable for research groups with limited funding; academic search may require an API key to avoid rate limits
 
 ### 2. Academic Formula Derivation and Rendering
 
@@ -70,7 +70,7 @@ Seven experts collaborate on a single research question, coordinated by the proj
 - Offline speech recognition engine based on SenseVoice (Alibaba DAMO Academy)
 - Support for five languages — Chinese, English, Japanese, Korean, and Cantonese — for international collaboration
 - Runs fully offline; research data never leaves the machine, meeting data-security requirements of confidential research projects
-- No API key, no cloud calls, no data-leak risk
+- Document generation and formatting run locally with no API key; academic search uses public APIs and may be rate-limited
 
 ### 6. Team Collaboration and API Key Isolation
 
