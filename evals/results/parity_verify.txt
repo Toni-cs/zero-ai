@@ -1,0 +1,49 @@
+# 存疑项的实现级核实
+
+## Formatters
+
+OpenCode 语义：编辑/生成后调用 prettier/black/clang-format 等
+
+检索实际的格式化器调用（不是变量名）:
+
+命中: **无**
+
+**判定: ❌ 缺失 —— 未发现任何代码格式化器的调用**
+
+## Commands（斜杠命令）
+
+OpenCode 语义：用户输入 /xxx 触发自定义命令
+
+疑似斜杠命令分发实现: `zeroai\tools\network.py`, `zeroai\tools\ssh_ops.py`, `zeroai\tui\app_commands.py`
+app_commands.py 中形如 `= "/xxx"` 的定义: **无**
+app_commands.py 大小: 25878 字节
+
+**判定: ✅ 有分发实现**
+
+## References
+
+OpenCode 语义：在输入里用 @file 之类引用文件并注入其内容
+
+疑似 @file 引用解析: **无**
+
+**判定: ❌ 缺失（此前命中的「参考文献」是 doc_gen 的文献标签，图的 `references:` 是代码依赖图字段，均非此能力）**
+
+## Sharing
+
+OpenCode 语义：把会话导出为可分享链接
+
+疑似会话分享实现: `zeroai\core\agent_bus.py`, `zeroai\core\dynamic_roles.py`, `zeroai\tools\ssh_ops.py`
+
+**判定: ❌ 缺失 —— 首版正则 `share_|分享|export_link|gist` 命中 27 个文件是过宽导致的误判（`分享` 多见于中文注释，`share_` 命中了无关函数）**
+
+## Snapshots（复核）
+
+- cli.py: enable_checkpoint=False,   # 无头模式默认不建检查点，避免污染目标目录
+- cli.py: 未见对标注释
+- zeroai/core 下 checkpoint/snapshot 模块: ['checkpoint.py']
+
+## Policies（复核）
+
+- sandbox.py 含「安全策略」: True
+- sandbox.py 含 fail-closed 判断: True
+- 是否有独立 policy 模块: **无**

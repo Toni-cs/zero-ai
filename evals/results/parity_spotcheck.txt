@@ -1,0 +1,91 @@
+# 差距分析判定核验
+
+## Formatters
+正则: `formatter|prettier|black|clang-format`
+
+- `zeroai\cli.py:497`  ...n="ZeroAI 无头模式：一条命令完成「输入任务 → 执行 → 输出结果」",         formatter_class=argparse.RawDescriptionHelpFormatter,       ...
+- `zeroai\core\__init__.py:79`  ...Blackboard",              "get_message_bus", "get_blackboard"):     _LAZY_SYMBOL_MAP[_sym] = "agent_bus"  for ...
+- `zeroai\core\agent_bus.py:26`  ..._result", {"data": 123})     # 黑板     board = get_blackboard()     board.write("namespace1", "key", "value")  ...
+
+## Sharing
+正则: `share_|分享|export_link|gist`
+
+- `zeroai-tui\zeroai_tui\app.py:226`  ...on_resize(self, callback: Callable):         """Register resize callback"""         self._on_resize = callback...
+- `zeroai\__init__.py:47`  ..."Tool": ("zeroai.tools.base", "Tool"),     "ToolRegistry": ("zeroai.tools.base", "ToolRegistry"),     "ToolErr...
+- `zeroai\core\agent.py:14`  ...zeroai.core.llm.LLMClient：调用 LLM - zeroai.tools.registry.TOOL_MAP：工具函数映射  参考论文：ReAct: Synergizing Reasoning an...
+
+## Snapshots
+正则: `snapshot|git_stash|checkpoint|restore_state`
+
+- `zeroai-tui\tests\test_memory.py:25`  ...                renderer = get_renderer()         snapshot1 = tracemalloc.take_snapshot()                  # C...
+- `zeroai\cli.py:241`  ...    workspace_root=workspace_root,         enable_checkpoint=False,   # 无头模式默认不建检查点，避免污染目标目录         enable_co...
+- `zeroai\core\agent.py:44`  ...    _MESSAGE_BUS_AVAILABLE = False  # OpenCode 对标：checkpoint / cost / session / task / diff 审批 try:     from ....
+
+## Policies
+正则: `\bpolic(y|ies)\b|安全策略|policy_`
+
+- `zeroai\cli.py:310`  ...   """构造 diff 审批回调（同步函数，AgentLoop 在工具执行前调用）。      安全策略 fail-closed：     - 交互终端：打印写入目标与参数预览，人工 y/N 决定     - 非交互...
+- `zeroai\core\sandbox.py:10`  ...危险调用 4. 网络隔离：可选禁用网络访问 5. 临时工作目录：在临时目录中执行，避免污染主目录  安全策略： - 禁止 os.system / subprocess / exec / eval 等危险调用 - 禁止文件...
+- `zeroai\mcp\health.py:96`  ...监控所有已注册的 MCP 服务器。     """      def __init__(self, policy: Optional[ReconnectPolicy] = None):         self._pol...
+
+## References
+正则: `references|\bREFERENCE\b|知识库引用`
+
+- `zeroai\core\code_knowledge_graph.py:84`  ...（模块包含类，类包含方法）     - defines: A 定义 B（模块定义变量）     - references: A 引用 B（变量引用）     """     source: str  # 源节点 id  ...
+- `zeroai\memory\conversation_memory.py:9`  ...对话 3. recall_hybrid()：混合检索（向量 + BM25） 4. extract_preferences()：从对话中提取用户偏好并持久化 5. get_user_profile()：读取已提取的用户偏好...
+- `zeroai\tools\doc_gen.py:149`  ...t_label": "摘要", "keywords_label": "关键词",         "references_label": "参考文献", "doi_support": True,     }, }  # ...
+
+## Web UI
+正则: `fastapi|uvicorn|@app\.|HTMLResponse`
+
+- `zeroai\mcp\server.py:8`  ...stdin/stdout 通信 2. SSE 模式：作为 HTTP 服务运行（需要 httpx + uvicorn）  启动命令（stdio 模式）：     python -m zeroai.mcp.server   ...
+
+## Commands
+正则: `/\w+\s*$|app_commands|_handle_command|slash`
+
+- `zeroai\tools\academic.py:108`  ...colon": ":", r"\vert": "|", r"\Vert": "‖", r"\backslash": "\\",     r"\degree": "°", r"\circ": "∘",     r"\leq...
+- `zeroai\tui\app.py:10`  ...   VoiceMixin        按住说话（Ctrl+T）、语音对话、伴随模式       app_commands.py   CommandMixin      on_input_submitted 输入分发、...
+
+## Attachments
+正则: `attachment|图片.*附|image_path|png.*read`
+
+- `zeroai\tui\screens.py:982`  ...附件：图片加入待发送队列 ═══     def _add_pending_image(self, image_path: str) -> tuple[bool, str]:         """把图片加入 _dial...
+
+## Network
+正则: `proxy|no_proxy|SSRF|allowlist|denylist`
+
+- `zeroai\cli.py:130`  ...        glm_key = _get_api_key("glm", "")         proxy_ok = bool(PROXY_CONFIG.get("enabled") and PROXY_CONFIG...
+- `zeroai\core\__init__.py:127`  ...nfig", "_save_config",     "_get_api_key", "_load_proxy_config", "_save_proxy_config",     "_is_proxy_enabled"...
+- `zeroai\core\prompts.py:308`  ...120 秒） - 删除/修改任何文件（核心文件自动备份，无需确认） - 访问内网/任意 URL（无 SSRF 限制） - 所有工具调用必须通过 function_calling 发起，不要因权限问题拒绝 - **命令自主...
+
+## Warming
+正则: `warm|预热|prefetch`
+
+- （无命中）
+
+## Skills
+正则: `\bskills?\b.*\.md|SKILL|skill_`
+
+- （无命中）
+
+## Plugins
+正则: `\bplugin\b|register_hook|entry_point`
+
+- （无命中）
+
+## 初步判定
+
+| 功能 | 首版判定 | 核验意见 |
+|---|---|---|
+| Formatters | ✅ | **误判** —— 正则里的 `black` 是 TUI 主题的颜色词，`formatter` 也可能只是 `format()` 的误命中 |
+| Sharing | ✅ | **误判** —— 27 个文件命中说明正则过宽（`分享` 常见于注释） |
+| Snapshots | ✅ | **待定** —— 需看是否真有状态回滚实现 |
+| Policies | ✅ | 需看是否真有策略引擎而非零散判断 |
+| References | ✅ | 需看是否为真正的参考资料注入机制 |
+| Web UI | ✅ | **部分成立** —— 命中的是 mcp/server.py 的 FastAPI，属 MCP 服务端而非用户界面 |
+| Commands | ✅ | 需看是否为斜杠命令而非普通函数名 |
+| Attachments | ✅ | 需看是否为真正的附件机制 |
+| Network | ✅ | 需看是否为出口控制而非泛泛的网络调用 |
+| Warming | ✅ | **确认缺失**（全仓 0 命中） |
+| Skills | ✅ | **确认缺失**（仅测试文件与文档里出现该词） |
+| Plugins | ✅ | **确认缺失**（全仓 0 命中） |
