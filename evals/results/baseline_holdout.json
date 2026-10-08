@@ -1,0 +1,940 @@
+{
+  "path": "evals\\routing_holdout.jsonl",
+  "n": 278,
+  "accuracy": 0.5468,
+  "n_error": 126,
+  "tag_accuracy": {
+    "(常规)": 0.5396,
+    "short": 0.6735,
+    "vision-priority": 0.6667,
+    "conflict": 0.3333
+  },
+  "pairs": {
+    "knowledge->pm": 11,
+    "knowledge->reasoner": 11,
+    "pm->knowledge": 10,
+    "chinese->knowledge": 7,
+    "data->knowledge": 7,
+    "security->coder": 6,
+    "reasoner->knowledge": 5,
+    "reasoner->pm": 5,
+    "chinese->pm": 4,
+    "coder->pm": 3,
+    "academic->chinese": 3,
+    "chinese->coder": 3,
+    "vision->knowledge": 3,
+    "data->pm": 3,
+    "devops->pm": 3,
+    "devops->coder": 3,
+    "reasoner->academic": 3,
+    "reasoner->coder": 3,
+    "reasoner->data": 3,
+    "pm->chinese": 3,
+    "coder->reasoner": 2,
+    "coder->knowledge": 2,
+    "coder->data": 2,
+    "security->pm": 2,
+    "security->devops": 2,
+    "coder->chinese": 1,
+    "coder->devops": 1,
+    "academic->pm": 1,
+    "academic->reasoner": 1,
+    "academic->data": 1,
+    "vision->pm": 1,
+    "devops->data": 1,
+    "devops->security": 1,
+    "chinese->data": 1,
+    "data->coder": 1,
+    "chinese->security": 1,
+    "reasoner->devops": 1,
+    "data->devops": 1,
+    "chinese->academic": 1,
+    "reasoner->security": 1,
+    "reasoner->vision": 1,
+    "chinese->devops": 1
+  },
+  "errors": [
+    {
+      "idx": 2,
+      "text": "为什么我的 for 循环跑出来结果不对",
+      "gold": "coder",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 3,
+      "text": "C++ 里 vector 和 list 该用哪个",
+      "gold": "coder",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 4,
+      "text": "写个正则表达式匹配手机号",
+      "gold": "coder",
+      "pred": "chinese",
+      "tag": ""
+    },
+    {
+      "idx": 6,
+      "text": "Golang 的 goroutine 和 channel 怎么用",
+      "gold": "coder",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 7,
+      "text": "这个 React 组件为什么重复渲染",
+      "gold": "coder",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 11,
+      "text": "PHP 连数据库总是超时是什么原因",
+      "gold": "coder",
+      "pred": "data",
+      "tag": ""
+    },
+    {
+      "idx": 14,
+      "text": "把这段 shell 命令改成可以传参数的",
+      "gold": "coder",
+      "pred": "devops",
+      "tag": ""
+    },
+    {
+      "idx": 15,
+      "text": "Swift 闭包捕获变量会有什么问题",
+      "gold": "coder",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 17,
+      "text": "这个 Kotlin 报空指针怎么处理",
+      "gold": "coder",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 19,
+      "text": "帮我把 CSV 读进来处理成字典列表",
+      "gold": "coder",
+      "pred": "data",
+      "tag": ""
+    },
+    {
+      "idx": 20,
+      "text": "报错 KeyError",
+      "gold": "coder",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 29,
+      "text": "摘要怎么写才能突出贡献",
+      "gold": "academic",
+      "pred": "chinese",
+      "tag": ""
+    },
+    {
+      "idx": 32,
+      "text": "同行评审意见要求补实验怎么回",
+      "gold": "academic",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 35,
+      "text": "这个定理的证明思路是什么",
+      "gold": "academic",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 39,
+      "text": "这个回归方程的系数怎么解释",
+      "gold": "academic",
+      "pred": "data",
+      "tag": ""
+    },
+    {
+      "idx": 42,
+      "text": "摘要里的英文翻译怎么润色",
+      "gold": "academic",
+      "pred": "chinese",
+      "tag": ""
+    },
+    {
+      "idx": 45,
+      "text": "写个引言",
+      "gold": "academic",
+      "pred": "chinese",
+      "tag": "short"
+    },
+    {
+      "idx": 48,
+      "text": "这个产品的宣传口号怎么起",
+      "gold": "chinese",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 49,
+      "text": "帮我把这段话改得更有文采",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 53,
+      "text": "公众号推文的标题怎么取",
+      "gold": "chinese",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 56,
+      "text": "帮我想一个班级晚会的主持串词",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 57,
+      "text": "这个通知的措辞是不是太生硬了",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 59,
+      "text": "帮我起草一份请假条",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 60,
+      "text": "这段话的病句帮我改一下",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 61,
+      "text": "写一个短视频的口播文案",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 64,
+      "text": "把会议纪要改得通顺一些",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 66,
+      "text": "翻译这句",
+      "gold": "chinese",
+      "pred": "pm",
+      "tag": "short"
+    },
+    {
+      "idx": 68,
+      "text": "改下病句",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 77,
+      "text": "帮我描述一下这张风景照的内容",
+      "gold": "vision",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 80,
+      "text": "这张宣传海报的配色怎么样",
+      "gold": "vision",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 83,
+      "text": "图里是谁",
+      "gold": "vision",
+      "pred": "knowledge",
+      "tag": "vision-priority"
+    },
+    {
+      "idx": 84,
+      "text": "帮我看看这图",
+      "gold": "vision",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 87,
+      "text": "帮我画一张销售额的折线图",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 95,
+      "text": "散点图的横纵坐标该怎么选",
+      "gold": "data",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 97,
+      "text": "特征归一化用哪种方法合适",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 98,
+      "text": "这组样本的分布是不是正态的",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 99,
+      "text": "用 seaborn 画个热力图",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 102,
+      "text": "箱线图里离群点怎么判断",
+      "gold": "data",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 105,
+      "text": "抽样调查的结果怎么加权",
+      "gold": "data",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 106,
+      "text": "画个图",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 107,
+      "text": "算下方差",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 114,
+      "text": "写个定时任务每天备份数据库",
+      "gold": "devops",
+      "pred": "data",
+      "tag": ""
+    },
+    {
+      "idx": 118,
+      "text": "怎么给这台机器加一块 swap",
+      "gold": "devops",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 121,
+      "text": "防火墙规则加了但流量还是不通",
+      "gold": "devops",
+      "pred": "security",
+      "tag": ""
+    },
+    {
+      "idx": 122,
+      "text": "Ansible 批量部署脚本怎么写",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 123,
+      "text": "Redis 内存占用持续上涨怎么定位",
+      "gold": "devops",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 124,
+      "text": "日志文件太大怎么滚动切割",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 126,
+      "text": "Terraform 状态文件被锁住了怎么解锁",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 128,
+      "text": "这台云主机的带宽跑满了怎么办",
+      "gold": "devops",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 133,
+      "text": "帮我做一次代码安全审计",
+      "gold": "security",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 135,
+      "text": "SQL 注入的参数化查询怎么写",
+      "gold": "security",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 136,
+      "text": "这个接口的鉴权设计有什么风险",
+      "gold": "security",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 141,
+      "text": "帮我检查一下这段代码有没有命令注入",
+      "gold": "security",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 143,
+      "text": "越权访问怎么在服务端拦截",
+      "gold": "security",
+      "pred": "devops",
+      "tag": ""
+    },
+    {
+      "idx": 146,
+      "text": "日志里的敏感信息要不要脱敏",
+      "gold": "security",
+      "pred": "devops",
+      "tag": ""
+    },
+    {
+      "idx": 148,
+      "text": "暴力破解登录该怎么限流",
+      "gold": "security",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 151,
+      "text": "代码审计发现硬编码密码怎么改",
+      "gold": "security",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 153,
+      "text": "代码安全吗",
+      "gold": "security",
+      "pred": "coder",
+      "tag": "short"
+    },
+    {
+      "idx": 155,
+      "text": "帮我算一下这个积分的结果",
+      "gold": "reasoner",
+      "pred": "academic",
+      "tag": ""
+    },
+    {
+      "idx": 156,
+      "text": "这个数列求和等于多少",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 157,
+      "text": "推导一下贝叶斯公式的过程",
+      "gold": "reasoner",
+      "pred": "academic",
+      "tag": ""
+    },
+    {
+      "idx": 158,
+      "text": "这道排列组合题怎么做",
+      "gold": "reasoner",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 160,
+      "text": "这个方程组的解是什么",
+      "gold": "reasoner",
+      "pred": "academic",
+      "tag": ""
+    },
+    {
+      "idx": 161,
+      "text": "解释一下博弈论里的纳什均衡",
+      "gold": "reasoner",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 163,
+      "text": "这道题的辅助线应该怎么作",
+      "gold": "reasoner",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 164,
+      "text": "求这个函数的导数和极值",
+      "gold": "reasoner",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 166,
+      "text": "二分查找的时间复杂度怎么推",
+      "gold": "reasoner",
+      "pred": "coder",
+      "tag": ""
+    },
+    {
+      "idx": 167,
+      "text": "帮我算算这个概率是多少",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 169,
+      "text": "矩阵的特征值怎么求",
+      "gold": "reasoner",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 170,
+      "text": "这道物理题的受力分析怎么做",
+      "gold": "reasoner",
+      "pred": "data",
+      "tag": ""
+    },
+    {
+      "idx": 173,
+      "text": "这个递推关系怎么解",
+      "gold": "reasoner",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 175,
+      "text": "这题咋算",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 176,
+      "text": "求个极限",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 178,
+      "text": "帮我把这个需求拆成几个任务",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 181,
+      "text": "帮我评估一下这个方案的风险",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 183,
+      "text": "这个需求的验收标准怎么写",
+      "gold": "pm",
+      "pred": "chinese",
+      "tag": ""
+    },
+    {
+      "idx": 184,
+      "text": "帮我整理一下会议要对齐的事项",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 189,
+      "text": "这个任务的依赖关系理不清",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 191,
+      "text": "帮我写一份项目周报的要点",
+      "gold": "pm",
+      "pred": "chinese",
+      "tag": ""
+    },
+    {
+      "idx": 193,
+      "text": "这个方案的备选路径有哪些",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 194,
+      "text": "帮我梳理一下当前的阻塞项",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 196,
+      "text": "帮我规划一下从零起步的路径",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 197,
+      "text": "复盘会上该问哪几个问题",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": ""
+    },
+    {
+      "idx": 199,
+      "text": "先做哪个",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 200,
+      "text": "帮我规划",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 201,
+      "text": "光合作用的产物是什么",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 202,
+      "text": "恐龙是怎么灭绝的",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 205,
+      "text": "为什么四季会有交替",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 207,
+      "text": "碳酸钠和碳酸氢钠有什么区别",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 208,
+      "text": "蜜蜂是怎么找到花的",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 209,
+      "text": "为什么打雷的时候先看到闪电",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 212,
+      "text": "为什么海水是咸的",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 214,
+      "text": "蛋白质的基本组成单位是什么",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 215,
+      "text": "为什么一天是 24 小时",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 216,
+      "text": "蝴蝶是怎么从毛毛虫变来的",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 217,
+      "text": "碘酒为什么能消毒",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 219,
+      "text": "为什么人在高处会头晕",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 220,
+      "text": "铜生锈生成的物质叫什么",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 221,
+      "text": "罗马帝国是怎么分裂的",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 222,
+      "text": "为什么植物有向光性",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 223,
+      "text": "血液里的红细胞有什么作用",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 224,
+      "text": "为什么冬天哈气会变白",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 226,
+      "text": "蜜蜂蛰人之后为什么会死",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 227,
+      "text": "洋流对气候有什么影响",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": ""
+    },
+    {
+      "idx": 228,
+      "text": "为什么月球总是同一面朝着地球",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 230,
+      "text": "为什么铁在潮湿环境里会生锈",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": ""
+    },
+    {
+      "idx": 234,
+      "text": "帮我写一份项目进展的数据分析报告",
+      "gold": "chinese",
+      "pred": "data",
+      "tag": "conflict"
+    },
+    {
+      "idx": 236,
+      "text": "写一个关于安全漏洞的科普文章",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "conflict"
+    },
+    {
+      "idx": 237,
+      "text": "用 SQL 查询做销售数据的分类统计",
+      "gold": "data",
+      "pred": "coder",
+      "tag": "conflict"
+    },
+    {
+      "idx": 238,
+      "text": "为什么这批数据的方差异常偏大",
+      "gold": "reasoner",
+      "pred": "data",
+      "tag": "conflict"
+    },
+    {
+      "idx": 239,
+      "text": "帮我写一份渗透测试的报告模板",
+      "gold": "chinese",
+      "pred": "security",
+      "tag": "conflict"
+    },
+    {
+      "idx": 242,
+      "text": "为什么这个函数的复杂度是 O(n²)",
+      "gold": "reasoner",
+      "pred": "coder",
+      "tag": "conflict"
+    },
+    {
+      "idx": 243,
+      "text": "把这份会议纪要整理成总结文档",
+      "gold": "chinese",
+      "pred": "pm",
+      "tag": "conflict"
+    },
+    {
+      "idx": 246,
+      "text": "写一个介绍机器学习的科普文章",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "conflict"
+    },
+    {
+      "idx": 247,
+      "text": "这个接口的性能瓶颈怎么定位分析",
+      "gold": "reasoner",
+      "pred": "devops",
+      "tag": "conflict"
+    },
+    {
+      "idx": 248,
+      "text": "帮我优化一下数据库查询的性能",
+      "gold": "data",
+      "pred": "devops",
+      "tag": "conflict"
+    },
+    {
+      "idx": 249,
+      "text": "翻译并润色这段学术论文的摘要",
+      "gold": "chinese",
+      "pred": "academic",
+      "tag": "conflict"
+    },
+    {
+      "idx": 250,
+      "text": "这个部署脚本哪里有安全风险",
+      "gold": "security",
+      "pred": "coder",
+      "tag": "conflict"
+    },
+    {
+      "idx": 251,
+      "text": "为什么这次的构建会失败请分析原因",
+      "gold": "reasoner",
+      "pred": "data",
+      "tag": "conflict"
+    },
+    {
+      "idx": 253,
+      "text": "这段推理的逻辑有什么漏洞",
+      "gold": "reasoner",
+      "pred": "security",
+      "tag": "conflict"
+    },
+    {
+      "idx": 255,
+      "text": "为什么图片上传接口会超时请分析",
+      "gold": "reasoner",
+      "pred": "vision",
+      "tag": "conflict"
+    },
+    {
+      "idx": 257,
+      "text": "帮我写一份服务器巡检的总结",
+      "gold": "chinese",
+      "pred": "devops",
+      "tag": "conflict"
+    },
+    {
+      "idx": 264,
+      "text": "画个柱状图",
+      "gold": "data",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 267,
+      "text": "算这个极限",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": "short"
+    },
+    {
+      "idx": 269,
+      "text": "什么时候开学",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": "short"
+    },
+    {
+      "idx": 270,
+      "text": "写个计划",
+      "gold": "pm",
+      "pred": "chinese",
+      "tag": "short"
+    }
+  ]
+}

@@ -1,0 +1,284 @@
+{"text": "这段 TypeScript 报了类型不匹配怎么改", "gold": "coder", "tag": ""}
+{"text": "帮我把递归写成循环的形式", "gold": "coder", "tag": ""}
+{"text": "为什么我的 await 没有生效", "gold": "coder", "tag": ""}
+{"text": "Python 多线程共享变量怎么加锁", "gold": "coder", "tag": ""}
+{"text": "把这段代码加上单元测试", "gold": "coder", "tag": ""}
+{"text": "Kafka 消费者重复消费怎么处理代码侧", "gold": "coder", "tag": ""}
+{"text": "这个正则回溯太严重怎么优化写法", "gold": "coder", "tag": ""}
+{"text": "Go 里的 error 该怎么包装传递", "gold": "coder", "tag": ""}
+{"text": "帮我把这个接口的返回值改成统一格式", "gold": "coder", "tag": ""}
+{"text": "Java 这段流式操作怎么改写", "gold": "coder", "tag": ""}
+{"text": "这个 DLL 加载失败代码怎么排查", "gold": "coder", "tag": ""}
+{"text": "把配置文件从 ini 换成 toml 怎么改", "gold": "coder", "tag": ""}
+{"text": "为什么我的死锁会在高并发出现", "gold": "coder", "tag": ""}
+{"text": "帮我写个读取 yaml 的工具函数", "gold": "coder", "tag": ""}
+{"text": "这段编译报未定义标识符是什么问题", "gold": "coder", "tag": ""}
+{"text": "Python 装饰器加参数怎么写", "gold": "coder", "tag": ""}
+{"text": "把这个游标分页改成流式处理", "gold": "coder", "tag": ""}
+{"text": "为什么闭包里改外部变量不生效", "gold": "coder", "tag": ""}
+{"text": "帮我把这段代码的重复逻辑抽出来", "gold": "coder", "tag": ""}
+{"text": "Rust 里怎么优雅地处理可空值", "gold": "coder", "tag": ""}
+{"text": "这段有 bug", "gold": "coder", "tag": "short"}
+{"text": "帮我改代码", "gold": "coder", "tag": "short"}
+{"text": "报空指针", "gold": "coder", "tag": "short"}
+{"text": "这篇论文的局限性部分怎么写", "gold": "academic", "tag": ""}
+{"text": "帮我梳理这个领域的代表性文献", "gold": "academic", "tag": ""}
+{"text": "投稿后多久会收到审稿意见", "gold": "academic", "tag": ""}
+{"text": "这个公式的推导步骤完整吗", "gold": "academic", "tag": ""}
+{"text": "参考文献的格式要求是什么", "gold": "academic", "tag": ""}
+{"text": "论文的贡献点要写几条合适", "gold": "academic", "tag": ""}
+{"text": "怎么在综述里做研究空白分析", "gold": "academic", "tag": ""}
+{"text": "这个研究的外部效度怎么讨论", "gold": "academic", "tag": ""}
+{"text": "LaTeX 参考文献条目怎么补全", "gold": "academic", "tag": ""}
+{"text": "审稿人要求增加对照实验怎么回应", "gold": "academic", "tag": ""}
+{"text": "这篇预印本的引用信息帮我查一下", "gold": "academic", "tag": ""}
+{"text": "研究方法里的信度效度怎么报告", "gold": "academic", "tag": ""}
+{"text": "论文查重报告显示的重复来源怎么看", "gold": "academic", "tag": ""}
+{"text": "这个统计方法用在论文里合适吗", "gold": "academic", "tag": ""}
+{"text": "摘要里的研究问题表述是否清晰", "gold": "academic", "tag": ""}
+{"text": "期刊要求的字数上限怎么压缩", "gold": "academic", "tag": ""}
+{"text": "帮我列一下这个课题的研究脉络", "gold": "academic", "tag": ""}
+{"text": "这篇文献的核心假设是什么", "gold": "academic", "tag": ""}
+{"text": "答辩时被问创新点怎么组织回答", "gold": "academic", "tag": ""}
+{"text": "论文里的图表编号规则是什么", "gold": "academic", "tag": ""}
+{"text": "改下参考文献", "gold": "academic", "tag": "short"}
+{"text": "论文投稿", "gold": "academic", "tag": "short"}
+{"text": "写个摘要", "gold": "academic", "tag": "short"}
+{"text": "帮我把这段话改得更通顺", "gold": "chinese", "tag": ""}
+{"text": "写一个招聘启事的文案", "gold": "chinese", "tag": ""}
+{"text": "这个标语读起来不够响亮", "gold": "chinese", "tag": ""}
+{"text": "帮我润色这段自我介绍", "gold": "chinese", "tag": ""}
+{"text": "写一篇关于春天的记叙文", "gold": "chinese", "tag": ""}
+{"text": "这封道歉信的语气是不是太硬", "gold": "chinese", "tag": ""}
+{"text": "帮我想一句品牌广告语", "gold": "chinese", "tag": ""}
+{"text": "把这段日记改得生动一点", "gold": "chinese", "tag": ""}
+{"text": "写一份产品说明书的中文版", "gold": "chinese", "tag": ""}
+{"text": "这篇稿子的错别字帮我挑出来", "gold": "chinese", "tag": ""}
+{"text": "帮我把这段话扩写得更详细", "gold": "chinese", "tag": ""}
+{"text": "写一条节日祝福的短信", "gold": "chinese", "tag": ""}
+{"text": "这个段落的逻辑衔接不顺", "gold": "chinese", "tag": ""}
+{"text": "帮我起草一份交接说明", "gold": "chinese", "tag": ""}
+{"text": "写一段新店开业的宣传文字", "gold": "chinese", "tag": ""}
+{"text": "把这段话改得更口语化一些", "gold": "chinese", "tag": ""}
+{"text": "帮我写一个产品卖点的介绍", "gold": "chinese", "tag": ""}
+{"text": "这份演讲稿开头怎么更抓人", "gold": "chinese", "tag": ""}
+{"text": "这个句子有语病帮我修一下", "gold": "chinese", "tag": ""}
+{"text": "写一篇读后感的结尾部分", "gold": "chinese", "tag": ""}
+{"text": "改通顺点", "gold": "chinese", "tag": "short"}
+{"text": "写封信", "gold": "chinese", "tag": "short"}
+{"text": "润下色", "gold": "chinese", "tag": "short"}
+{"text": "这张截图上的错误提示写了什么", "gold": "vision", "tag": ""}
+{"text": "帮我看看这张产品图有什么瑕疵", "gold": "vision", "tag": ""}
+{"text": "图里的柱子最高的是哪一根", "gold": "vision", "tag": ""}
+{"text": "这张照片的曝光是不是过度了", "gold": "vision", "tag": ""}
+{"text": "把这张图片里的文字识别出来", "gold": "vision", "tag": ""}
+{"text": "这个界面截图哪里的间距不对", "gold": "vision", "tag": ""}
+{"text": "识别一下这张图里的车牌号码", "gold": "vision", "tag": ""}
+{"text": "这张海报上的主色是什么颜色", "gold": "vision", "tag": ""}
+{"text": "帮我看看这张病理切片的形态", "gold": "vision", "tag": ""}
+{"text": "屏幕截图里显示的端口号是多少", "gold": "vision", "tag": ""}
+{"text": "这张图里一共有几个图标", "gold": "vision", "tag": ""}
+{"text": "帮我数一下照片里有几个人", "gold": "vision", "tag": ""}
+{"text": "图里写了什么", "gold": "vision", "tag": "vision-priority"}
+{"text": "看这张jpg", "gold": "vision", "tag": "vision-priority"}
+{"text": "截图里的数字", "gold": "vision", "tag": "vision-priority"}
+{"text": "看下这图", "gold": "vision", "tag": "short"}
+{"text": "这图有几人", "gold": "vision", "tag": "short"}
+{"text": "帮我画一张月度销量的柱状图", "gold": "data", "tag": ""}
+{"text": "用 pandas 合并这两个表", "gold": "data", "tag": ""}
+{"text": "这批数据的缺失比例是多少", "gold": "data", "tag": ""}
+{"text": "把结果做成饼图展示占比", "gold": "data", "tag": ""}
+{"text": "帮我做一次描述性统计", "gold": "data", "tag": ""}
+{"text": "这个异常值该剔除还是保留", "gold": "data", "tag": ""}
+{"text": "用 matplotlib 设置坐标轴刻度", "gold": "data", "tag": ""}
+{"text": "数据里的重复记录怎么去重", "gold": "data", "tag": ""}
+{"text": "帮我算一下这组数据的中位数", "gold": "data", "tag": ""}
+{"text": "散点图上这两个变量相关吗", "gold": "data", "tag": ""}
+{"text": "把数据按周聚合一下", "gold": "data", "tag": ""}
+{"text": "这批样本的偏度怎么计算", "gold": "data", "tag": ""}
+{"text": "帮我做一张热力图看相关性", "gold": "data", "tag": ""}
+{"text": "数据格式怎么从宽表转长表", "gold": "data", "tag": ""}
+{"text": "这组数据画箱线图合适吗", "gold": "data", "tag": ""}
+{"text": "帮我对这批数据做标准化处理", "gold": "data", "tag": ""}
+{"text": "统计各渠道的转化率分布", "gold": "data", "tag": ""}
+{"text": "这张图表的配色怎么调整", "gold": "data", "tag": ""}
+{"text": "数据里有极端值怎么稳健估计", "gold": "data", "tag": ""}
+{"text": "帮我生成一份同比环比的对比图", "gold": "data", "tag": ""}
+{"text": "画个饼图", "gold": "data", "tag": "short"}
+{"text": "算中位数", "gold": "data", "tag": "short"}
+{"text": "去下重", "gold": "data", "tag": "short"}
+{"text": "服务器上有个进程一直占内存怎么办", "gold": "devops", "tag": ""}
+{"text": "帮我配置一下定时备份的 crontab", "gold": "devops", "tag": ""}
+{"text": "Docker 镜像构建太慢怎么加速", "gold": "devops", "tag": ""}
+{"text": "这台机器的 open files 数量怎么调", "gold": "devops", "tag": ""}
+{"text": "k8s 里怎么配健康检查探针", "gold": "devops", "tag": ""}
+{"text": "线上机器的时区不对怎么改", "gold": "devops", "tag": ""}
+{"text": "帮我看看 nginx 的 502 是什么原因", "gold": "devops", "tag": ""}
+{"text": "Jenkins 的构建缓存怎么清理", "gold": "devops", "tag": ""}
+{"text": "服务滚动重启时怎么避免抖动", "gold": "devops", "tag": ""}
+{"text": "这台服务器的内核参数怎么优化", "gold": "devops", "tag": ""}
+{"text": "Docker Compose 的网络怎么配", "gold": "devops", "tag": ""}
+{"text": "系统的文件句柄耗尽怎么排查", "gold": "devops", "tag": ""}
+{"text": "帮我加一块数据盘并挂载上去", "gold": "devops", "tag": ""}
+{"text": "Zabbix 告警风暴怎么收敛", "gold": "devops", "tag": ""}
+{"text": "这台机器的 SSH 登录日志在哪看", "gold": "devops", "tag": ""}
+{"text": "容器里的日志怎么收集到外部", "gold": "devops", "tag": ""}
+{"text": "灰度发布怎么切流量", "gold": "devops", "tag": ""}
+{"text": "这台云主机的安全组怎么放行端口", "gold": "devops", "tag": ""}
+{"text": "计划任务执行失败日志在哪", "gold": "devops", "tag": ""}
+{"text": "帮我把服务的启动顺序理一下", "gold": "devops", "tag": ""}
+{"text": "重启服务", "gold": "devops", "tag": "short"}
+{"text": "看下日志", "gold": "devops", "tag": "short"}
+{"text": "磁盘满了", "gold": "devops", "tag": "short"}
+{"text": "这个接口存在越权读取的风险", "gold": "security", "tag": ""}
+{"text": "帮我找出这段代码里的注入点", "gold": "security", "tag": ""}
+{"text": "登录接口被暴力破解怎么防", "gold": "security", "tag": ""}
+{"text": "这个上传功能有没有文件类型绕过", "gold": "security", "tag": ""}
+{"text": "JWT 的过期时间该怎么设才安全", "gold": "security", "tag": ""}
+{"text": "帮我做一次依赖组件的漏洞扫描", "gold": "security", "tag": ""}
+{"text": "这个跨站请求伪造该怎么防住", "gold": "security", "tag": ""}
+{"text": "内部接口直接暴露公网有什么危害", "gold": "security", "tag": ""}
+{"text": "用户的身份证号入库前怎么脱敏", "gold": "security", "tag": ""}
+{"text": "这个权限校验在前端做的问题在哪", "gold": "security", "tag": ""}
+{"text": "中间人攻击这个方案怎么防范", "gold": "security", "tag": ""}
+{"text": "帮我看看这段配置有没有弱口令", "gold": "security", "tag": ""}
+{"text": "这个越权漏洞的成因是什么", "gold": "security", "tag": ""}
+{"text": "API 网关的鉴权该怎么做才稳", "gold": "security", "tag": ""}
+{"text": "代码里硬编码的凭证怎么轮换", "gold": "security", "tag": ""}
+{"text": "这个缓冲区溢出的风险有多大", "gold": "security", "tag": ""}
+{"text": "安全事件发生后的取证步骤是什么", "gold": "security", "tag": ""}
+{"text": "这个二次注入的场景怎么构造", "gold": "security", "tag": ""}
+{"text": "加密算法选型有什么注意事项", "gold": "security", "tag": ""}
+{"text": "帮我评估这个组件供应链的风险", "gold": "security", "tag": ""}
+{"text": "有越权吗", "gold": "security", "tag": "short"}
+{"text": "帮我扫描漏洞", "gold": "security", "tag": "short"}
+{"text": "这配置安全吗", "gold": "security", "tag": "short"}
+{"text": "帮我算一下这个定积分的值", "gold": "reasoner", "tag": ""}
+{"text": "这道三角函数的题怎么解", "gold": "reasoner", "tag": ""}
+{"text": "推导一下等差数列求和公式", "gold": "reasoner", "tag": ""}
+{"text": "这个不等式该怎么证明", "gold": "reasoner", "tag": ""}
+{"text": "帮我算算抽到红球的概率", "gold": "reasoner", "tag": ""}
+{"text": "这个微分方程的通解是什么", "gold": "reasoner", "tag": ""}
+{"text": "二叉树的高度复杂度怎么算", "gold": "reasoner", "tag": ""}
+{"text": "为什么会出现这个循环依赖的死结", "gold": "reasoner", "tag": ""}
+{"text": "这道立体几何题辅助线怎么作", "gold": "reasoner", "tag": ""}
+{"text": "求这个函数在 x=2 处的导数", "gold": "reasoner", "tag": ""}
+{"text": "这个命题的逆否命题是什么", "gold": "reasoner", "tag": ""}
+{"text": "排列组合这题该用插空还是捆绑", "gold": "reasoner", "tag": ""}
+{"text": "帮我算一下这条曲线的曲率", "gold": "reasoner", "tag": ""}
+{"text": "三段论这个推理有效吗", "gold": "reasoner", "tag": ""}
+{"text": "这个级数收敛还是发散", "gold": "reasoner", "tag": ""}
+{"text": "为什么会出现这个反直觉的结论", "gold": "reasoner", "tag": ""}
+{"text": "求这两个集合的交集与并集", "gold": "reasoner", "tag": ""}
+{"text": "这道力学题的加速度怎么求", "gold": "reasoner", "tag": ""}
+{"text": "线性方程组有没有解怎么判断", "gold": "reasoner", "tag": ""}
+{"text": "帮我理一下这个证明的反证思路", "gold": "reasoner", "tag": ""}
+{"text": "这题怎么解", "gold": "reasoner", "tag": "short"}
+{"text": "算下概率", "gold": "reasoner", "tag": "short"}
+{"text": "求导数", "gold": "reasoner", "tag": "short"}
+{"text": "把这个功能需求拆成可执行的任务", "gold": "pm", "tag": ""}
+{"text": "这个迭代的排期怎么安排", "gold": "pm", "tag": ""}
+{"text": "两个需求冲突了先做哪个", "gold": "pm", "tag": ""}
+{"text": "帮我评估一下这个方案的取舍", "gold": "pm", "tag": ""}
+{"text": "团队这周的分工怎么排更合理", "gold": "pm", "tag": ""}
+{"text": "这个任务的完成标准怎么定义", "gold": "pm", "tag": ""}
+{"text": "帮我梳理当前卡住的事项", "gold": "pm", "tag": ""}
+{"text": "项目要延期了怎么向客户说明", "gold": "pm", "tag": ""}
+{"text": "这个功能值不值得投入怎么判断", "gold": "pm", "tag": ""}
+{"text": "帮我列一下上线前的检查清单", "gold": "pm", "tag": ""}
+{"text": "这个需求的边界在哪里要圈清楚", "gold": "pm", "tag": ""}
+{"text": "跨小组的配合怎么对齐节奏", "gold": "pm", "tag": ""}
+{"text": "怎么把这个大目标拆成周计划", "gold": "pm", "tag": ""}
+{"text": "帮我拟一份项目进展同步的要点", "gold": "pm", "tag": ""}
+{"text": "范围老是变该怎么管住", "gold": "pm", "tag": ""}
+{"text": "这个备选方案的代价分别是什么", "gold": "pm", "tag": ""}
+{"text": "帮我盘一下现在的人力够不够", "gold": "pm", "tag": ""}
+{"text": "里程碑应该怎么定才可考核", "gold": "pm", "tag": ""}
+{"text": "从零开始这件事的路径怎么铺", "gold": "pm", "tag": ""}
+{"text": "复盘的时候该抓住哪几个问题", "gold": "pm", "tag": ""}
+{"text": "先攻哪块", "gold": "pm", "tag": "short"}
+{"text": "帮我拆解下", "gold": "pm", "tag": "short"}
+{"text": "怎么起步", "gold": "pm", "tag": "short"}
+{"text": "为什么天空在傍晚会变红", "gold": "knowledge", "tag": ""}
+{"text": "恐龙灭绝的主要原因是什么", "gold": "knowledge", "tag": ""}
+{"text": "青花瓷最早烧制于哪个年代", "gold": "knowledge", "tag": ""}
+{"text": "成年人正常有多少颗牙齿", "gold": "knowledge", "tag": ""}
+{"text": "黄河最终注入哪个大洋", "gold": "knowledge", "tag": ""}
+{"text": "为什么铁轨之间要留缝隙", "gold": "knowledge", "tag": ""}
+{"text": "细胞壁和细胞膜有什么区别", "gold": "knowledge", "tag": ""}
+{"text": "为什么打哈欠会传染", "gold": "knowledge", "tag": ""}
+{"text": "珠穆朗玛峰的海拔高度是多少", "gold": "knowledge", "tag": ""}
+{"text": "为什么冬天湖面会结冰", "gold": "knowledge", "tag": ""}
+{"text": "金字塔位于哪个国家境内", "gold": "knowledge", "tag": ""}
+{"text": "蛋白质是由什么构成的", "gold": "knowledge", "tag": ""}
+{"text": "为什么一年里二月只有 28 天", "gold": "knowledge", "tag": ""}
+{"text": "蜜蜂靠什么找到回家的路", "gold": "knowledge", "tag": ""}
+{"text": "碘伏为什么可以用来消毒", "gold": "knowledge", "tag": ""}
+{"text": "银河系属于什么类型的星系", "gold": "knowledge", "tag": ""}
+{"text": "为什么人在山上会觉得耳鸣", "gold": "knowledge", "tag": ""}
+{"text": "青铜是用什么金属合成的", "gold": "knowledge", "tag": ""}
+{"text": "罗马帝国何时分为东西两部分", "gold": "knowledge", "tag": ""}
+{"text": "为什么植物的根会向下生长", "gold": "knowledge", "tag": ""}
+{"text": "红细胞在血液里负责什么", "gold": "knowledge", "tag": ""}
+{"text": "为什么冬天嘴里会呼出白气", "gold": "knowledge", "tag": ""}
+{"text": "元素周期表是由谁整理的", "gold": "knowledge", "tag": ""}
+{"text": "为什么被蜜蜂蜇后会肿起来", "gold": "knowledge", "tag": ""}
+{"text": "洋流对沿岸气候有什么作用", "gold": "knowledge", "tag": ""}
+{"text": "为什么月亮看起来总是一样大", "gold": "knowledge", "tag": ""}
+{"text": "双螺旋结构是谁首先提出的", "gold": "knowledge", "tag": ""}
+{"text": "为什么潮湿的地方铁更容易锈", "gold": "knowledge", "tag": ""}
+{"text": "恐龙时代主要有哪些植物", "gold": "knowledge", "tag": ""}
+{"text": "为什么候鸟要长途迁徙", "gold": "knowledge", "tag": ""}
+{"text": "声速在空气里大约是多少", "gold": "knowledge", "tag": ""}
+{"text": "为什么人会起鸡皮疙瘩", "gold": "knowledge", "tag": ""}
+{"text": "谁发现的", "gold": "knowledge", "tag": "short"}
+{"text": "多少度", "gold": "knowledge", "tag": "short"}
+{"text": "在哪块", "gold": "knowledge", "tag": "short"}
+{"text": "帮我写一份季度复盘的总结文档", "gold": "chinese", "tag": "conflict"}
+{"text": "这段排序代码的时间开销怎么降下来", "gold": "coder", "tag": "conflict"}
+{"text": "把这封商务邮件润色得正式一些", "gold": "chinese", "tag": "conflict"}
+{"text": "统计一下各省份的销量分布情况", "gold": "data", "tag": "conflict"}
+{"text": "帮我把这个不等式的证明过程推一遍", "gold": "reasoner", "tag": "conflict"}
+{"text": "写一篇介绍密码学基础的科普文章", "gold": "chinese", "tag": "conflict"}
+{"text": "这台服务器上的进程占用怎么查", "gold": "devops", "tag": "conflict"}
+{"text": "论文里这个统计检验的结果怎么解释", "gold": "academic", "tag": "conflict"}
+{"text": "为什么这个递归的复杂度会退化", "gold": "reasoner", "tag": "conflict"}
+{"text": "把这周的工作进展写成一份小结", "gold": "chinese", "tag": "conflict"}
+{"text": "这个越权漏洞应该怎么修复才彻底", "gold": "security", "tag": "conflict"}
+{"text": "帮我把这批数据按月份汇总统计", "gold": "data", "tag": "conflict"}
+{"text": "写一封通知客户系统升级的公告", "gold": "chinese", "tag": "conflict"}
+{"text": "这个卡顿问题请分析一下根本原因", "gold": "reasoner", "tag": "conflict"}
+{"text": "数据库的查询计划怎么优化才高效", "gold": "data", "tag": "conflict"}
+{"text": "帮我把这段论文译文改得更地道", "gold": "chinese", "tag": "conflict"}
+{"text": "这个越权访问的风险点在哪儿", "gold": "security", "tag": "conflict"}
+{"text": "这次发布失败的原因请帮我查清楚", "gold": "reasoner", "tag": "conflict"}
+{"text": "写一份给新人的上手指南", "gold": "chinese", "tag": "conflict"}
+{"text": "这段论证里有没有隐含的假设", "gold": "reasoner", "tag": "conflict"}
+{"text": "用图表呈现一下各组的实验结果", "gold": "data", "tag": "conflict"}
+{"text": "这个接口变慢的原因请定位一下", "gold": "reasoner", "tag": "conflict"}
+{"text": "把实验数据做成对比图表展示", "gold": "data", "tag": "conflict"}
+{"text": "帮我写一份年会活动的流程单", "gold": "chinese", "tag": "conflict"}
+{"text": "导出数据", "gold": "data", "tag": "short"}
+{"text": "翻一下这句", "gold": "pm", "tag": "short"}
+{"text": "这啥原理", "gold": "knowledge", "tag": "short"}
+{"text": "跑下脚本", "gold": "coder", "tag": "short"}
+{"text": "查查漏洞", "gold": "security", "tag": "short"}
+{"text": "机器宕了", "gold": "devops", "tag": "short"}
+{"text": "做张图", "gold": "data", "tag": "short"}
+{"text": "换个说法", "gold": "chinese", "tag": "short"}
+{"text": "这篇期刊", "gold": "academic", "tag": "short"}
+{"text": "算下极限", "gold": "reasoner", "tag": "short"}
+{"text": "截个图看", "gold": "vision", "tag": "short"}
+{"text": "几号开学", "gold": "knowledge", "tag": "short"}
+{"text": "写个方案", "gold": "pm", "tag": "short"}
+{"text": "修下函数", "gold": "coder", "tag": "short"}
+{"text": "这配置行吗", "gold": "security", "tag": "short"}
+{"text": "帮我归纳", "gold": "pm", "tag": "short"}
+{"text": "看下图片", "gold": "vision", "tag": "short"}
+{"text": "为何如此", "gold": "knowledge", "tag": "short"}
+{"text": "谁提出的", "gold": "knowledge", "tag": "short"}
+{"text": "拟封邮件", "gold": "chinese", "tag": "short"}
+{"text": "部署上线", "gold": "devops", "tag": "short"}
+{"text": "画个折线", "gold": "data", "tag": "short"}
+{"text": "这题求解", "gold": "reasoner", "tag": "short"}
+{"text": "看下文献", "gold": "academic", "tag": "short"}

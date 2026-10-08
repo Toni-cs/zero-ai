@@ -113,135 +113,14 @@
         }
       ],
       "latency_ms": {
-        "p50": 0.0154,
-        "p95": 0.0234,
-        "max": 0.144,
-        "mean": 0.0146
+        "p50": 0.0143,
+        "p95": 0.0215,
+        "max": 0.0673,
+        "mean": 0.0131
       },
       "errors": {},
       "backend": "l1",
       "desc": "expert_route.route_expert（TUI 路径）"
-    },
-    "l1_alt": {
-      "n": 217,
-      "accuracy": 0.7972,
-      "correct": 173,
-      "recall_by_gold": {
-        "academic": 0.7586,
-        "chinese": 0.6364,
-        "coder": 1.0,
-        "data": 0.8696,
-        "devops": 1.0,
-        "knowledge": 0.6087,
-        "pm": 0.75,
-        "reasoner": 0.6364,
-        "security": 0.8824,
-        "vision": 0.8824
-      },
-      "precision_by_pred": {
-        "academic": 0.9565,
-        "chinese": 1.0,
-        "coder": 0.75,
-        "data": 0.7143,
-        "devops": 0.8947,
-        "knowledge": 0.7,
-        "pm": 0.625,
-        "reasoner": 0.6667,
-        "security": 0.9375,
-        "vision": 0.9375
-      },
-      "accuracy_by_tag": {
-        "": 0.8,
-        "conflict": 0.75,
-        "short": 0.7,
-        "vision-priority": 0.8667
-      },
-      "top_confusions": [
-        {
-          "gold": "chinese",
-          "pred": "coder",
-          "n": 5
-        },
-        {
-          "gold": "knowledge",
-          "pred": "pm",
-          "n": 5
-        },
-        {
-          "gold": "knowledge",
-          "pred": "reasoner",
-          "n": 4
-        },
-        {
-          "gold": "academic",
-          "pred": "reasoner",
-          "n": 3
-        },
-        {
-          "gold": "pm",
-          "pred": "data",
-          "n": 3
-        },
-        {
-          "gold": "academic",
-          "pred": "data",
-          "n": 2
-        },
-        {
-          "gold": "security",
-          "pred": "coder",
-          "n": 2
-        },
-        {
-          "gold": "reasoner",
-          "pred": "data",
-          "n": 2
-        },
-        {
-          "gold": "reasoner",
-          "pred": "knowledge",
-          "n": 2
-        },
-        {
-          "gold": "academic",
-          "pred": "knowledge",
-          "n": 1
-        },
-        {
-          "gold": "academic",
-          "pred": "pm",
-          "n": 1
-        },
-        {
-          "gold": "chinese",
-          "pred": "knowledge",
-          "n": 1
-        },
-        {
-          "gold": "vision",
-          "pred": "knowledge",
-          "n": 1
-        },
-        {
-          "gold": "vision",
-          "pred": "pm",
-          "n": 1
-        },
-        {
-          "gold": "data",
-          "pred": "coder",
-          "n": 1
-        }
-      ],
-      "latency_ms": {
-        "p50": 0.017,
-        "p95": 0.0243,
-        "max": 0.0302,
-        "mean": 0.0153
-      },
-      "errors": {},
-      "backend": "l1_alt",
-      "desc": "expert.ExpertRouter.route_by_keywords（包导出路径）"
     }
   },
   "skipped": {},

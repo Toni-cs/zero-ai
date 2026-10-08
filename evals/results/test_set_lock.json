@@ -1,0 +1,6 @@
+{
+  "file": "evals\\routing_test.jsonl",
+  "n": 284,
+  "sha256": "d79894ea6a511c81c2bcb1a265b1c1e9745f474c5b701d91ae89c0543b162fe0",
+  "rule": "只允许在全部调优完成后跑一次；看过错判明细即作废"
+}
