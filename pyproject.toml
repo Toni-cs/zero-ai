@@ -67,11 +67,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/gt17641001169-design/zero-ai"
-Documentation = "https://github.com/gt17641001169-design/zero-ai#readme"
-Repository = "https://github.com/gt17641001169-design/zero-ai"
-Issues = "https://github.com/gt17641001169-design/zero-ai/issues"
-Changelog = "https://github.com/gt17641001169-design/zero-ai/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Toni-cs/zero-ai"
+Documentation = "https://github.com/Toni-cs/zero-ai#readme"
+Repository = "https://github.com/Toni-cs/zero-ai"
+Issues = "https://github.com/Toni-cs/zero-ai/issues"
+Changelog = "https://github.com/Toni-cs/zero-ai/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 # 语音功能依赖（可选，体积大）

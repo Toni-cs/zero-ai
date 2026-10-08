@@ -12,7 +12,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.6-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.6/)
-[![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/gt17641001169-design/zero-ai)
+[![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/Toni-cs/zero-ai)
 
 </div>
 
@@ -297,7 +297,7 @@ pip install zero-ai-cli
 ### Option 2: Install from source
 
 ```bash
-git clone https://github.com/gt17641001169-design/zero-ai.git
+git clone https://github.com/Toni-cs/zero-ai.git
 cd zero-ai-cli
 pip install -e .
 ```
@@ -698,7 +698,7 @@ User: Open port 8080
 ### Development Mode Installation
 
 ```bash
-git clone https://github.com/gt17641001169-design/zero-ai.git
+git clone https://github.com/Toni-cs/zero-ai.git
 cd zero-ai-cli
 pip install -e .           # main package (development mode)
 pip install -e ".[dev]"    # development dependencies (build, pyinstaller)

@@ -13,7 +13,7 @@
 ### 初始化
 
 ```bash
-git clone https://github.com/gt17641001169-design/zero-ai.git
+git clone https://github.com/Toni-cs/zero-ai.git
 cd zero-ai-cli
 pip install -e .           # 安装主包（开发模式）
 pip install -e ".[dev]"    # 安装开发依赖
@@ -121,5 +121,5 @@ git push origin feature/your-feature
 
 ## 问题反馈
 
-- Bug 报告：[GitHub Issues](https://github.com/gt17641001169-design/zero-ai/issues)
+- Bug 报告：[GitHub Issues](https://github.com/Toni-cs/zero-ai/issues)
 - 安全漏洞：请勿公开报告，邮件联系作者

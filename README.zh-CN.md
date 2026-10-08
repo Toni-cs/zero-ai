@@ -12,7 +12,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-zero--ai--cli-1.1.6-blue.svg)](https://pypi.org/project/zero-ai-cli/1.1.6/)
-[![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/gt17641001169-design/zero-ai)
+[![GitHub](https://img.shields.io/badge/GitHub-zero--ai-black.svg)](https://github.com/Toni-cs/zero-ai)
 
 </div>
 
@@ -291,7 +291,7 @@ pip install zero-ai-cli
 ### 方式二：从源码安装
 
 ```bash
-git clone https://github.com/gt17641001169-design/zero-ai.git
+git clone https://github.com/Toni-cs/zero-ai.git
 cd zero-ai-cli
 pip install -e .
 ```
@@ -676,7 +676,7 @@ cert.key
 ### 开发模式安装
 
 ```bash
-git clone https://github.com/gt17641001169-design/zero-ai.git
+git clone https://github.com/Toni-cs/zero-ai.git
 cd zero-ai-cli
 pip install -e .           # 主包（开发模式）
 pip install -e ".[dev]"    # 开发依赖（build、pyinstaller）
