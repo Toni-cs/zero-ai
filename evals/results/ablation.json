@@ -1,0 +1,352 @@
+{
+  "A_const": {
+    "desc": "constants.EXPERT_TEAM（现状·TUI 用）",
+    "accuracy": 0.7512,
+    "delta_vs_A": 0.0,
+    "recall_by_gold": {
+      "academic": 0.7586,
+      "chinese": 0.6364,
+      "coder": 1.0,
+      "data": 0.7826,
+      "devops": 0.7647,
+      "knowledge": 0.6087,
+      "pm": 0.65,
+      "reasoner": 0.6364,
+      "security": 0.7647,
+      "vision": 0.8824
+    },
+    "top_confusions": [
+      {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "pm",
+        "n": 5
+      },
+      {
+        "gold": "devops",
+        "pred": "coder",
+        "n": 4
+      },
+      {
+        "gold": "security",
+        "pred": "coder",
+        "n": 4
+      },
+      {
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
+      },
+      {
+        "gold": "academic",
+        "pred": "reasoner",
+        "n": 3
+      },
+      {
+        "gold": "data",
+        "pred": "coder",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "data",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "data",
+        "n": 2
+      }
+    ],
+    "n_keywords": 212
+  },
+  "B_yaml": {
+    "desc": "zeroai/config.yaml（现状·包导出用）",
+    "accuracy": 0.6959,
+    "delta_vs_A": -0.0553,
+    "recall_by_gold": {
+      "academic": 0.6552,
+      "chinese": 0.3636,
+      "coder": 0.8519,
+      "data": 0.8261,
+      "devops": 0.8824,
+      "knowledge": 0.6087,
+      "pm": 0.55,
+      "reasoner": 0.6364,
+      "security": 0.8824,
+      "vision": 0.7647
+    },
+    "top_confusions": [
+      {
+        "gold": "chinese",
+        "pred": "knowledge",
+        "n": 7
+      },
+      {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "pm",
+        "n": 5
+      },
+      {
+        "gold": "academic",
+        "pred": "pm",
+        "n": 4
+      },
+      {
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
+      },
+      {
+        "gold": "academic",
+        "pred": "reasoner",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "data",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "chinese",
+        "n": 3
+      },
+      {
+        "gold": "coder",
+        "pred": "knowledge",
+        "n": 2
+      },
+      {
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      }
+    ],
+    "n_keywords": 181
+  },
+  "C_union": {
+    "desc": "两者并集",
+    "accuracy": 0.7373,
+    "delta_vs_A": -0.0138,
+    "recall_by_gold": {
+      "academic": 0.7931,
+      "chinese": 0.6818,
+      "coder": 0.963,
+      "data": 0.7391,
+      "devops": 0.7059,
+      "knowledge": 0.6087,
+      "pm": 0.5,
+      "reasoner": 0.6364,
+      "security": 0.7647,
+      "vision": 0.9412
+    },
+    "top_confusions": [
+      {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "pm",
+        "n": 5
+      },
+      {
+        "gold": "security",
+        "pred": "coder",
+        "n": 4
+      },
+      {
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
+      },
+      {
+        "gold": "academic",
+        "pred": "reasoner",
+        "n": 3
+      },
+      {
+        "gold": "data",
+        "pred": "vision",
+        "n": 3
+      },
+      {
+        "gold": "devops",
+        "pred": "coder",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "data",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "chinese",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      }
+    ],
+    "n_keywords": 233
+  },
+  "D_const_trim": {
+    "desc": "constants 去掉 coder 18 个泛词",
+    "accuracy": 0.7834,
+    "delta_vs_A": 0.0323,
+    "recall_by_gold": {
+      "academic": 0.7586,
+      "chinese": 0.6364,
+      "coder": 0.8889,
+      "data": 0.8696,
+      "devops": 1.0,
+      "knowledge": 0.6087,
+      "pm": 0.75,
+      "reasoner": 0.6364,
+      "security": 0.8824,
+      "vision": 0.8824
+    },
+    "top_confusions": [
+      {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "pm",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
+      },
+      {
+        "gold": "coder",
+        "pred": "knowledge",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "reasoner",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "data",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "security",
+        "pred": "coder",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "knowledge",
+        "n": 2
+      }
+    ],
+    "n_keywords": 194
+  },
+  "E_trim_plus_knowledge": {
+    "desc": "D + 补 knowledge 11 词",
+    "accuracy": 0.7834,
+    "delta_vs_A": 0.0323,
+    "recall_by_gold": {
+      "academic": 0.7586,
+      "chinese": 0.6364,
+      "coder": 0.8889,
+      "data": 0.8696,
+      "devops": 1.0,
+      "knowledge": 0.6087,
+      "pm": 0.75,
+      "reasoner": 0.6364,
+      "security": 0.8824,
+      "vision": 0.8824
+    },
+    "top_confusions": [
+      {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "pm",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
+      },
+      {
+        "gold": "coder",
+        "pred": "knowledge",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "reasoner",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "data",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "security",
+        "pred": "coder",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "knowledge",
+        "n": 2
+      }
+    ],
+    "n_keywords": 205
+  }
+}
