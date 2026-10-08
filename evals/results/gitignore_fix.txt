@@ -1,0 +1,21 @@
+=== 步骤 1：取回原始字节 ===
+original bytes = 1820
+original FFFD  = 0
+
+=== 步骤 2：定位插入点 ===
+anchor b'*.bak.*\n' 出现 1 次
+insert after byte offset 955
+
+=== 步骤 3：字节级插入后 ===
+new bytes = 2050  (delta +230, block len 230)
+自检 1：删除插入块后 == 原始字节  -> PASS
+自检 2：U+FFFD 数量 0 == 0  -> PASS
+自检 3：可解码编码 ['gb18030'] -> ['gb18030']  -> PASS
+git diff --numstat -> 20	20	.gitignore
+
+=== 写回完成 ===
+已恢复为原始编码并重新加入 .backup_*/ 规则。
+
+注意：原始文件本身已有既有损伤（UTF-8 多字节序列被截断成 ?），
+例如 L17 `# ZeroAI 运行时生?`、L23 `...不入库?`。这是 commit 502db9f
+之前就存在的问题，本次不做推测性修复。
