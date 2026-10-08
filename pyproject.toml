@@ -43,8 +43,14 @@ classifiers = [
 ]
 
 # 核心依赖（pip install 时自动安装）
+# 2026-10-08 依赖审计（evals/results/imports.md）：只把「未被 try/except 保护、
+# 且位于模块顶层」的第三方 import 放进主依赖 —— 这类缺失会直接 ImportError。
+# 已保护的可选功能一律走 [project.optional-dependencies]，按功能分组。
 dependencies = [
     "textual>=0.47",
+    # rich：tools/render.py 与 tui/*.py 共 12 处顶层裸 import，无保护。
+    # 此前仅靠 textual 传递安装，属隐式依赖，现显式声明。
+    "rich>=13.0",
     "openai>=1.0",
     "python-docx>=0.8",
     "openpyxl>=3.1",
@@ -52,6 +58,8 @@ dependencies = [
     "Pillow>=10.0",
     "psutil>=5.9",
     "pyyaml>=6.0",
+    # requests：实测全仓 0 处 import（见 evals/results/imports.md「已声明但未
+    # 被 import」）。暂保留以免下游用户脚本依赖断裂，待确认后单独移除。
     "requests>=2.28",
     "matplotlib>=3.5",
     "numpy>=1.20",
@@ -67,15 +75,58 @@ Changelog = "https://github.com/gt17641001169-design/zero-ai/blob/main/CHANGELOG
 
 [project.optional-dependencies]
 # 语音功能依赖（可选，体积大）
+# 2026-10-08 审计补入：tools/voice.py 与 tui/screens.py 中 pygame /
+# sounddevice / edge_tts 均已用 try/except 保护，故归入本组而非主依赖。
 voice = [
     "sherpa-onnx>=1.9",
     "faster-whisper>=0.9",
     "av>=12.0",
+    "pygame>=2.1",
+    "sounddevice>=0.4",
+    "edge-tts>=6.1",
+]
+# MCP 客户端/服务端（zeroai/mcp/client.py 的 httpx、server.py 的
+# starlette+uvicorn 均有 try/except 保护，缺失时 MCP 功能降级而非崩溃）
+mcp = [
+    "httpx>=0.24",
+    "starlette>=0.27",
+    "uvicorn>=0.23",
+]
+# 向量记忆与文件监视（memory/vector_store.py 的 faiss、
+# memory/file_watcher.py 的 watchdog 均有保护）
+vector = [
+    "faiss-cpu>=1.7",
+    "watchdog>=3.0",
+]
+# 文件操作增强（tools/file_manager.py 的 send2trash，有保护）
+files = [
+    "send2trash>=1.8",
+]
+# 桌面窗口管理（tools/window_mgr.py 的 uiautomation，Windows 专用，有保护）
+desktop = [
+    "uiautomation>=2.0",
 ]
 # 开发依赖
 dev = [
     "pyinstaller>=5.13",
     "build>=1.0",
+]
+# 一键全装：显式列出全部可选包，不使用自引用 extra
+# （self-referencing extra 对未发布版本号不稳）
+all = [
+    "sherpa-onnx>=1.9",
+    "faster-whisper>=0.9",
+    "av>=12.0",
+    "pygame>=2.1",
+    "sounddevice>=0.4",
+    "edge-tts>=6.1",
+    "httpx>=0.24",
+    "starlette>=0.27",
+    "uvicorn>=0.23",
+    "faiss-cpu>=1.7",
+    "watchdog>=3.0",
+    "send2trash>=1.8",
+    "uiautomation>=2.0",
 ]
 
 [project.scripts]

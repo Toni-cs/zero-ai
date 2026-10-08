@@ -1,0 +1,201 @@
+{
+  "n_files_scanned": 88,
+  "declared_packages": [
+    "Pillow",
+    "asyncssh",
+    "av",
+    "build",
+    "edge-tts",
+    "faiss-cpu",
+    "faster-whisper",
+    "httpx",
+    "matplotlib",
+    "numpy",
+    "openai",
+    "openpyxl",
+    "psutil",
+    "pygame",
+    "pyinstaller",
+    "python-docx",
+    "pyyaml",
+    "reportlab",
+    "requests",
+    "rich",
+    "send2trash",
+    "sherpa-onnx",
+    "sounddevice",
+    "starlette",
+    "textual",
+    "uiautomation",
+    "uvicorn",
+    "watchdog"
+  ],
+  "declared_groups": {
+    "project": [
+      "Pillow",
+      "asyncssh",
+      "matplotlib",
+      "numpy",
+      "openai",
+      "openpyxl",
+      "psutil",
+      "python-docx",
+      "pyyaml",
+      "reportlab",
+      "requests",
+      "rich",
+      "textual"
+    ],
+    "optional:voice": [
+      "av",
+      "edge-tts",
+      "faster-whisper",
+      "pygame",
+      "sherpa-onnx",
+      "sounddevice"
+    ],
+    "optional:mcp": [
+      "httpx",
+      "starlette",
+      "uvicorn"
+    ],
+    "optional:vector": [
+      "faiss-cpu",
+      "watchdog"
+    ],
+    "optional:files": [
+      "send2trash"
+    ],
+    "optional:desktop": [
+      "uiautomation"
+    ],
+    "optional:dev": [
+      "build",
+      "pyinstaller"
+    ],
+    "optional:all": [
+      "av",
+      "edge-tts",
+      "faiss-cpu",
+      "faster-whisper",
+      "httpx",
+      "pygame",
+      "send2trash",
+      "sherpa-onnx",
+      "sounddevice",
+      "starlette",
+      "uiautomation",
+      "uvicorn",
+      "watchdog"
+    ]
+  },
+  "third_party_used": {
+    "PIL": [
+      "zeroai\\tools\\file_manager.py",
+      "zeroai\\tools\\render.py",
+      "zeroai\\tui\\app_clipboard.py"
+    ],
+    "asyncssh": [
+      "zeroai\\tools\\ssh_ops.py"
+    ],
+    "docx": [
+      "zeroai\\tools\\doc_gen.py"
+    ],
+    "edge_tts": [
+      "zeroai\\tools\\voice.py"
+    ],
+    "faiss": [
+      "zeroai\\memory\\vector_store.py"
+    ],
+    "faster_whisper": [
+      "zeroai\\tools\\voice.py"
+    ],
+    "httpx": [
+      "zeroai\\mcp\\client.py"
+    ],
+    "matplotlib": [
+      "zeroai\\tools\\doc_gen.py"
+    ],
+    "numpy": [
+      "zeroai\\core\\memory_optimizer.py",
+      "zeroai\\memory\\vector_store.py",
+      "zeroai\\tools\\voice.py",
+      "zeroai\\tui\\screens.py"
+    ],
+    "openai": [
+      "zeroai\\core\\llm.py",
+      "zeroai\\core\\model_manager.py",
+      "zeroai\\core\\secrets.py",
+      "zeroai\\memory\\vector_store.py",
+      "zeroai\\tui\\app.py",
+      "zeroai\\tui\\app_turn_loop.py",
+      "zeroai\\tui\\app_turn_multi.py",
+      "zeroai\\tui\\screens.py"
+    ],
+    "openpyxl": [
+      "zeroai\\tools\\doc_gen.py"
+    ],
+    "psutil": [
+      "zeroai\\tools\\system_check.py"
+    ],
+    "pygame": [
+      "zeroai\\tools\\voice.py",
+      "zeroai\\tui\\screens.py"
+    ],
+    "reportlab": [
+      "zeroai\\tools\\doc_gen.py"
+    ],
+    "rich": [
+      "zeroai\\tools\\render.py",
+      "zeroai\\tui\\app.py",
+      "zeroai\\tui\\app_clipboard.py",
+      "zeroai\\tui\\app_commands.py",
+      "zeroai\\tui\\app_mcp.py",
+      "zeroai\\tui\\app_settings.py",
+      "zeroai\\tui\\app_streaming.py",
+      "zeroai\\tui\\app_turn_loop.py",
+      "zeroai\\tui\\app_turn_multi.py",
+      "zeroai\\tui\\app_voice.py",
+      "zeroai\\tui\\screens.py",
+      "zeroai\\tui\\widgets.py"
+    ],
+    "send2trash": [
+      "zeroai\\tools\\file_manager.py"
+    ],
+    "sherpa_onnx": [
+      "zeroai\\tools\\voice.py"
+    ],
+    "sounddevice": [
+      "zeroai\\tools\\voice.py",
+      "zeroai\\tui\\screens.py"
+    ],
+    "starlette": [
+      "zeroai\\mcp\\server.py"
+    ],
+    "textual": [
+      "zeroai\\tui\\app.py",
+      "zeroai\\tui\\app_commands.py",
+      "zeroai\\tui\\app_settings.py",
+      "zeroai\\tui\\app_streaming.py",
+      "zeroai\\tui\\screens.py",
+      "zeroai\\tui\\widgets.py"
+    ],
+    "uiautomation": [
+      "zeroai\\tools\\window_mgr.py"
+    ],
+    "uvicorn": [
+      "zeroai\\mcp\\server.py"
+    ],
+    "watchdog": [
+      "zeroai\\memory\\file_watcher.py"
+    ],
+    "yaml": [
+      "zeroai\\core\\config.py"
+    ],
+    "zeroai_tui": [
+      "zeroai\\main.py"
+    ]
+  },
+  "missing_declaration": {},
+  "n_missing": 0
+}
