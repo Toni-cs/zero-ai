@@ -3,120 +3,120 @@
   "backends": {
     "l1": {
       "n": 217,
-      "accuracy": 0.7972,
-      "correct": 173,
+      "accuracy": 0.8433,
+      "correct": 183,
       "recall_by_gold": {
-        "academic": 0.7586,
-        "chinese": 0.6364,
-        "coder": 1.0,
-        "data": 0.8696,
+        "academic": 0.7931,
+        "chinese": 0.8636,
+        "coder": 0.8519,
+        "data": 0.913,
         "devops": 1.0,
-        "knowledge": 0.6087,
-        "pm": 0.75,
-        "reasoner": 0.6364,
-        "security": 0.8824,
-        "vision": 0.8824
+        "knowledge": 1.0,
+        "pm": 0.35,
+        "reasoner": 0.7273,
+        "security": 1.0,
+        "vision": 1.0
       },
       "precision_by_pred": {
-        "academic": 0.9565,
+        "academic": 0.92,
         "chinese": 1.0,
-        "coder": 0.75,
-        "data": 0.7143,
+        "coder": 1.0,
+        "data": 0.75,
         "devops": 0.8947,
-        "knowledge": 0.7,
-        "pm": 0.625,
-        "reasoner": 0.6667,
-        "security": 0.9375,
-        "vision": 0.9375
+        "knowledge": 0.575,
+        "pm": 0.875,
+        "reasoner": 0.8421,
+        "security": 0.9444,
+        "vision": 0.9444
       },
       "accuracy_by_tag": {
-        "": 0.8,
+        "": 0.8389,
         "conflict": 0.75,
-        "short": 0.7,
-        "vision-priority": 0.8667
+        "short": 0.8,
+        "vision-priority": 1.0
       },
       "top_confusions": [
         {
-          "gold": "chinese",
-          "pred": "coder",
-          "n": 5
-        },
-        {
-          "gold": "knowledge",
-          "pred": "pm",
-          "n": 5
-        },
-        {
-          "gold": "knowledge",
-          "pred": "reasoner",
-          "n": 4
+          "gold": "pm",
+          "pred": "knowledge",
+          "n": 10
         },
         {
           "gold": "academic",
           "pred": "reasoner",
           "n": 3
+        },
+        {
+          "gold": "reasoner",
+          "pred": "knowledge",
+          "n": 3
+        },
+        {
+          "gold": "coder",
+          "pred": "knowledge",
+          "n": 2
+        },
+        {
+          "gold": "coder",
+          "pred": "data",
+          "n": 2
+        },
+        {
+          "gold": "academic",
+          "pred": "knowledge",
+          "n": 2
         },
         {
           "gold": "pm",
           "pred": "data",
-          "n": 3
+          "n": 2
         },
         {
           "gold": "academic",
           "pred": "data",
-          "n": 2
-        },
-        {
-          "gold": "security",
-          "pred": "coder",
-          "n": 2
-        },
-        {
-          "gold": "reasoner",
-          "pred": "data",
-          "n": 2
-        },
-        {
-          "gold": "reasoner",
-          "pred": "knowledge",
-          "n": 2
-        },
-        {
-          "gold": "academic",
-          "pred": "knowledge",
-          "n": 1
-        },
-        {
-          "gold": "academic",
-          "pred": "pm",
           "n": 1
         },
         {
           "gold": "chinese",
-          "pred": "knowledge",
-          "n": 1
-        },
-        {
-          "gold": "vision",
-          "pred": "knowledge",
-          "n": 1
-        },
-        {
-          "gold": "vision",
-          "pred": "pm",
+          "pred": "academic",
           "n": 1
         },
         {
           "gold": "data",
-          "pred": "coder",
+          "pred": "vision",
+          "n": 1
+        },
+        {
+          "gold": "reasoner",
+          "pred": "data",
+          "n": 1
+        },
+        {
+          "gold": "reasoner",
+          "pred": "academic",
+          "n": 1
+        },
+        {
+          "gold": "reasoner",
+          "pred": "security",
+          "n": 1
+        },
+        {
+          "gold": "pm",
+          "pred": "devops",
+          "n": 1
+        },
+        {
+          "gold": "chinese",
+          "pred": "data",
           "n": 1
         }
       ],
       "latency_ms": {
-        "p50": 0.0143,
-        "p95": 0.0215,
-        "max": 0.0673,
-        "mean": 0.0131
+        "p50": 0.3895,
+        "p95": 0.7225,
+        "max": 1.0137,
+        "mean": 0.4728
       },
       "errors": {},
       "backend": "l1",
@@ -126,9 +126,9 @@
   "skipped": {},
   "l1_knowledge_fallback": {
     "n_eval": 217,
-    "n_keyword_hit_non_knowledge": 197,
-    "n_fallback_to_llm": 20,
-    "llm_fallback_rate": 0.0922,
+    "n_keyword_hit_non_knowledge": 177,
+    "n_fallback_to_llm": 40,
+    "llm_fallback_rate": 0.1843,
     "note": "仅当 route_expert 返回 knowledge 时才会调用 GLM 语义路由"
   }
 }

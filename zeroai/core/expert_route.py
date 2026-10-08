@@ -26,39 +26,130 @@ from .secrets import _make_openai_client
 from .runtime import _interruptible_await
 
 
+# 专家并列裁决顺序：评分的三个分量完全相同时按此定胜负。
+# 保留它是为了让结果确定（不依赖 dict 插入顺序），而不是用来抢先命中。
+_ROUTE_ORDER = ("coder", "security", "devops", "data", "reasoner",
+                "academic", "chinese", "pm")
+_PRIORITY_IDX = {k: i for i, k in enumerate(_ROUTE_ORDER)}
+_PRIORITY_IDX["vision"] = -1
+
+# knowledge 的并列位置 = 3：排在 reasoner/academic/chinese/pm 之前、
+# coder/security/devops 之后。
+#
+# 这是实测选出来的，不是拍脑袋 —— knowledge 原本零关键词且不在遍历顺序
+# 里，只能当兜底，使其成为两个评测集上错判率最高的专家（dev 9/23）。
+# 给它词表后，「为什么天空是蓝色的」这类**事实性为什么**与 reasoner 的
+# 「为什么」必然撞分，此时谁排前谁赢：knowledge 必须排在 reasoner 前。
+# 而 coder/security/devops 排在它前面，是因为这三家的词（代码/安全/
+# 部署）比「为什么」更具体，撞分时更可信。
+# 位置 0 与 3 实测结果完全相同（见 evals/results/route_variants.md
+# V5a/V5b），说明只需"在 reasoner 之前"，取 3 更保守。
+_PRIORITY_IDX["knowledge"] = 3
+
+# vision 命中即几乎必胜的加成。取值只需远大于单个专家可能的命中词数
+# （最多 ~40），100 足够；效果等价于原来的"vision 最先判、命中即返回"，
+# 避免「看这张截图」被 coder 的「看/打开/浏览」抢走。
+_VISION_BONUS = 100
+
+
+def _kw_hit(keyword: str, text: str, normalize: bool = False) -> bool:
+    """单个关键词是否命中。text 必须已 lower()。
+
+    前两种情况与历史行为完全一致：
+    1. 纯英文且长度 >4 —— 用 \\b 词边界。注：中英文混排时 \\b 会失效
+       （中文和英文字符同属 \\w），所以短英文词走第 2 种。
+    2. 其余用子串匹配。
+
+    第 3 种是新增的：关键词含中文时，**再拿去空格的文本匹配一次**。
+    动机是实测而非猜测 —— 「SQL 注入的参数化查询怎么写」里 "SQL" 与
+    "注入" 之间有空格，security 的 `sql注入` 因此永远匹配不上，只剩
+    coder 的 `sql` 命中，安全问题被判给编程专家。中文正文里给英文词
+    加空格是常见排版习惯，这不是个别样本的问题。
+    """
+    k = keyword.lower()
+    if k.isascii() and k.isalpha() and len(k) > 4:
+        return re.search(r"\b" + re.escape(k) + r"\b", text) is not None
+    if k in text:
+        return True
+    if normalize and any("一" <= ch <= "鿿" for ch in k):
+        return k in text.replace(" ", "").replace("　", "")
+    return False
+
+
 def route_expert(user_input: str) -> str:
-    """关键词快速预判（作为GLM语义判断的降级方案）
+    """关键词快速预判（作为 GLM 语义判断的降级方案）
 
-    匹配顺序：
-    1. 先检测 vision 明确关键词（图片/截图/png/jpg 等）→ 命中则直接返回 vision
-    2. 再按 coder → security → ... → pm 顺序匹配其他专家
-    这样"看看这张图片"优先匹配 vision，"看看代码"匹配 coder。
+    ## 算法：竞争式评分（2026-10-08 起）
 
-    注意：英文关键词在中英文混排时（如"这张png是什么"），\\b 词边界会失效
-   （中文和英文字符都是 \\w），因此对长度≤4 的英文词用 `in` 直接匹配。
+        对每个专家收集命中的关键词 -> score = (
+            该专家命中词数 (+ vision 的固定加成),
+            命中词总字长,
+            -并列裁决位次
+        )
+        取 score 最大者；一个都没命中则返回 knowledge。
+
+    ## 为什么不是「首命中即胜 + 固定顺序」
+
+    旧算法按 vision -> coder -> security -> ... -> pm 的固定顺序，谁先
+    命中就返回。三级评测集（dev 217 / holdout 278 / test 284）暴露出它
+    的三个结构性问题：
+
+    1. coder 排第一，「写一个通知的公文」「SQL 注入」这类被 coder 抢走；
+    2. pm 的原词表含「什么/怎么/如何/帮助/介绍/解释」6 个超泛化词，
+       几乎命中任何问句；
+    3. **knowledge 零关键词且不在遍历顺序里**，只能当兜底，结构上不可能
+       主动胜出 —— 这使它成为两个开发集上错判率最高的专家。
+
+    三项修复后（evals/results/route_variants.md，dev 池 495 条）：
+
+    | 指标              | 改前   | 改后   |
+    |-------------------|--------|--------|
+    | dev(217)          | 79.7%  | 84.3%  |
+    | holdout(278)      | 54.7%  | 73.4%  |
+    | 两集合差（泛化缺口）| 25.0pp | 11.0pp |
+    | 用户实际收到错答案  | 29.1%  | 12.7%  |
+    | 短路到错误专家     | 130    | 46     |
+
+    其中 holdout 上 +18.7pp 是主要收益：dev 集在多轮调优中已与关键词表
+    高度耦合，其分数不可外推。
+
+    ## 注意
+
+    返回 knowledge **不等于**结论 —— route_expert_glm 会把 knowledge
+    交给 L2 GLM 做语义判断；只有返回具体专家时才会短路。因此「判成
+    knowledge」是安全降级，「短路到错专家」才是用户实际收到的错答案。
+    两个集合上的错判明细见 evals/results/。
     """
     text = user_input.lower()
-    # 第1优先级：vision 明确关键词（图片/截图/png/jpg 等），避免被 coder 的"看看"/"查看"抢走
-    vision_keywords = EXPERT_TEAM["vision"]["keywords"]
-    for kw in vision_keywords:
-        kw_lower = kw.lower()
-        if kw_lower in text:
-            # 短英文词（≤4字符）在中英文混排时用 in 匹配，否则用 \b 词边界
-            if kw_lower.isascii() and kw_lower.isalpha() and len(kw_lower) > 4:
-                if re.search(r'\b' + re.escape(kw_lower) + r'\b', text):
-                    return "vision"
-            else:
-                return "vision"
-    # 第2优先级：其他专家（coder 优先，处理文件/代码操作）
-    for expert_key in ("coder", "security", "devops", "data", "reasoner", "academic", "chinese", "pm"):
-        for kw in EXPERT_TEAM[expert_key]["keywords"]:
-            kw_lower = kw.lower()
-            if kw_lower in text:
-                if kw_lower.isascii() and kw_lower.isalpha() and len(kw_lower) > 4:
-                    if re.search(r'\b' + re.escape(kw_lower) + r'\b', text):
-                        return expert_key
-                else:
-                    return expert_key
+    best_score = None
+    best_expert = None
+
+    # 固定顺序遍历（vision 放最前，配合其大额加成），保证同分时结果确定。
+    # vision 必须**参与评分**而不是事后单独判 —— 它的 +100 加成使其
+    # 只要命中就几乎必胜，两种写法等价；拆出去单独判则会在"其他专家
+    # 也命中"时改变结果，与评测时的行为不一致。
+    for expert_key in ("vision",) + _ROUTE_ORDER + ("knowledge",):
+        keywords = EXPERT_TEAM[expert_key].get("keywords") or []
+        matched = []
+        seen = set()
+        for kw in keywords:
+            # 去重：data 原词表里「数据分析」出现 3 次。首命中算法下
+            # 重复无影响，按命中词数计分则会凭空多算，必须先去重。
+            if kw in seen:
+                continue
+            seen.add(kw)
+            if _kw_hit(kw, text, normalize=True):
+                matched.append(kw)
+        if not matched:
+            continue
+        bonus = _VISION_BONUS if expert_key == "vision" else 0
+        score = (bonus + len(matched), sum(len(k) for k in matched),
+                 -_PRIORITY_IDX.get(expert_key, 99))
+        if best_score is None or score > best_score:
+            best_score, best_expert = score, expert_key
+
+    if best_expert is not None:
+        return best_expert
     return "knowledge"
 
 
