@@ -1,0 +1,1644 @@
+{
+  "metrics": {
+    "n": 217,
+    "accuracy": 0.7512,
+    "correct": 163,
+    "recall_by_gold": {
+      "academic": 0.7586,
+      "chinese": 0.6364,
+      "coder": 1.0,
+      "data": 0.7826,
+      "devops": 0.7647,
+      "knowledge": 0.6087,
+      "pm": 0.65,
+      "reasoner": 0.6364,
+      "security": 0.7647,
+      "vision": 0.8824
+    },
+    "precision_by_pred": {
+      "academic": 0.9565,
+      "chinese": 1.0,
+      "coder": 0.5745,
+      "data": 0.6923,
+      "devops": 0.8667,
+      "knowledge": 0.7368,
+      "pm": 0.5909,
+      "reasoner": 0.6667,
+      "security": 0.9286,
+      "vision": 0.9375
+    },
+    "accuracy_by_tag": {
+      "": 0.7444,
+      "conflict": 0.75,
+      "short": 0.7,
+      "vision-priority": 0.8667
+    },
+    "top_confusions": [
+      {
+        "gold": "chinese",
+        "pred": "coder",
+        "n": 5
+      },
+      {
+        "gold": "knowledge",
+        "pred": "pm",
+        "n": 5
+      },
+      {
+        "gold": "devops",
+        "pred": "coder",
+        "n": 4
+      },
+      {
+        "gold": "security",
+        "pred": "coder",
+        "n": 4
+      },
+      {
+        "gold": "knowledge",
+        "pred": "reasoner",
+        "n": 4
+      },
+      {
+        "gold": "academic",
+        "pred": "reasoner",
+        "n": 3
+      },
+      {
+        "gold": "data",
+        "pred": "coder",
+        "n": 3
+      },
+      {
+        "gold": "pm",
+        "pred": "data",
+        "n": 3
+      },
+      {
+        "gold": "academic",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "data",
+        "n": 2
+      },
+      {
+        "gold": "reasoner",
+        "pred": "knowledge",
+        "n": 2
+      },
+      {
+        "gold": "pm",
+        "pred": "coder",
+        "n": 2
+      },
+      {
+        "gold": "academic",
+        "pred": "knowledge",
+        "n": 1
+      },
+      {
+        "gold": "academic",
+        "pred": "pm",
+        "n": 1
+      },
+      {
+        "gold": "chinese",
+        "pred": "knowledge",
+        "n": 1
+      }
+    ],
+    "latency_ms": {
+      "p50": 0.0145,
+      "p95": 0.0221,
+      "max": 0.027,
+      "mean": 0.0132
+    },
+    "errors": {},
+    "backend": "l1",
+    "desc": "expert_route.route_expert（TUI 路径）"
+  },
+  "detail": [
+    {
+      "text": "帮我写一个 Python 函数，把列表去重",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这段代码为什么报错 TypeError",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "debug 一下这个 bug，运行时崩溃了",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么用 JS 实现一个防抖函数",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "写一个 SQL 查询，按部门统计人数",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我重构这个 class，职责太乱了",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "HTML 表单提交后页面空白是什么原因",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "CSS 怎么让元素垂直居中",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "Java 的 HashMap 和 TreeMap 有什么区别",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "创建一个 API 接口，返回用户列表",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "读取 config.json 文件并解析",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我修改这个脚本的配置项",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "删除目录下所有 log 文件",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "搜索项目里所有调用 login 的地方",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "写一个爬虫脚本抓取网页标题",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这段 error 日志是什么意思",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我实现一个二叉树的遍历",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "Python 怎么读写 CSV 文件",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "封装一个函数处理文件上传",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "js 的闭包是什么，举个例子",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一个单元测试",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这个函数的入参类型怎么定义",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "打开这个项目目录看看结构",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么用 html 做一个登录页",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "yaml 配置文件的语法是什么",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一篇论文的引言部分",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这篇文献的综述怎么写",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我推导这个公式的证明",
+      "gold": "academic",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "LaTeX 里怎么插入参考文献",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "什么是假设检验，怎么用",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "回归分析的结果怎么解读",
+      "gold": "academic",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "帮我设计一个实验方案",
+      "gold": "academic",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "期刊投稿的格式要求是什么",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "参考文献格式 GB/T 7714 怎么写",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "定理证明的步骤是什么",
+      "gold": "academic",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "怎么求这个积分",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "论文摘要怎么写才规范",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "research method 该怎么选",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我分析这篇 paper 的方法论",
+      "gold": "academic",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "公式推导到这里卡住了",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "方程组怎么解",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "微分方程的通解怎么求",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "引用格式怎么统一",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "论文的创新点怎么提炼",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "peer review 的意见怎么回复",
+      "gold": "academic",
+      "pred": "pm",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "怎么查某个学者的引用数",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这段 LaTeX 编译报错",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "研究方法里的对照组怎么设置",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "求这个定理的数学证明",
+      "gold": "academic",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "文献综述的检索策略怎么定",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一篇关于春天的作文",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "写一封请假的邮件",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我润色这段中文，更通顺些",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "写一个产品介绍的文案",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "把这个报告写得更专业一点",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一个故事开头",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "写一篇演讲稿",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这篇摘要太啰嗦了，帮我精简",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一份周报",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "小说的开头怎么写吸引人",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "把这段话改写得更有文采",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "写一个通知的公文",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "写一首关于秋天的诗",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这封邮件的语气怎么更客气",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一个自我介绍",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "写一个活动策划的文案",
+      "gold": "chinese",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "文章的标题怎么起更吸引人",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我起草一份合作意向书",
+      "gold": "chinese",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "这个文案的调性需要调整",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我把这段内容扩写一下",
+      "gold": "chinese",
+      "pred": "chinese",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这张图片里是什么",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "帮我看看这张截图报了什么错",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "识别图中的文字",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "这个 png 文件里画的是什么",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "看这张图，描述一下内容",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "jpg 图片里的表格数据是什么",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "帮我看看这个海报的设计",
+      "gold": "vision",
+      "pred": "coder",
+      "tag": "vision-priority",
+      "ok": false
+    },
+    {
+      "text": "图里这个人穿的什么颜色",
+      "gold": "vision",
+      "pred": "pm",
+      "tag": "vision-priority",
+      "ok": false
+    },
+    {
+      "text": "把这张 gif 动图的过程讲一下",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "看这张照片拍的是哪里",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "分析这张图片的构图",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "这张 bmp 图片的分辨率是多少",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "看这张图回答我的问题",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "截图里的报错信息是什么",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "视觉上这个配色怎么样",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "vision-priority",
+      "ok": true
+    },
+    {
+      "text": "帮我做数据分析，看看销售趋势",
+      "gold": "data",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "用 pandas 读取 csv 并统计",
+      "gold": "data",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "画一个 matplotlib 折线图",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "数据预处理该做哪些步骤",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "机器学习模型怎么选特征",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这份 excel 报表怎么做透视",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "数据挖掘有什么常用方法",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "numpy 数组怎么 reshape",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "聚类分析用什么算法好",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我做个数据可视化大屏",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "统计这组数据的均值和方差",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "数据清洗的流程是什么",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "特征工程有哪些技巧",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "dataframe 怎么合并两个表",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "bi 报表怎么做同比环比",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这批数据的异常值怎么处理",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "分类模型的准确率怎么提升",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "数据看板用什么工具",
+      "gold": "data",
+      "pred": "data",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么用 sql 查询做数据汇总",
+      "gold": "data",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "这张图表怎么画得更清楚",
+      "gold": "data",
+      "pred": "vision",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "帮我部署这个服务到服务器",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "docker 容器一直重启怎么办",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "k8s 的 pod 处于 Pending 怎么排查",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "nginx 配置反向代理怎么写",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "ssh 连不上服务器了",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "linux 怎么查看进程占用",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "systemd 服务启动失败怎么处理",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "配置防火墙开放 80 端口",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "服务器负载太高怎么调优",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "ci/cd 流水线怎么搭建",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "jenkins 构建总是失败",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "kubernetes 怎么扩容",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么看服务器的日志",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "ansible 批量部署怎么写",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "负载均衡怎么配置",
+      "gold": "devops",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "这个系统有什么安全漏洞",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么做渗透测试",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "sql注入怎么防御",
+      "gold": "security",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "xss 攻击的防护措施是什么",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我做代码安全审计",
+      "gold": "security",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "ssl 证书怎么配置",
+      "gold": "security",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "密码加密应该用什么算法",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "权限认证该怎么设计",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "csrf 和 ssrf 的区别",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么给系统做安全加固",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这个 cve 影响大吗",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "token 被盗用了怎么办",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "waf 规则怎么配置",
+      "gold": "security",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "传输加密用 tls 还是 ssl",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "owasp top 10 有哪些",
+      "gold": "security",
+      "pred": "security",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我推理一下这个问题的逻辑",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "证明这个数学命题",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "计算 1 到 100 的和",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这个算法的时间复杂度是多少",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "为什么会出现这个现象，分析原因",
+      "gold": "reasoner",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "逻辑上这个推论成立吗",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么优化这个算法的效率",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这道数学题怎么解",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "推理：所有 A 都是 B，B 是 C，能推出什么",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "复杂度分析怎么做",
+      "gold": "reasoner",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "solve this math problem",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "为什么 1 加 1 在二进制下会进位",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "概率论这个题怎么算",
+      "gold": "reasoner",
+      "pred": "pm",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "求这个数列的极限",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "几何证明题怎么入手",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "reason about this logic puzzle",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "优化问题的求解思路是什么",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "线性代数这个方程怎么解",
+      "gold": "reasoner",
+      "pred": "academic",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "这个论证有没有逻辑漏洞",
+      "gold": "reasoner",
+      "pred": "security",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "如何证明素数有无穷多个",
+      "gold": "reasoner",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我分析一下这个任务",
+      "gold": "pm",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "制定一个学习计划",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "总结一下今天的内容",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "翻译成英文",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这个是什么意思",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么使用这个工具",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "介绍一下你自己",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "解释一下什么是微服务",
+      "gold": "pm",
+      "pred": "devops",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "帮我看看这个需求该怎么拆",
+      "gold": "pm",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "你有什么建议",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "如何开始一个新项目",
+      "gold": "pm",
+      "pred": "coder",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "帮我规划一下时间安排",
+      "gold": "pm",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "这个方案可行吗，分析一下",
+      "gold": "pm",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "总结上周的工作重点",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么入门机器学习",
+      "gold": "pm",
+      "pred": "data",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "帮助我理解这个概念",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "介绍一下这个框架的优势",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "计划下一步该做什么",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "怎么跟导师沟通这件事",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "这个问题如何解决",
+      "gold": "pm",
+      "pred": "pm",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "地球到月球有多远",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "拿破仑是哪国人",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "光速是多少",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "法国的首都在哪里",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "什么时候开始下雪",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "谁发明了电话",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "京剧是怎么来的",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "珠穆朗玛峰有多高",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "海王星为什么是蓝色的",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "DNA 双螺旋结构是谁发现的",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "长城有多长",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "为什么天空是蓝色的",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "企鹅会飞吗",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "碳酸钙的化学式是什么",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "唐朝有多少位皇帝",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "为什么一年有 365 天",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "蚂蚁为什么能搬动比自己重的东西",
+      "gold": "knowledge",
+      "pred": "reasoner",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "古罗马用什么语言",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": "",
+      "ok": false
+    },
+    {
+      "text": "人体有多少块骨头",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "太阳系有几颗行星",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "",
+      "ok": true
+    },
+    {
+      "text": "帮我写一篇论文，需要查一些参考文献",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "分析这组数据并写成报告",
+      "gold": "data",
+      "pred": "data",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "看看这张截图里的代码哪里错了",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "写一篇关于数据可视化的文章",
+      "gold": "chinese",
+      "pred": "data",
+      "tag": "conflict",
+      "ok": false
+    },
+    {
+      "text": "翻译这段论文的摘要",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "分析一下这个安全漏洞的原因",
+      "gold": "security",
+      "pred": "security",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "服务器上的服务挂了，帮我分析原因",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "写一个数据清洗的脚本",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "帮我总结这篇文献的主要观点",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "怎么优化数据库查询的性能",
+      "gold": "data",
+      "pred": "devops",
+      "tag": "conflict",
+      "ok": false
+    },
+    {
+      "text": "为什么这个函数运行很慢，帮我分析原因",
+      "gold": "reasoner",
+      "pred": "coder",
+      "tag": "conflict",
+      "ok": false
+    },
+    {
+      "text": "用图表展示这份报告的数据",
+      "gold": "data",
+      "pred": "data",
+      "tag": "conflict",
+      "ok": true
+    },
+    {
+      "text": "你好",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "short",
+      "ok": true
+    },
+    {
+      "text": "你是谁",
+      "gold": "knowledge",
+      "pred": "knowledge",
+      "tag": "short",
+      "ok": true
+    },
+    {
+      "text": "1+1等于几",
+      "gold": "reasoner",
+      "pred": "knowledge",
+      "tag": "short",
+      "ok": false
+    },
+    {
+      "text": "帮我看看图",
+      "gold": "vision",
+      "pred": "vision",
+      "tag": "short",
+      "ok": true
+    },
+    {
+      "text": "写个函数",
+      "gold": "coder",
+      "pred": "coder",
+      "tag": "short",
+      "ok": true
+    },
+    {
+      "text": "什么是量子",
+      "gold": "knowledge",
+      "pred": "pm",
+      "tag": "short",
+      "ok": false
+    },
+    {
+      "text": "翻译你好",
+      "gold": "chinese",
+      "pred": "pm",
+      "tag": "short",
+      "ok": false
+    },
+    {
+      "text": "论文格式",
+      "gold": "academic",
+      "pred": "academic",
+      "tag": "short",
+      "ok": true
+    },
+    {
+      "text": "服务器挂了",
+      "gold": "devops",
+      "pred": "devops",
+      "tag": "short",
+      "ok": true
+    },
+    {
+      "text": "有漏洞",
+      "gold": "security",
+      "pred": "security",
+      "tag": "short",
+      "ok": true
+    }
+  ]
+}
