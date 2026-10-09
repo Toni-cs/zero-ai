@@ -486,3 +486,381 @@ class TestSilentExceptGuard:
             if isinstance(n, ast.ExceptHandler) and n.type is None
         ]
         assert not bare, f"存在 {len(bare)} 个裸 except:"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 第二轮补齐（2026-10-09）：ssh_exec / 运维工具的执行路径
+#
+# 第一轮只覆盖了纯函数与连接表，16 个工具里真正会"下发命令"的路径全部未设防。
+# 这里用假连接（async run 返回可编程结果）驱动真实代码路径——_ssh_run_async 跑在
+# 持久后台事件循环线程上，假连接只要提供 async def run() 就能走通。
+#
+# 所有断言值均来自 evals/probe_ssh_ops.py 的实测输出，不是照抄源码字面量；
+# 每条测试都断言"错误分支有没有真的打到服务器"（conn.commands），这是牙齿所在。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class _ExecResult:
+    """asyncssh 连接 run() 的返回对象（ssh_exec 只用到这三个属性）。"""
+
+    def __init__(self, stdout="", stderr="", exit_status=0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.exit_status = exit_status
+
+
+class _ExecConn:
+    """假连接：记录每一条被下发的命令，返回可编程结果。绝不发起真实网络。"""
+
+    def __init__(self, closed=False, stdout="", stderr="", exit_status=0):
+        self.closed = closed
+        self._stdout = stdout
+        self._stderr = stderr
+        self._exit = exit_status
+        self.commands = []
+
+    @property
+    def is_closed(self):          # 旧版 asyncssh 形态：属性
+        return self.closed
+
+    async def run(self, cmd, **kw):
+        self.commands.append(cmd)
+        return _ExecResult(self._stdout, self._stderr, self._exit)
+
+
+def _install_exec(cid="default", remark="", os_type="linux", **kw):
+    """装一个活连接到模块表，并清空审计日志让计数断言确定。"""
+    conn = _ExecConn(**kw)
+    ssh_ops._SSH_CONNECTIONS[cid] = {
+        "conn": conn, "host": "192.0.2.55", "user": "root",
+        "port": 22, "connected_at": 0, "remark": remark,
+    }
+    ssh_ops._SSH_OS_CACHE[cid] = os_type      # 预置，跳过 OS 探测
+    ssh_ops._SSH_AUDIT_LOG.clear()
+    return conn
+
+
+# ── ssh_exec：连接门控 ──────────────────────────────────────────────────
+
+class TestSshExecConnectionGating:
+    def test_missing_conn_short_circuits_without_network(self):
+        ssh_ops._SSH_CONNECTIONS.clear()
+        out = ssh_ops.ssh_exec(command="echo hi", conn_id="ghost")
+        assert "连接 'ghost' 不存在" in out
+        assert "ssh_connect" in out, "必须告诉模型下一步该调谁"
+
+    def test_closed_conn_reported_and_evicted(self):
+        conn = _install_exec(cid="t-closed", closed=True)
+        out = ssh_ops.ssh_exec(command="echo hi", conn_id="t-closed")
+        assert "已断开" in out
+        # 断开的连接必须被踢出连接表，否则下次仍会命中旧连接对象
+        assert "t-closed" not in ssh_ops._SSH_CONNECTIONS
+        assert conn.commands == [], "已断开的连接不该再下发命令"
+
+
+# ── ssh_exec：退出码语义（_ssh_cmd_ok 判定的前提） ──────────────────────
+
+class TestSshExecExitCode:
+    def test_exit_zero_has_no_marker(self):
+        """关键不对称：退出码只在非零时追加，exit=0 绝不能出现 [退出码: 0]。"""
+        _install_exec(stdout="ok", exit_status=0)
+        out = ssh_ops.ssh_exec(command="true", _internal=True)
+        assert out == "ok"
+        assert "[退出码:" not in out
+
+    def test_nonzero_exit_appends_marker(self):
+        _install_exec(stdout="boom", exit_status=2)
+        out = ssh_ops.ssh_exec(command="false", _internal=True)
+        assert "[退出码: 2]" in out
+        assert out.splitlines()[-1] == "[退出码: 2]"
+
+    def test_no_output_reports_no_output(self):
+        _install_exec()
+        out = ssh_ops.ssh_exec(command="true", _internal=True)
+        assert out == "[无输出]"
+        assert "[退出码:" not in out
+
+    def test_stderr_block_and_exit_marker(self):
+        _install_exec(stderr="warn!", exit_status=1)
+        out = ssh_ops.ssh_exec(command="cmd", _internal=True)
+        assert out.splitlines()[0] == "[stderr]"
+        assert "warn!" in out
+        assert "[退出码: 1]" in out
+
+    def test_stderr_alone_does_not_trigger_exit_marker(self):
+        """退出码只看 exit_status，与 stderr 是否为空无关。"""
+        _install_exec(stderr="warn!", exit_status=0)
+        out = ssh_ops.ssh_exec(command="cmd", _internal=True)
+        assert "[stderr]" in out
+        assert "[退出码:" not in out
+
+
+# ── ssh_exec：截断 ──────────────────────────────────────────────────────
+
+class TestSshExecTruncation:
+    def test_long_stdout_truncated_at_8000(self):
+        _install_exec(stdout="x" * 9000)
+        out = ssh_ops.ssh_exec(command="big", _internal=True)
+        assert "... (输出过长，已截断，共 9000 字符)" in out
+        assert "x" * 8000 in out, "前 8000 字符应保留"
+        assert "x" * 8001 not in out, "第 8001 字符起必须丢弃"
+
+    def test_long_stderr_truncated_at_4000(self):
+        _install_exec(stderr="e" * 5000, exit_status=1)
+        out = ssh_ops.ssh_exec(command="cmd", _internal=True)
+        assert "... (错误输出过长，已截断，共 5000 字符)" in out
+        assert "e" * 4000 in out
+        assert "e" * 4001 not in out
+
+
+# ── ssh_exec：前缀 ──────────────────────────────────────────────────────
+
+class TestSshExecPrefix:
+    def test_default_prefix_identifies_server(self):
+        _install_exec(stdout="hi")
+        out = ssh_ops.ssh_exec(command="echo hi")
+        assert out.startswith("[default]\n")
+
+    def test_remark_appears_in_prefix(self):
+        _install_exec(stdout="hi", remark="NAS存储服务器")
+        out = ssh_ops.ssh_exec(command="echo hi")
+        assert out.startswith("[default | NAS存储服务器]")
+
+    def test_internal_suppresses_prefix(self):
+        """运维工具内部调用传 _internal=True，避免前缀在报告里重复堆叠。"""
+        _install_exec(stdout="hi")
+        out = ssh_ops.ssh_exec(command="echo hi", _internal=True)
+        assert out == "hi"
+
+    def test_prefix_never_leaks_ip(self):
+        _install_exec(stdout="hi")
+        out = ssh_ops.ssh_exec(command="echo hi")
+        assert "192.0.2.55" not in out
+
+
+# ── ssh_exec：Windows 编码注入 ──────────────────────────────────────────
+
+class TestSshExecEncodingInjection:
+    """中文 Windows 默认 GBK，asyncssh 按 UTF-8 解码会乱码/报错。"""
+
+    @pytest.mark.parametrize("cmd", [
+        'powershell -Command "Get-Date"',
+        "powershell -Command 'Get-Date'",
+    ])
+    def test_powershell_gets_utf8_console_injection(self, cmd):
+        conn = _install_exec(os_type="windows")
+        ssh_ops.ssh_exec(command=cmd, _internal=True)
+        sent = conn.commands[-1]
+        assert "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8" in sent
+        assert sent.startswith("powershell"), "只在 -Command 之后注入，不动命令本体"
+
+    @pytest.mark.parametrize("cmd", ["ipconfig", "dir", "netstat -an"])
+    def test_plain_cmd_gets_chcp_prefix(self, cmd):
+        conn = _install_exec(os_type="windows")
+        ssh_ops.ssh_exec(command=cmd, _internal=True)
+        assert conn.commands[-1] == f"chcp 65001 >nul 2>&1 & {cmd}"
+
+    def test_existing_chcp_not_doubled(self):
+        conn = _install_exec(os_type="windows")
+        ssh_ops.ssh_exec(command="chcp 65001 & dir", _internal=True)
+        assert conn.commands[-1] == "chcp 65001 & dir"
+
+    @pytest.mark.parametrize("os_type", ["linux"])
+    def test_linux_commands_untouched(self, os_type):
+        conn = _install_exec(os_type=os_type)
+        ssh_ops.ssh_exec(command="ipconfig", _internal=True)
+        assert conn.commands[-1] == "ipconfig"
+
+
+# ── ssh_exec：危险命令 × PERMISSION_LEVEL ──────────────────────────────
+
+class TestSshExecDangerousGating:
+    """与本地 run_command 对齐：统一受 PERMISSION_LEVEL 管辖，不再无条件拦截。"""
+
+    @staticmethod
+    def _set_level(monkeypatch, level):
+        from zeroai.core import constants as C
+        monkeypatch.setattr(C, "PERMISSION_LEVEL", level)
+
+    def test_full_mode_executes_and_leaves_audit(self, monkeypatch):
+        self._set_level(monkeypatch, "full")
+        conn = _install_exec()
+        ssh_ops.ssh_exec(command="rm -rf /", _internal=True)
+        assert len(conn.commands) == 1, "full 模式必须真的放行"
+        assert any("[全权限放行" in e for e in ssh_ops._SSH_AUDIT_LOG), \
+            "放行必须留痕，否则 ssh_list 无法追溯危险命令"
+
+    def test_restricted_blocks_before_network(self, monkeypatch):
+        self._set_level(monkeypatch, "restricted")
+        conn = _install_exec()
+        out = ssh_ops.ssh_exec(command="rm -rf /", _internal=True)
+        assert "危险命令" in out
+        assert "confirm_dangerous" in out, "要告知模型如何显式放行"
+        assert conn.commands == [], "被拦截时一个字节都不该发出去"
+        assert ssh_ops._SSH_AUDIT_LOG == [], "被拦的命令不能记成放行"
+
+    def test_restricted_with_confirm_executes(self, monkeypatch):
+        self._set_level(monkeypatch, "restricted")
+        conn = _install_exec()
+        ssh_ops.ssh_exec(command="rm -rf /", confirm_dangerous=True, _internal=True)
+        assert len(conn.commands) == 1
+
+
+# ── _ssh_cmd_ok：防"假成功汇报"的闸门 ──────────────────────────────────
+
+class TestSshCmdOk:
+    @pytest.mark.parametrize("result,expected", [
+        ("hello", True),
+        ("[无输出]", True),
+        ("[default]\nhello", True),
+        ("命令自己打印 exit=1 也算成功", True),
+        ("exit=1\n实际是成功命令的输出", True),
+        ("", False),
+        (None, False),
+        ("错误：连接 'x' 不存在", False),
+        ("错误:连接已断开", False),
+        ("执行错误: boom", False),
+        ("上传失败: SFTP错误", False),
+        ("⚠️ 检测到危险命令（匹配模式: p）", False),
+        ("out\n[退出码: 1]", False),
+        ("out\n[退出码: 0]", False),
+        ("out\n[退出码: -1]", False),
+    ])
+    def test_verdict(self, result, expected):
+        assert ssh_ops._ssh_cmd_ok(result) is expected
+
+    def test_stdout_exit_text_is_not_misjudged(self):
+        """docstring 明确承诺：命令自己打印 exit=1 不该被宽泛匹配成失败。"""
+        assert ssh_ops._ssh_cmd_ok("build failed: exit=1\nsee log") is True
+
+
+# ── 运维工具：坏参数必须在触网之前被拒 ──────────────────────────────────
+
+class TestOpsValidationShortCircuit:
+    """装的是【活连接】——校验必须自己拦住，否则 conn.commands 不会为空。"""
+
+    @pytest.mark.parametrize("name,kwargs", [
+        ("ssh_service_manage", dict(action="bogus", service="nginx")),
+        ("ssh_service_manage", dict(action="status", service="")),
+        ("ssh_service_manage", dict(action="status", service="bad name!")),
+        ("ssh_service_manage", dict(action="reload", service="all")),
+        ("ssh_process_check", dict(sort_by="bogus")),
+        ("ssh_network_diag", dict(action="bogus")),
+        ("ssh_network_diag", dict(action="ping")),
+        ("ssh_network_diag", dict(action="ping", target="bad target!")),
+        ("ssh_docker_manage", dict(action="bogus")),
+        ("ssh_docker_manage", dict(action="logs")),
+        ("ssh_docker_manage", dict(action="logs", container="bad name!")),
+        ("ssh_firewall_manage", dict(action="bogus")),
+        ("ssh_firewall_manage", dict(action="open", protocol="icmp")),
+        # 端口合法时，protocol 校验必须自己拦——否则上面那条只是被端口校验"顺手"救了
+        ("ssh_firewall_manage", dict(action="open", protocol="icmp", port=8080)),
+        ("ssh_firewall_manage", dict(action="open", port=99999)),
+    ])
+    def test_bad_param_rejected_without_network(self, name, kwargs):
+        conn = _install_exec()
+        out = getattr(ssh_ops, name)(**kwargs)
+        assert isinstance(out, str) and out
+        assert out.startswith(("错误", "⚠️")), f"{name} 没走拒绝分支: {out[:70]}"
+        assert conn.commands == [], f"{name} 把坏参数打到服务器了: {conn.commands}"
+
+
+class TestMissingConnErrorNotSwallowed:
+    """组报告型工具（disk_analyze/samba/network/docker…）会先搭报告骨架，
+    但底层连接错误必须保留——否则模型看到一份"看起来正常"的空报告。"""
+
+    @pytest.mark.parametrize("name,kwargs", [
+        ("ssh_disk_analyze", dict(path="/", conn_id="ghost")),
+        ("ssh_setup_samba_share", dict(conn_id="ghost")),
+        ("ssh_log_view", dict(service="nginx", conn_id="ghost")),
+        ("ssh_health_check", dict(conn_id="ghost")),
+        ("ssh_process_check", dict(sort_by="cpu", conn_id="ghost")),
+        ("ssh_network_diag", dict(action="stats", conn_id="ghost")),
+        ("ssh_docker_manage", dict(action="ps", conn_id="ghost")),
+        ("ssh_firewall_manage", dict(action="status", conn_id="ghost")),
+        ("ssh_service_manage", dict(action="status", service="nginx", conn_id="ghost")),
+        ("ssh_deploy", dict(deploy_config={}, conn_id="ghost")),
+    ])
+    def test_connection_error_survives(self, name, kwargs):
+        ssh_ops._SSH_CONNECTIONS.clear()
+        out = getattr(ssh_ops, name)(**kwargs)
+        assert "连接 'ghost' 不存在" in out, f"{name} 吞掉了连接错误: {out[:80]!r}"
+
+
+# ── 文件传输 ────────────────────────────────────────────────────────────
+
+class TestSshTransferValidation:
+    @pytest.mark.parametrize("name,kwargs", [
+        ("ssh_upload", dict(local_path="X", remote_path="/y", conn_id="ghost")),
+        ("ssh_download", dict(remote_path="/r", local_path="l", conn_id="ghost")),
+    ])
+    def test_missing_conn_short_circuits(self, name, kwargs):
+        ssh_ops._SSH_CONNECTIONS.clear()
+        out = getattr(ssh_ops, name)(**kwargs)
+        assert "连接 'ghost' 不存在" in out
+        assert "ssh_connect" in out
+
+    @pytest.mark.parametrize("name,kwargs", [
+        ("ssh_upload", dict(local_path="X", remote_path="/y")),
+        ("ssh_download", dict(remote_path="/r", local_path="l")),
+    ])
+    def test_closed_conn_evicted(self, name, kwargs):
+        _install_exec(cid="default", closed=True)
+        out = getattr(ssh_ops, name)(**kwargs)
+        assert "已断开" in out
+        assert "default" not in ssh_ops._SSH_CONNECTIONS
+
+    def test_upload_missing_local_file_before_sftp(self):
+        """假连接没有 start_sftp_client——若走到 SFTP 会报"上传错误"，
+        所以断言"本地文件不存在"就证明校验确实短路在前。"""
+        _install_exec()
+        out = ssh_ops.ssh_upload(
+            local_path="X:/definitely/not/here.txt", remote_path="/y")
+        assert "本地文件不存在" in out
+        assert "上传错误" not in out
+
+
+# ── ssh_disconnect 与审计脱敏 ──────────────────────────────────────────
+
+class TestSshDisconnect:
+    def test_success_removes_conn_and_audits_masked(self):
+        _install_exec(remark="NAS")
+        out = ssh_ops.ssh_disconnect("default")
+        assert out.startswith("✅ 已断开连接")
+        assert "root@NAS" in out, "用备注标识，不暴露 IP"
+        assert "default" not in ssh_ops._SSH_CONNECTIONS
+        assert ssh_ops._SSH_AUDIT_LOG, "断开必须留审计"
+        entry = ssh_ops._SSH_AUDIT_LOG[-1]
+        assert "192.0.2.55" not in entry, "完整 IP 绝不能进审计日志"
+        assert "192.0.***.***" in entry
+        assert "[DISCONNECT]" in entry
+
+    def test_missing_conn_message(self):
+        ssh_ops._SSH_CONNECTIONS.clear()
+        out = ssh_ops.ssh_disconnect("ghost")
+        assert "不存在" in out
+
+
+class TestAuditLog:
+    def test_ip_masked_to_two_octets(self):
+        ssh_ops._SSH_AUDIT_LOG.clear()
+        ssh_ops._ssh_audit("192.0.2.55", "root", "uptime", "ok")
+        entry = ssh_ops._SSH_AUDIT_LOG[-1]
+        assert "192.0.2.55" not in entry
+        assert "192.0.***.***" in entry
+        assert "root@" in entry and "uptime" in entry and "ok" in entry
+
+    def test_domain_not_masked(self):
+        """域名不是 IP，按设计保留原样，否则排查时无从定位。"""
+        ssh_ops._SSH_AUDIT_LOG.clear()
+        ssh_ops._ssh_audit("nas.example.com", "root", "uptime", "")
+        assert "nas.example.com" in ssh_ops._SSH_AUDIT_LOG[-1]
+
+    def test_log_capped_at_max(self):
+        ssh_ops._SSH_AUDIT_LOG.clear()
+        cap = ssh_ops._SSH_AUDIT_MAX
+        for i in range(cap + 25):
+            ssh_ops._ssh_audit("10.0.0.1", "root", f"cmd{i}", "")
+        assert len(ssh_ops._SSH_AUDIT_LOG) == cap, "审计日志必须封顶，不能无限涨"
+        assert "cmd224" in ssh_ops._SSH_AUDIT_LOG[-1], "最新条目应在末尾"
+        assert ssh_ops._SSH_AUDIT_LOG[0].endswith("cmd25"), "最旧的 25 条已被挤出"
