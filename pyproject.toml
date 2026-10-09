@@ -110,6 +110,11 @@ desktop = [
 dev = [
     "pyinstaller>=5.13",
     "build>=1.0",
+    # ruff：写文件后的自动格式化（zeroai/core/formatters.py）。
+    # **故意不进主依赖** —— 它是子进程工具而非 import，缺失时该功能
+    # 按设计优雅降级（"检测不到就跳过"），不会 ImportError。
+    # 装了才生效，符合本文件"可选功能走 extra"的既定原则。
+    "ruff>=0.5",
 ]
 # 一键全装：显式列出全部可选包，不使用自引用 extra
 # （self-referencing extra 对未发布版本号不稳）
@@ -220,7 +225,11 @@ namespaces = false
 # 会直接污染 --json 的单行输出契约。
 #
 # assets/icons/* —— 见上方缺陷修复说明（图标必须真正进入包内）。
-"zeroai" = ["config.yaml", "assets/icons/*"]
+"zeroai" = ["config.yaml", "assets/icons/*", "skills/*.md"]
+# skills/*.md —— 技能（Skills）系统的内置技能。缺这条的话，源码树里
+# `skill_list` 能看到技能，但 pip 安装版一个都没有：**与图标当年
+# "glob 从未命中"是同一类故障**（源码树正常、安装版静默失效）。
+# 声明后须以"解包 wheel 复测"验证，不能只看源码树。
 # 【重要】zeroai_tui 的平台相关二进制产物（*.dll / *.pyd / *.so / *.dylib）
 # 此前被声明为随包分发，但 wheel 标签是 py3-none-any（Root-Is-Purelib: true）
 # —— 这是**自相矛盾**的声明：pip 在 Linux/macOS 上会照装，随后 import

@@ -20,6 +20,7 @@
 - zeroai.core.runtime：runtime_cache（备份目录基于运行时缓存）
 - zeroai.core.constants：PERMISSION_LEVEL, MAX_FILE_SIZE
 - zeroai.core.paths：ICONS_DIR（用于 _load_svg_icon）
+- zeroai.core.formatters：format_on_write（写入后自动格式化，可失败降级）
 """
 import os
 import re
@@ -27,6 +28,23 @@ import shutil
 import difflib
 from pathlib import Path
 from typing import Callable, Optional, List, Dict
+
+from zeroai.core.formatters import format_on_write
+
+
+def _fmt_suffix(full_path) -> str:
+    """写入成功后的格式化后缀
+
+    format_on_write 内部已保证不抛异常，这里再套一层是**第二道防线**：
+    它跑在 write_file / edit_file 的 try 块内，一旦抛出就会被外层
+    `except Exception` 当成写入失败 —— 结果是**文件其实写成功了，
+    却向用户返回"错误：..."**。实测过该缺陷（见
+    tests/test_formatters.py::test_write_file_survives_formatter_crash）。
+    """
+    try:
+        return format_on_write(str(full_path))
+    except Exception:      # noqa: BLE001 — 见上方 docstring
+        return ""
 
 from zeroai.core.runtime import runtime_cache
 from zeroai.core.constants import PERMISSION_LEVEL, MAX_FILE_SIZE
@@ -130,7 +148,9 @@ def write_file(path: str, content: str) -> str:
         full = Path(path).resolve()
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_text(content, encoding="utf-8")
-        return f"已写入 {len(content)} 字符到 {path}"
+        # 格式化是事后增值步骤：_fmt_suffix 保证不抛异常，
+        # 也不会改变"已写入"这个事实 —— 约束见 core/formatters.py
+        return f"已写入 {len(content)} 字符到 {path}" + _fmt_suffix(full)
     except Exception as e:
         return f"错误：{e}"
 
@@ -350,6 +370,11 @@ def edit_file(path: str, operation: str = "replace", line: int = 1, content: str
             return f"错误：文件不存在 {path}"
         if full.is_dir():
             return f"错误：{path} 是目录"
+        # 统一的"编辑成功"出口：把格式化后缀拼上。
+        # 定义在 decode 之前，让 replace/insert/delete/append 四个分支
+        # 都能用上。format_on_write 保证不抛异常，编辑结果不受影响。
+        def _done(msg: str) -> str:
+            return msg + _fmt_suffix(full)
         for enc in ["utf-8", "gbk", "latin-1"]:
             try:
                 text = full.read_text(encoding=enc)
@@ -366,13 +391,13 @@ def edit_file(path: str, operation: str = "replace", line: int = 1, content: str
             old = lines[line - 1].rstrip("\n\r")
             lines[line - 1] = content + "\n"
             full.write_text("".join(lines), encoding=enc)
-            return f"{_load_svg_icon('check')} 第{line}行已替换\n  原内容：{old}\n  新内容：{content}"
+            return _done(f"{_load_svg_icon('check')} 第{line}行已替换\n  原内容：{old}\n  新内容：{content}")
         elif operation == "insert":
             if line < 1 or line > total + 1:
                 return f"错误：行号 {line} 超出范围（1-{total+1}）"
             lines.insert(line - 1, content + "\n")
             full.write_text("".join(lines), encoding=enc)
-            return f"{_load_svg_icon('check')} 已在第{line}行插入：{content}"
+            return _done(f"{_load_svg_icon('check')} 已在第{line}行插入：{content}")
         elif operation == "delete":
             s = start_line or line
             e = end_line or line
@@ -381,11 +406,11 @@ def edit_file(path: str, operation: str = "replace", line: int = 1, content: str
             deleted = lines[s - 1:e]
             del lines[s - 1:e]
             full.write_text("".join(lines), encoding=enc)
-            return f"{_load_svg_icon('cross')} 已删除第{s}-{e}行（共{len(deleted)}行）"
+            return _done(f"{_load_svg_icon('cross')} 已删除第{s}-{e}行（共{len(deleted)}行）")
         elif operation == "append":
             lines.append(content + "\n")
             full.write_text("".join(lines), encoding=enc)
-            return f"{_load_svg_icon('check')} 已在末尾追加：{content}"
+            return _done(f"{_load_svg_icon('check')} 已在末尾追加：{content}")
         else:
             return f"错误：未知操作 {operation}，支持 replace/insert/delete/append"
     except Exception as e:

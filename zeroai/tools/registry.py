@@ -104,6 +104,8 @@ from zeroai.tools.command_exec import (
     code_graph_query,
     code_graph_stats,
 )
+# 技能（Skills）—— 对标 OpenCode Skills 机制（MIT）
+from zeroai.core.skills import skill_list, skill_load
 
 
 # ============================================================================
@@ -607,6 +609,18 @@ TOOLS = [
             "silence_seconds": {"type": "number", "description": "静音停止秒数（连续静音超过此值则停止录音），默认1.0"}},
             "required": [],
             "additionalProperties": False}}},
+    # ====== 技能（Skills）工具 ======
+    {"type": "function", "function": {
+        "name": "skill_list", "description": "列出全部可用技能（Skill）及各自适用场景。当任务可能有现成做法/模板/规范时先调用它，避免重复造轮子。",
+        "parameters": {"type": "object", "properties": {},
+            "required": [],
+            "additionalProperties": False}}},
+    {"type": "function", "function": {
+        "name": "skill_load", "description": "按名称取回某个技能的完整操作步骤/模板/规范。先用 skill_list 看有哪些，再用本工具取正文。",
+        "parameters": {"type": "object", "properties": {
+            "name": {"type": "string", "description": "技能名称（skill_list 中列出的名字）"}},
+            "required": ["name"],
+            "additionalProperties": False}}},
 ]
 
 
@@ -616,6 +630,7 @@ TOOLS = [
 # ============================================================================
 TOOL_MAP = {
     "read_file": read_file, "write_file": write_file,
+    "skill_list": skill_list, "skill_load": skill_load,
     "list_dir": list_dir, "run_command": run_command,
     "search_files": search_files, "open_app": open_app,
     "web_search": web_search, "web_fetch": web_fetch,

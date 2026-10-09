@@ -80,8 +80,13 @@ def test_tools_imports():
         voice,
     )
     from zeroai.tools.registry import TOOLS, TOOL_MAP
-    assert len(TOOLS) == 63, f"TOOLS 数量错误: {len(TOOLS)}"
-    assert len(TOOL_MAP) == 63, f"TOOL_MAP 数量错误: {len(TOOL_MAP)}"
+    # 计数是"已知良品数"守卫：防止工具被静默增删。
+    # 有意新增工具时**必须同步改这里**并说明原因 —— 否则这条会立刻变红。
+    # 真正的结构性不变式是下面那行 tools_keys == map_keys（与数字无关）。
+    # 2026-10-09：63 -> 65，新增 skill_list / skill_load（Skills 机制，
+    # 对标 OpenCode，见 zeroai/core/skills.py）。
+    assert len(TOOLS) == 65, f"TOOLS 数量错误: {len(TOOLS)}"
+    assert len(TOOL_MAP) == 65, f"TOOL_MAP 数量错误: {len(TOOL_MAP)}"
     tools_keys = {t["function"]["name"] for t in TOOLS}
     map_keys = set(TOOL_MAP.keys())
     assert tools_keys == map_keys, "TOOLS 和 TOOL_MAP key 不一致"

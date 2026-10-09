@@ -108,6 +108,7 @@ from zeroai.core.prompts import (
     SYSTEM_PROMPT_CORE,
     TOOL_CAPABILITY_PROMPT,
 )
+from zeroai.core.skills import inject_catalog
 from zeroai.core.response_utils import (
     _jaccard_similarity,
     _parse_think_tags,
@@ -321,6 +322,10 @@ class ZeroAI(
             _full_system = SYSTEM_PROMPT + "\n\n# 项目上下文（AGENTS.md）\n" + self._agents_md_content
         else:
             _full_system = SYSTEM_PROMPT
+        # 技能目录（只有 name+description）。__init__ 这里刻意与
+        # _get_system_prompt() 保持同一套注入逻辑，否则首次启动与
+        # 之后 /重置 拿到的 system prompt 会不一致。
+        _full_system = inject_catalog(_full_system)
         self.messages = [{"role": "system", "content": _full_system}]
         self.model_key = CURRENT_MODEL_KEY
         self.work_mode = "expert"  # expert / hybrid / manual（默认专家路由，自动选择最合适的专家）
@@ -459,10 +464,16 @@ class ZeroAI(
             pass
 
     def _get_system_prompt(self) -> str:
-        """获取系统提示词（含 AGENTS.md 项目上下文）"""
+        """获取系统提示词（AGENTS.md 项目上下文 + 技能目录）
+
+        技能只注入 name + description，正文由 skill_load 按需取回 ——
+        见 zeroai/core/skills.py 的"为什么只注入目录"。
+        """
         if getattr(self, "_agents_md_content", ""):
-            return SYSTEM_PROMPT + "\n\n# 项目上下文（AGENTS.md）\n" + self._agents_md_content
-        return SYSTEM_PROMPT
+            base = SYSTEM_PROMPT + "\n\n# 项目上下文（AGENTS.md）\n" + self._agents_md_content
+        else:
+            base = SYSTEM_PROMPT
+        return inject_catalog(base)
 
     def action_clear_log(self):
         scroll = self.query_one("#log-scroll", VerticalScroll)
