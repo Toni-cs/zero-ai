@@ -31,6 +31,15 @@ logger = logging.getLogger(__name__)
 # 工作目录（受限模式下命令执行限制在此目录）
 WORK_DIR = os.getcwd()
 
+# ── 对标 OpenCode packages/core/src/tool/bash.ts 的常量 ──────────────────────
+# bash.ts:21  export const MAX_CAPTURE_BYTES = 1024 * 1024
+MAX_CAPTURE_BYTES = 1024 * 1024
+# bash.ts:20  export const MAX_TIMEOUT_MS = 10 * 60 * 1_000  （10 分钟）
+MAX_TIMEOUT_S = 10 * 60
+
+# run_command 返回值首行元数据的前缀（对齐 OpenCode 的结构化 exit 字段）
+EXIT_CODE_PREFIX = "[退出码:"
+
 
 # 高危命令正则模式（比黑名单更广，用于 warning 日志记录）
 # 在 full 模式下不拒绝，仅记录 warning；在 restricted 模式下拦截
@@ -251,11 +260,76 @@ def _translate_command(command: str) -> tuple:
     return result, True
 
 
-def run_command(command: str, skip_translate: bool = False) -> str:
-    """全权限模式：执行任意命令，无黑名单限制
+def _kill_process_tree(proc: "subprocess.Popen") -> None:
+    """超时后终止整棵进程树，而不是只杀最外层进程。
+
+    为什么必须杀整棵树（Windows）：
+    shell=True 时最外层是 cmd.exe，真正的命令（ping/tasklist/taskkill…）
+    是它的孙进程。只 kill 父进程会让孙进程继续持有 stdout/stderr 管道，
+    subprocess.run 内部的 communicate() 会一直等到管道关闭——
+    实测「ping -n 30 + timeout=2」判定在 2 秒触发，却到 29.4 秒才返回。
+    taskkill 的 /T 表示连同子树一起终止。
+    """
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                           capture_output=True, timeout=10)
+        else:
+            import signal
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        # 兜底：进程树杀不干净时至少退回到单进程 kill，避免完全失控
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _run_capturing(args, *, shell: bool, timeout: int, cwd) -> tuple:
+    """执行命令并返回 (stdout, stderr, returncode)。
+
+    与 subprocess.run(args, timeout=N) 的关键差异：超时后会主动杀掉整棵
+    进程树再返回，使【实际返回时间】也被 timeout 约束。subprocess.run
+    只保证超时被【检测到】，不保证【按时返回】（见 _kill_process_tree 注释）。
+
+    超时会抛出 subprocess.TimeoutExpired，由调用方转换成引导性错误文案。
+    """
+    kwargs = dict(shell=shell, cwd=cwd, stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE, text=True,
+                  encoding=locale.getpreferredencoding(False), errors="replace")
+    if sys.platform != "win32":
+        # POSIX: 独立进程组，才能用 killpg 连子进程一起杀
+        kwargs["start_new_session"] = True
+
+    proc = subprocess.Popen(args, **kwargs)
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return stdout, stderr, proc.returncode
+    except subprocess.TimeoutExpired:
+        _kill_process_tree(proc)
+        try:
+            proc.communicate(timeout=5)
+        except Exception:
+            pass
+        raise subprocess.TimeoutExpired(args, timeout)
+
+
+def run_command(command: str, workdir: str = "", timeout: int = 0,
+                skip_translate: bool = False) -> str:
+    """执行一条 shell 命令并返回退出码与输出（对齐 OpenCode `bash` 工具）
+
+    对标 OpenCode packages/core/src/tool/bash.ts 的 5 项能力：
+      1. workdir   —— 指定工作目录，相对路径按当前目录解析，不存在则报错
+      2. timeout   —— 调用方自选超时；0 表示按权限级别取默认值
+      3. 退出码    —— 恒以 [退出码: N] 头部返回（此前完全丢弃 returncode）
+      4. 截断标记  —— 输出超限时显式告知，不再无声硬截断
+      5. 超时引导  —— 超时后提示调大 timeout 重试，而非只报错
+
+    与 OpenCode 的差异（本项目特有，保留）：
+      - 跨平台命令翻译：'ls' -> 'dir'、'cat f' -> 'type f'
+      - 高危命令识别：full 模式记 warning 放行，restricted 模式拦截
 
     跨平台支持：自动识别 Linux 命令并转换为 Windows 等效命令（或反之）。
-    例如在 Windows 上输入 'ls' 会自动转换为 'dir'，'cat file' 转换为 'type file'。
 
     安全加固（P1-1）：
     - 非 Windows 平台：用 shlex.split + shell=False 避免 shell 注入
@@ -265,8 +339,13 @@ def run_command(command: str, skip_translate: bool = False) -> str:
       * restricted 模式：拦截
 
     Args:
-        command: 要执行的命令
-        skip_translate: 跳过跨平台翻译（语义化本地运维工具内部已适配，传 True 避免误翻译）
+        command: 要执行的 shell 命令
+        workdir: 工作目录。留空时按权限级别取默认（full 继承父进程，
+            restricted 锁定 WORK_DIR）。相对路径会被解析为绝对路径。
+        timeout: 超时秒数。<=0 表示用默认值（full 120s / restricted 30s），
+            超过 MAX_TIMEOUT_S 会被截到上限。
+        skip_translate: 跳过跨平台翻译（语义化本地运维工具内部已适配，
+            传 True 避免误翻译）
 
     迁移来源：tui_agent.py 行 2090-2133
     """
@@ -285,41 +364,85 @@ def run_command(command: str, skip_translate: bool = False) -> str:
         if is_translated:
             translate_hint = f"[跨平台] 已将 '{original_cmd_safe(original_command)}' 翻译为 '{command}'\n"
 
+    # ── workdir 解析（对齐 OpenCode：默认继承，显式给值则必须存在）──
+    if workdir:
+        cwd = os.path.abspath(os.path.expanduser(workdir))
+        if not os.path.isdir(cwd):
+            return f"{translate_hint}错误：工作目录不存在或不是目录: {workdir}"
+    else:
+        # 全权限：cwd 限制放开（不强制 WORK_DIR）；受限：锁定 WORK_DIR
+        cwd = None if PERMISSION_LEVEL == "full" else WORK_DIR
+
+    # ── timeout 解析（对齐 OpenCode：可指定、有上限、有默认）──
+    if timeout and timeout > 0:
+        timeout = min(int(timeout), MAX_TIMEOUT_S)
+    else:
+        # 全权限 120 秒；受限 30 秒
+        timeout = 120 if PERMISSION_LEVEL == "full" else 30
+
     try:
         # 命令词法验证（检测未闭合引号等注入迹象）
         _validate_command_lexical(command)
 
-        # 全权限：超时延长到 120 秒；受限：30 秒
-        timeout = 120 if PERMISSION_LEVEL == "full" else 30
-        # 全权限：cwd 限制放开（不强制 WORK_DIR）
-        cwd = None if PERMISSION_LEVEL == "full" else WORK_DIR
         # encoding 使用本地默认（中文 Windows 为 GBK/cp936），errors='replace' 兜底
         # 避免某些命令（ipconfig/systeminfo/sc/netsh）输出非 UTF-8 时 UnicodeDecodeError
         if sys.platform == "win32":
             # Windows: 必须保留 shell=True 以支持内置命令（dir/type/set/cd 等）
             # 已通过 _validate_command_lexical 验证命令词法完整性
-            r = subprocess.run(command, shell=True, capture_output=True,
-                              text=True, timeout=timeout, cwd=cwd,
-                              encoding=locale.getpreferredencoding(False),
-                              errors="replace")
+            stdout, stderr, returncode = _run_capturing(
+                command, shell=True, timeout=timeout, cwd=cwd)
         else:
             # POSIX: shlex.split + shell=False 避免 shell 注入
             args = shlex.split(command)
-            r = subprocess.run(args, shell=False, capture_output=True,
-                              text=True, timeout=timeout, cwd=cwd,
-                              encoding=locale.getpreferredencoding(False),
-                              errors="replace")
-        out = (r.stdout or "") + (r.stderr or "")
-        # 全权限：返回更长（8000）；受限：4000
-        max_out = 8000 if PERMISSION_LEVEL == "full" else 4000
-        result = out.strip()[:max_out] if out.strip() else "(无输出)"
-        return translate_hint + result
+            stdout, stderr, returncode = _run_capturing(
+                args, shell=False, timeout=timeout, cwd=cwd)
+
+        body = ((stdout or "") + (stderr or "")).strip()
+        # full 模式对齐 OpenCode MAX_CAPTURE_BYTES=1MB；受限模式保持收紧
+        max_out = MAX_CAPTURE_BYTES if PERMISSION_LEVEL == "full" else 4000
+        truncated = len(body) > max_out
+        total = len(body)
+        if truncated:
+            body = body[:max_out]
+        if not body:
+            body = "(无输出)"
+
+        parts = [f"[退出码: {returncode}]"]
+        if truncated:
+            parts.append(
+                f"[输出已截断] 共 {total} 字符，以上为前 {max_out} 字符。"
+                "剩余部分请改用 head/tail/sed -n 分段读取。"
+            )
+        parts.append(body)
+        return translate_hint + "\n".join(parts)
+
     except subprocess.TimeoutExpired:
-        return f"{translate_hint}错误：命令超时（>{timeout}秒）"
+        return (f"{translate_hint}错误：命令超时（>{timeout}秒）。"
+                f"若该命令确实需要更久，请调大 timeout 参数后重试"
+                f"（上限 {MAX_TIMEOUT_S} 秒）。")
     except ValueError as e:
         return f"{translate_hint}错误：{e}"
     except Exception as e:
         return f"{translate_hint}错误：{e}"
+
+
+def strip_exit_code_meta(text: str) -> str:
+    """剥掉 run_command 返回值里的 `[退出码: N]` 元数据行。
+
+    为什么需要它：run_command 把退出码作为**首行**返回（对齐 OpenCode
+    bash 工具的结构化 exit 字段），而历史解析方普遍写的是
+    ``re.search(r"(\\d+)", ...)`` 取「整串第一个数字」，或逐行找「第一个
+    含数字的行」——不剥离就会把退出码里的 ``0`` 当成 CPU/内存占用等真实
+    数值，导致高负载永远被判为「正常」。
+
+    解析 run_command 输出前请先过一遍本函数；只用于展示的场景无需处理。
+    """
+    if not text or not isinstance(text, str):
+        return text
+    return "\n".join(
+        ln for ln in text.split("\n")
+        if not ln.strip().startswith(EXIT_CODE_PREFIX)
+    )
 
 
 def original_cmd_safe(cmd: str) -> str:

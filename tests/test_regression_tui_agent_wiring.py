@@ -124,7 +124,8 @@ def test_tool_signatures():
         "edit_file": ["path", "operation", "line", "content", "start_line", "end_line"],
         "file_diff": ["path_a", "path_b"],
         "read_image": ["path"],
-        "run_command": ["command", "skip_translate"],
+        # 2026-10-09 对齐 OpenCode bash 工具新增 workdir / timeout（见 command_exec.py）
+        "run_command": ["command", "workdir", "timeout", "skip_translate"],
         "exec_python": ["code", "timeout"],
         "pip_install": ["package", "action"],
         "web_search": ["query", "num_results"],

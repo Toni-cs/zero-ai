@@ -27,7 +27,7 @@ import socket
 import re
 
 from zeroai.core.constants import PERMISSION_LEVEL
-from .command_exec import run_command, _is_windows_local
+from .command_exec import run_command, strip_exit_code_meta, _is_windows_local
 
 
 def local_port_check(action: str = "list", port: int = 0,
@@ -472,8 +472,10 @@ def local_monitor(threshold_cpu: int = 80, threshold_disk: int = 90,
             cmd = "top -bn1 | grep 'Cpu(s)' | awk '{print $2}'"
         cpu_out = run_command(cmd, skip_translate=True)
         # 解析 CPU 使用率
+        # 必须先剥掉 run_command 的 [退出码: N] 首行：逐行扫描会命中退出码
+        # 里的 0，导致 CPU 占用再高也被判为「正常」（2026-10-09 修复）
         cpu_pct = -1
-        for line in cpu_out.split("\n"):
+        for line in strip_exit_code_meta(cpu_out).split("\n"):
             line = line.strip()
             if line and any(c.isdigit() for c in line):
                 # 提取第一个数字
@@ -501,7 +503,9 @@ def local_monitor(threshold_cpu: int = 80, threshold_disk: int = 90,
         else:
             cmd = "free | grep Mem | awk '{printf \"%.1f\", $3/$2*100}'"
         mem_out = run_command(cmd, skip_translate=True).strip()
-        m = re.search(r"(\d+(?:\.\d+)?)", mem_out)
+        # 同 CPU：先剥掉 [退出码: N] 首行——re.search 取的是全串第一个数字，
+        # 不剥就读到退出码，内存占用永远报 0%（2026-10-09 修复）
+        m = re.search(r"(\d+(?:\.\d+)?)", strip_exit_code_meta(mem_out))
         if m:
             mem_pct = float(m.group(1))
             if mem_pct >= threshold_memory + 10:

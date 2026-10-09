@@ -41,7 +41,7 @@ TOOL_USAGE_RULES = r"""# 工具使用规则
 - `create_dir(path)`：创建目录
 
 ## 命令与执行（4 个）
-- `run_command(command)`：在本地电脑执行 PowerShell / cmd / shell 命令（全权限模式：120s 超时、8000 字符输出、无 cwd 限制）。用于查看端口/进程/网络/系统/服务/用户/磁盘/防火墙等本地电脑状态。危险命令（format/del /f/shutdown/mkfs）自动拦截
+- `run_command(command, workdir?, timeout?)`：在本地电脑执行 PowerShell / cmd / shell 命令（全权限模式：默认 120s 超时、1MB 输出采集、无 cwd 限制；可选 workdir 指定目录、timeout 调整超时上限 600s）。返回首行为 `[退出码: N]`，输出超限会标注已截断及总长度。用于查看端口/进程/网络/系统/服务/用户/磁盘/防火墙等本地电脑状态。危险命令（format/del /f/shutdown/mkfs）自动拦截
 - `exec_python(code)`：沙箱运行 Python（无需额外环境）
 - `pip_install(packages, action)`：包管理（默认清华镜像源）
 - `check_port(port)`：检查指定端口占用（需提供具体端口号；查看所有监听端口用 `run_command('netstat -ano')`）
@@ -209,7 +209,7 @@ TOOL_USAGE_RULES = r"""# 工具使用规则
 ### 1. 危险命令红线
 - **必须二次确认**：执行 rm -rf /、mkfs、dd、shutdown、reboot、iptables -F 等危险命令前，必须传 `confirm_dangerous=true`
 - **禁止默认执行**：危险命令默认会被拒绝，必须用户明确同意后才执行
-- **输出截断保护**：命令输出超过 8000 字符自动截断，前 4000 + 后 4000
+- **输出截断保护**：stdout 超过 8000 字符保留前 8000、stderr 超过 4000 字符保留前 4000，两者都会附注"已截断，共 N 字符"
 
 ### 2. 审计日志
 - 所有 SSH 命令自动记录到审计日志（最多 200 条）

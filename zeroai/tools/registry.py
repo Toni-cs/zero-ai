@@ -136,9 +136,11 @@ TOOLS = [
             "required": [],
             "additionalProperties": False}}},
     {"type": "function", "function": {
-        "name": "run_command", "description": "在本地电脑执行 PowerShell / cmd / shell 命令并返回输出。全权限模式：120s 超时、8000 字符输出。用于查看端口(netstat)、进程(tasklist)、网络(ipconfig/ping/tracert)、系统信息(systeminfo)、服务(sc query/net start)、用户(whoami/net user)、磁盘(wmic logicaldisk)、防火墙(netsh advfirewall)、环境变量(set)等。当用户用自然语言描述本地电脑状态需求（如'看看打开了哪些端口'/'电脑卡不卡'/'谁在占用CPU'/'IP是多少'）且没有更专用的工具时调用。危险命令(format/del /f/shutdown/mkfs)自动拦截。",
+        "name": "run_command", "description": "在本地电脑执行 PowerShell / cmd / shell 命令并返回退出码与输出（对齐 OpenCode bash 工具）。全权限模式：默认 120s 超时、1MB 输出采集、无 cwd 限制。可选 workdir 指定工作目录、timeout 调整超时（上限 600s）。返回值首行为 [退出码: N]；输出超限时会显式标注已截断及总长度。用于查看端口(netstat)、进程(tasklist)、网络(ipconfig/ping/tracert)、系统信息(systeminfo)、服务(sc query/net start)、用户(whoami/net user)、磁盘(wmic logicaldisk)、防火墙(netsh advfirewall)、环境变量(set)等。当用户用自然语言描述本地电脑状态需求（如'看看打开了哪些端口'/'电脑卡不卡'/'谁在占用CPU'/'IP是多少'）且没有更专用的工具时调用。危险命令(format/del /f/shutdown/mkfs)自动拦截。",
         "parameters": {"type": "object", "properties": {
-            "command": {"type": "string", "description": "要执行的命令（PowerShell 或 cmd 命令）"}},
+            "command": {"type": "string", "description": "要执行的命令（PowerShell 或 cmd 命令）"},
+            "workdir": {"type": "string", "description": "工作目录，留空则继承当前目录；相对路径会被解析为绝对路径，不存在时直接报错"},
+            "timeout": {"type": "integer", "description": "超时秒数。0 或留空表示按权限级别取默认（全权限 120s），上限 600s"}},
             "required": ["command"],
             "additionalProperties": False}}},
     {"type": "function", "function": {
