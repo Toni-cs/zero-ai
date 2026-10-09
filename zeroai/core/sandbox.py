@@ -217,6 +217,7 @@ class CodeSandbox:
         max_memory_mb: int = 256,
         use_whitelist: bool = False,
         allow_network: bool = False,
+        check_safety: bool = True,
         python_executable: Optional[str] = None,
     ):
         """初始化
@@ -226,12 +227,17 @@ class CodeSandbox:
             max_memory_mb: 最大内存 MB
             use_whitelist: 是否启用模块白名单
             allow_network: 是否允许网络访问
+            check_safety: 是否执行 AST 安全检查。
+                True（默认）：拒绝 os.system/subprocess 等危险调用。
+                False：完全放开，仅保留子进程隔离 / 超时 / 工作目录限制
+                （全权限模式下由调用方按 PERMISSION_LEVEL 关闭）。
             python_executable: Python 解释器路径，默认用 sys.executable
         """
         self.timeout = timeout
         self.max_memory_mb = max_memory_mb
         self.checker = CodeSafetyChecker(use_whitelist=use_whitelist)
         self.allow_network = allow_network
+        self.check_safety = check_safety
         self.python_executable = python_executable or sys.executable
 
     def execute(
@@ -268,13 +274,15 @@ class CodeSandbox:
             "issues": [],
         }
 
-        # 第1步：安全检查
-        is_safe, issues = self.checker.check(code)
-        if not is_safe:
-            result["error"] = "代码安全检查未通过"
-            result["issues"] = issues
-            result["returncode"] = -2
-            return result
+        # 第1步：安全检查（check_safety=False 时跳过——全权限模式完全放开，
+        # 仅保留子进程隔离 / 超时 / 工作目录限制 / 行数截断等非权限类约束）
+        if self.check_safety:
+            is_safe, issues = self.checker.check(code)
+            if not is_safe:
+                result["error"] = "代码安全检查未通过"
+                result["issues"] = issues
+                result["returncode"] = -2
+                return result
 
         # 第2步：创建临时工作目录
         work_dir = tempfile.mkdtemp(prefix="zeroai_sandbox_")

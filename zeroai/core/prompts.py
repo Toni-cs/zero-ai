@@ -72,7 +72,7 @@ TOOL_USAGE_RULES = r"""# 工具使用规则
 
 ## SSH 远程部署（7 个）
 - `ssh_connect(host, user, password, key_path, port, conn_id, remark)`：连接远程服务器（Linux/Windows 均可，支持密码/密钥认证）。用户说"连接服务器/SSH部署/远程部署"时用。**多服务器场景务必传 remark 标注用途防混淆**，conn_id 建议起有意义的名字如 'nas'/'web1'/'db1'
-- `ssh_exec(command, conn_id, timeout, confirm_dangerous)`：在远程服务器执行命令（自动适配 Linux/Windows）。危险命令（rm -rf /、mkfs、dd、format 等）需 confirm_dangerous=true 二次确认
+- `ssh_exec(command, conn_id, timeout, confirm_dangerous)`：在远程服务器执行命令（自动适配 Linux/Windows）。危险命令（rm -rf /、mkfs、dd、format 等）处置与本地 `run_command` 一致：全权限模式直接放行并写入审计日志，受限模式需 confirm_dangerous=true
 - `ssh_upload(local_path, remote_path, conn_id)`：上传文件到远程服务器（SFTP，Linux 自动 chmod 644）
 - `ssh_download(remote_path, local_path, conn_id)`：从远程服务器下载文件（SFTP，自动创建本地目录）
 - `ssh_deploy(deploy_config, conn_id)`：一键自动化部署（pre_check→mkdir→upload→install→restart→health_check→post_cmds 7步骤，生成部署报告）
@@ -126,7 +126,7 @@ TOOL_USAGE_RULES = r"""# 工具使用规则
 17. 用户写综述/文献分析 → `literature_review`（双源检索+PRISMA流程+对比分析+研究空白）
 18. 引用任何文献前 → `citation_check`（校验真实性，防止编造！这条是红线）
 19. 用户说"连接服务器/SSH/远程" → `ssh_connect`（host/user/password 必填）。**多服务器场景务必传 conn_id 和 remark**（如 conn_id="nas", remark="NAS存储服务器"），防混淆
-20. 用户说"在服务器上执行/远程运行" → `ssh_exec`（危险命令必须 confirm_dangerous=true 二次确认）
+20. 用户说"在服务器上执行/远程运行" → `ssh_exec`（全权限模式下危险命令直接放行并记审计日志；受限模式才需 confirm_dangerous=true）
 21. 用户说"上传到服务器/部署文件" → `ssh_upload`（SFTP 传输）
 22. 用户说"从服务器下载/拉取" → `ssh_download`
 23. 用户说"一键部署/自动化部署" → `ssh_deploy`（deploy_config 配置 7 步骤）

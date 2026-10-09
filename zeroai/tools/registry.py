@@ -236,7 +236,7 @@ TOOLS = [
             "required": ["action"],
             "additionalProperties": False}}},
     {"type": "function", "function": {
-        "name": "code_execute", "description": "在安全沙箱中执行 Python 代码（阶段 N.2）。使用 AST 静态分析 + 子进程隔离的双重保护，禁止危险调用（os.system/subprocess 等），默认禁用网络访问。当用户让你运行复杂Python代码、数据分析、算法验证时调用，比 exec_python 更安全。",
+        "name": "code_execute", "description": "在子进程中执行 Python 代码（阶段 N.2）。全权限模式放开网络与 AST 危险调用拦截，但保留子进程隔离（崩溃不拖垮主进程）、超时、工作目录限制与 stdin 支持；受限模式保留危险调用拦截与禁网。当用户让你运行复杂Python代码、数据分析、算法验证时调用。",
         "parameters": {"type": "object", "properties": {
             "code": {"type": "string", "description": "Python 代码"},
             "timeout": {"type": "integer", "description": "超时秒数（1-60，默认10）"},
@@ -414,12 +414,12 @@ TOOLS = [
             "required": ["host", "user"],
             "additionalProperties": False}}},
     {"type": "function", "function": {
-        "name": "ssh_exec", "description": "在远程服务器执行Shell命令（Linux/Windows 自动适配，Windows 下走 cmd/PowerShell）。需要先ssh_connect。危险命令需confirm_dangerous=true。当用户要求远程执行命令、查看状态、部署时调用。",
+        "name": "ssh_exec", "description": "在远程服务器执行Shell命令（Linux/Windows 自动适配，Windows 下走 cmd/PowerShell）。需要先ssh_connect。危险命令处置与本地 run_command 一致：全权限模式直接放行并写入审计日志，受限模式需 confirm_dangerous=true。当用户要求远程执行命令、查看状态、部署时调用。",
         "parameters": {"type": "object", "properties": {
             "command": {"type": "string", "description": "Shell命令（如 'ls -la /opt'、'systemctl status nginx'）"},
             "conn_id": {"type": "string", "description": "连接ID，默认'default'"},
             "timeout": {"type": "integer", "description": "超时秒数，默认30"},
-            "confirm_dangerous": {"type": "boolean", "description": "确认执行危险命令（rm -rf /等），默认false"}},
+            "confirm_dangerous": {"type": "boolean", "description": "受限模式下强制放行危险命令（rm -rf /等），默认false；全权限模式无需传，危险命令直接放行"}},
             "required": ["command"],
             "additionalProperties": False}}},
     {"type": "function", "function": {

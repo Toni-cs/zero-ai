@@ -424,17 +424,19 @@ def code_execute(
     timeout: int = 10,
     stdin_input: str = "",
 ) -> str:
-    """在安全沙箱中执行 Python 代码（阶段 N.2）
+    """在子进程沙箱中执行 Python 代码（阶段 N.2）
 
-    使用 AST 静态分析 + 子进程隔离的双重保护：
-    1. 代码安全检查：AST 遍历，拒绝危险调用（os.system/subprocess 等）
-    2. 子进程隔离：在独立进程中执行，崩溃不影响主进程
-    3. 资源限制：超时、内存限制
-    4. 网络隔离：默认禁用网络访问
+    权限语义与 run_command 同源：受 PERMISSION_LEVEL 管辖。
+    full（全权限，当前默认）：
+      1. 关闭 AST 安全检查 —— os.system / subprocess / eval 等不再拦截
+      2. 开放网络访问（不再 monkey-patch socket）
+      3. **保留**子进程隔离 / 超时 / 工作目录限制
+         —— 这三样是隔离手段，不是权限闸门，拆掉会失去相对 exec_python 的价值
+    restricted（受限）：保留 AST 危险调用拦截 + 禁网
 
     与 exec_python 的区别：
-    - exec_python：字符串黑名单 + 同进程 exec（较弱）
-    - code_execute：AST 分析 + 子进程隔离（更强）
+    - exec_python：字符串黑名单 + 同进程 exec
+    - code_execute：子进程隔离（崩溃不拖垮主进程）+ 超时 + stdin 支持
 
     Args:
         code: Python 代码
@@ -452,10 +454,13 @@ def code_execute(
 
     timeout = max(1, min(int(timeout), 60))
 
+    # 权限对齐：与 run_command 用同一个 PERMISSION_LEVEL 判定
+    full_power = PERMISSION_LEVEL == "full"
     sandbox = CodeSandbox(
         timeout=timeout,
         max_memory_mb=256,
-        allow_network=False,
+        allow_network=full_power,      # full → 放开网络
+        check_safety=not full_power,   # full → 关闭 AST 安全检查
     )
     result = sandbox.execute(code, stdin_input=stdin_input or None)
 

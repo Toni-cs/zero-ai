@@ -36,7 +36,8 @@
 依赖：
 - 标准库：os, threading, asyncio, re, datetime, base64
 - 第三方库：asyncssh（SSH 协议实现）
-- 无 zeroai.core 依赖（本模块自包含所有状态）
+- zeroai.core.constants：仅 PERMISSION_LEVEL（在 ssh_exec 内**惰性导入**，
+  模块导入期仍然零 zeroai.core 依赖，保持自包含）
 """
 import os
 import threading as _ssh_threading_mod  # 用别名避免污染命名空间
@@ -431,14 +432,19 @@ def ssh_exec(command: str, conn_id: str = "default", timeout: int = 30,
              confirm_dangerous: bool = False, _internal: bool = False) -> str:
     """在远程服务器上执行Shell命令。
 
-    通过已建立的SSH连接执行命令。危险命令（如rm -rf /、mkfs、shutdown）需要
-    confirm_dangerous=True 才会执行。
+    通过已建立的SSH连接执行命令。
+
+    危险命令（rm -rf /、mkfs、shutdown 等）的处置与本地 run_command **对齐**，
+    统一受 PERMISSION_LEVEL 管辖，不再无条件拦截：
+    - full（全权限，当前默认）：放行并写入 SSH 审计日志，无需传 confirm_dangerous
+    - restricted（受限）：拦截，需 confirm_dangerous=True 显式放行
 
     Args:
         command: 要执行的Shell命令
         conn_id: 连接ID（由ssh_connect返回），默认"default"
         timeout: 命令超时时间（秒），默认30
-        confirm_dangerous: 是否确认执行危险命令，默认False
+        confirm_dangerous: restricted 模式下强制放行危险命令，默认False
+            （full 模式下无需传，危险命令直接放行）
         _internal: 内部调用标记（运维工具内部调用时传 True，不加服务器前缀，避免前缀重复）
 
     Returns:
@@ -447,6 +453,7 @@ def ssh_exec(command: str, conn_id: str = "default", timeout: int = 30,
     迁移来源：tui_agent.py 行 7151-7260
     """
     import asyncio
+    from zeroai.core.constants import PERMISSION_LEVEL
 
     # 检查连接是否存在
     if conn_id not in _SSH_CONNECTIONS:
@@ -459,12 +466,20 @@ def ssh_exec(command: str, conn_id: str = "default", timeout: int = 30,
         _SSH_CONNECTIONS.pop(conn_id, None)
         return f"错误：连接 '{conn_id}' 已断开，请重新调用 ssh_connect"
 
-    # 危险命令检查
+    # 危险命令检查（对齐本地 command_exec.run_command：受 PERMISSION_LEVEL 管辖）
+    # 此处原先**无条件拦截**，与本地 run_command 在 full 模式下"记 warning 后放行"
+    # 的行为相反，同一条 shutdown 本地能跑、远程被拦——现统一到同一个开关：
+    # - full（全权限，当前默认）：放行 + 写审计日志，无需 confirm_dangerous
+    # - restricted（受限）：保留拦截，仍可用 confirm_dangerous=True 显式放行
     is_dangerous, pattern = _ssh_check_dangerous(command)
-    if is_dangerous and not confirm_dangerous:
+    if is_dangerous and PERMISSION_LEVEL != "full" and not confirm_dangerous:
         return (f"⚠️ 检测到危险命令（匹配模式: {pattern}）\n"
                 f"命令: {command}\n"
                 f"如确认要执行，请重新调用并设置 confirm_dangerous=true")
+    if is_dangerous:
+        # 全权限放行：留痕，便于用 ssh_list 追溯"哪些危险命令真的被执行过"
+        _ssh_audit(conn_info["host"], conn_info["user"], command,
+                   f"[全权限放行·危险模式 {pattern}]")
 
     async def _exec():
         try:
