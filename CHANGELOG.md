@@ -7,6 +7,33 @@
 
 ## [Unreleased]
 
+### 新增
+- **`opencode.json`：把 ZeroAI 挂成 OpenCode 的 MCP 服务器，零代码改动**。
+  依据（均为实测）：OpenCode 原生带 MCP 客户端（`packages/core/src/config.ts:84`
+  的 `mcp.servers`，支持 `type:"local"` + `command` 与 `type:"remote"` + `url`
+  两种传输）；而 `python -m zeroai.mcp` 已实现 `initialize`/`tools/list`/
+  `tools/call`，并从 `registry.TOOL_MAP` 注册全部 65 个工具。
+  实测握手通过、65 个工具全部暴露，`academic_search`、`arxiv_search`、
+  `render_formula`、`listen_asr`、`citation_check`、`generate_word`、
+  `code_graph_query` 等差异化工具均在列，且从非仓库 cwd 启动同样成功。
+  架构上两者互不侵入：OpenCode 提供 TUI / agent 会话 / 权限，ZeroAI 以 stdio
+  提供工具。MCP 是通用协议，同一个 server 理论上也可被其他 MCP 客户端消费
+  （如 Claude Desktop），此点 `[未实测]`。
+- **`tests/test_mcp_stdio_utf8.py`（9 个测试）**：编码回归测试 + 源码结构锁
+  （锁死 `run_stdio` 必须走二进制流，不得退回文本流写法）。
+
+### 修复
+- **MCP stdio 传输在 Windows 中文环境下返回乱码**。`run_stdio` 原先用文本流
+  `sys.stdout.write(json.dumps(..., ensure_ascii=False))`，其编码由
+  `locale.getpreferredencoding()` 决定（实测 cp936），中文被编成 GBK 字节，
+  而 MCP 规范要求 stdio 传输使用 UTF-8。现象：`system_info` 返回
+  `ϵͳ��Windows 11`（GBK 字节 `CF B5 CD B8` 被按 UTF-8 解成希腊字母）。
+  原代码的 `msvcrt.setmode(..., os.O_BINARY)` **只禁用 CRLF 换行转换，
+  不改变字符编码**；又因工具名全是 ASCII，此缺陷在此前的握手测试中不暴露，
+  直到真实调用含中文返回的工具才显形。修复为读写两侧一律走 `.buffer`
+  二进制流并显式 UTF-8 编解码。修复后 `system_info` 正确返回
+  `系统：Windows 11 / 架构：AMD64 / ...`，65 个工具描述零乱码。
+
 ### 移除
 - **删除 `zeroai-tui/`（自研 C/Zig 渲染层，29 个跟踪文件 + 6 个测试文件）**。
   依据是同场基准 `evals/bench_c_vs_python.py` 的实测（同进程、同数据、先验证输出等价）：

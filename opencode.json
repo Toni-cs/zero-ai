@@ -1,0 +1,10 @@
+{
+  "mcp": {
+    "servers": {
+      "zeroai": {
+        "type": "local",
+        "command": ["python", "-m", "zeroai.mcp"]
+      }
+    }
+  }
+}

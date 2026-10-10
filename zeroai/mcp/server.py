@@ -333,15 +333,50 @@ class MCPServer:
     # ========================================================================
     # stdio 传输
     # ========================================================================
+    @staticmethod
+    def _write_json_line(buffer: Any, payload: Dict[str, Any]) -> None:
+        """按 MCP 规范把一行 JSON 以 **UTF-8** 写入 stdout。
+
+        MCP 规定 stdio 传输必须使用 UTF-8。Windows 中文环境下
+        ``sys.stdout`` 默认按 ``locale.getpreferredencoding()``（cp936/GBK）
+        编码，直接用文本流 ``write()`` 会把中文转成 GBK 字节，客户端按
+        UTF-8 解码即成乱码，因此这里一律走二进制流并显式编码。
+        """
+        data = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+        try:
+            buffer.write(data)
+            buffer.flush()
+        except (TypeError, AttributeError):
+            # buffer 缺失或不可写二进制时退回文本流（非 Windows 场景兜底）
+            sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+
+    @staticmethod
+    def _write_log(text: str) -> None:
+        """stderr 日志同样强制 UTF-8，避免 Windows 下启动信息乱码。"""
+        try:
+            sys.stderr.buffer.write(text.encode("utf-8"))
+            sys.stderr.buffer.flush()
+        except Exception:
+            try:
+                sys.stderr.write(text)
+                sys.stderr.flush()
+            except Exception:
+                pass
+
     async def run_stdio(self) -> None:
         """以 stdio 模式运行服务器
 
         读取 stdin 的 JSON-RPC 消息，处理后将响应写入 stdout。
+
+        读写两侧都走二进制流并显式按 UTF-8 编解码：文本流的编码由平台
+        locale 决定（Windows 中文环境为 cp936），与 MCP 规范要求的 UTF-8
+        冲突，混用会在工具返回中文时产生乱码。
         """
         self._running = True
         loop = asyncio.get_event_loop()
 
-        # 在 Windows 上设置 stdin 为二进制模式
+        # 在 Windows 上设置 stdin/stdout 为二进制模式（禁用 CRLF 转换）
         if sys.platform == "win32":
             import msvcrt
             try:
@@ -350,23 +385,24 @@ class MCPServer:
             except Exception:
                 pass
 
-        sys.stderr.write(
+        stdin_buffer = getattr(sys.stdin, "buffer", None)
+        stdout_buffer = getattr(sys.stdout, "buffer", None)
+
+        self._write_log(
             f"[ZeroAI MCP Server] 启动 stdio 模式，已注册 {len(self._tools)} 个工具\n"
         )
-        sys.stderr.flush()
 
         while self._running and not self._shutdown_requested:
             try:
-                # 异步读取一行
-                line = await loop.run_in_executor(
-                    None, sys.stdin.readline
-                )
+                # 异步读取一行（二进制，随后显式按 UTF-8 解码）
+                if stdin_buffer is not None:
+                    raw = await loop.run_in_executor(None, stdin_buffer.readline)
+                    line = raw.decode("utf-8", errors="replace").strip()
+                else:
+                    line = (await loop.run_in_executor(None, sys.stdin.readline)).strip()
+
                 if not line:
                     break  # EOF
-
-                line = line.strip()
-                if not line:
-                    continue
 
                 # 解析消息
                 msg = parse_message(line)
@@ -374,25 +410,21 @@ class MCPServer:
                     resp = make_error_response(
                         "unknown", PARSE_ERROR, "消息解析失败"
                     ).to_dict()
-                    sys.stdout.write(json.dumps(resp) + "\n")
-                    sys.stdout.flush()
+                    self._write_json_line(stdout_buffer, resp)
                     continue
 
                 # 分发消息
                 resp = await self.dispatch_message(msg)
                 if resp is not None:
-                    sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
-                    sys.stdout.flush()
+                    self._write_json_line(stdout_buffer, resp)
 
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                sys.stderr.write(f"[MCP Server] 错误: {e}\n")
-                sys.stderr.flush()
+                self._write_log(f"[MCP Server] 错误: {e}\n")
 
         self._running = False
-        sys.stderr.write("[ZeroAI MCP Server] 已关闭\n")
-        sys.stderr.flush()
+        self._write_log("[ZeroAI MCP Server] 已关闭\n")
 
     async def run_sse(self, host: str = "127.0.0.1", port: int = 8765) -> None:
         """以 SSE 模式运行服务器
