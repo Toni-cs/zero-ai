@@ -3,16 +3,20 @@
 迁移来源：tui_agent.py 行 6288-6820
 
 提供以下纯函数：
+- get_asr_model：SenseVoice 识别器单例（回退引擎）
+- get_moss_model / recognize_audio_moss：MOSS-Transcribe-Diarize 引擎（默认）
+   见 zeroai/tools/asr_moss.py，`ZEROAI_ASR_ENGINE` 可选 auto|moss|sensevoice
 - _download_sense_voice_model：下载 SenseVoice 语音识别模型
 - _init_pygame_mixer：初始化 pygame 音频播放器（延迟初始化）
 - _split_text_into_segments：长文本按句末标点分割为多段（用于 TTS 分段朗读）
 - speak_tts：文本转语音并播放（同步阻塞，分段朗读版，edge-tts）
-- listen_asr：录音并识别为文字（同步阻塞，sherpa-onnx + SenseVoice）
+- listen_asr：录音并识别为文字（同步阻塞）
 
 依赖：
 - 标准库：os, sys, re, asyncio, tempfile, threading, time, wave, urllib.request
 - 可选第三方库：edge-tts（TTS）、pygame（音频播放）、sounddevice + numpy（录音）、
-  sherpa-onnx（SenseVoice 识别）、faster-whisper（回退识别）
+  torch + transformers≥5.6 + vendored moss_transcribe_diarize（MOSS 默认引擎）、
+  sherpa-onnx（SenseVoice 回退）、faster-whisper（最后回退）
 - zeroai.core.paths：_ZEROAI_USER_DIR, _find_resource_dir（模型路径解析）、
   _ensure_vendored_path（把 libs/ 追加进 sys.path，使 sherpa_onnx/faster_whisper 可导入）
 """
@@ -97,10 +101,29 @@ def get_asr_model():
     return _ASR_MODEL
 
 
+def _engine_choice() -> str:
+    """识别引擎选择：ZEROAI_ASR_ENGINE 环境变量，auto|moss|sensevoice。"""
+    e = os.environ.get("ZEROAI_ASR_ENGINE", "auto").strip().lower()
+    return e if e in ("auto", "moss", "sensevoice") else "auto"
+
+
+def _moss_fallback_note(reason: str) -> None:
+    """MOSS 不可用时提醒回退（相同原因整个进程只提示一次）。"""
+    from zeroai.tools import asr_moss
+
+    asr_moss._note(f"MOSS 失败，回退 SenseVoice：{reason}")
+
+
 def recognize_audio(audio) -> str:
     """识别一段已录好的音频（float32，范围 [-1,1]），返回文字。
 
-    供「自行录音」的调用方使用（如 TUI 语音对话屏已用自己的 VAD 录好音频）。
+    引擎调度（ZEROAI_ASR_ENGINE）：
+      auto       默认。MOSS 0.9B（GPU/显存足够时）；不可用则静默回退
+                 SenseVoice（sherpa-onnx，纯 CPU），并在 stderr 提示。
+      moss       强制 MOSS，失败直接抛错（排障用）。
+      sensevoice 强制 SenseVoice（旧引擎，仓库原有行为）。
+
+    为「自行录音」的调用方使用（如 TUI 语音对话屏已用自己的 VAD 录好音频）。
     listen_asr 里的识别阶段也走同一路径，确保两边行为一致。
 
     Args:
@@ -109,6 +132,32 @@ def recognize_audio(audio) -> str:
     Returns:
         识别出的文字；无内容时返回 "（未识别到内容）"
     """
+    import numpy as np
+
+    audio_float32 = np.asarray(audio).flatten().astype(np.float32)
+    if not audio_float32.size:
+        return "（未识别到内容）"
+    engine = _engine_choice()
+    if engine in ("auto", "moss"):
+        try:
+            from zeroai.tools import asr_moss
+
+            text = asr_moss.recognize_audio_moss(audio_float32).strip()
+            if text and text != "（未识别到内容）":
+                return text
+            # MOSS 正常但没识别出内容：直接回 SenseVoice 复核一次（成本低），
+            # 都为空才返回"（未识别到内容）"
+            sv = _recognize_audio_sensevoice(audio_float32)
+            return sv or text
+        except Exception as e:  # noqa: BLE001
+            if engine == "moss":
+                raise
+            _moss_fallback_note(f"{type(e).__name__}: {e}")
+    return _recognize_audio_sensevoice(audio_float32)
+
+
+def _recognize_audio_sensevoice(audio) -> str:
+    """SenseVoice 识别实现（sherpa-onnx）；历史上 recognize_audio 的旧主体。"""
     import numpy as np
 
     model = get_asr_model()

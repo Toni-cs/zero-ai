@@ -21,6 +21,31 @@
   （如 Claude Desktop），此点 `[未实测]`。
 - **`tests/test_mcp_stdio_utf8.py`（9 个测试）**：编码回归测试 + 源码结构锁
   （锁死 `run_stdio` 必须走二进制流，不得退回文本流写法）。
+- **识别引擎升级：MOSS-Transcribe-Diarize 0.9B（OpenMOSS，Apache-2.0）
+  成为默认引擎，SenseVoice 降级为回退**。用户决策"完全替换"。
+  上游同场模型在 INTERSPEECH 2026 MLC-SLM Challenge 获第一。
+  - 新增 `zeroai/tools/asr_moss.py`：vendored 包路径注入
+    （`.local_vendor/MOSS-Transcribe-Diarize/`，不 pip 安装）、
+    惰性 GPU 加载（`get_model()` 单例，进程一次）、
+    `recognize_audio_moss(波形)`（对话短句，带"不标注"提示词，无时间戳/说话人标签）、
+    `transcribe_long_media(文件)`（会议转写，返回
+    `[(start, end, speaker, text), ...]` 含分段与说话人）。
+  - `voice.recognize_audio` 变为调度器：`ZEROAI_ASR_ENGINE` = auto|moss|sensevoice。
+    auto 时 MOSS 前置（GPU 就绪即用），任何装载/推理异常静默回退 SenseVoice
+    并 stderr 提示一次；显式 moss 则失败直接抛错（排障）。
+    注册表 / MCP/TUI 无需改动：`listen_asr` 契约不变。
+  - 权重 0.9B（1.73GB）缓存至 `models/moss-transcribe-diarize/`（已 gitignore），
+    HF 快照自带的远端代码（modeling/processing/configuration.py）随权重分发。
+  - 升级 transformers 5.5.3 -> 5.19.0、tokenizers 0.22.2 -> 0.23.3
+    （5.5.3 与 tokenizers 0.22 存在 Qwen2 tokenizer 不兼容：`backend_tokenizer`
+    属性缺失，加载即崩 —— 上游 pyproject 要求 >=5.6.0 即为此因）。
+  - 端到端实测（RTX 5060 Laptop 8GB，`evals/verify_moss_engine.py` 6 项）：
+    加载 4.5s；显存 1.69/8.0 GB；三句 TTS 样本**相似度 1.000（逐字无差）**，
+    单句耗时 0.64~0.92s（RTF 0.26），复测 0.81s
+    （首调用含 CUDA 编译一次性摊销 ~5s）。
+    SenseVoice 旧速度 0.17~0.26s（RTF 0.05），切换代价容忍换来了：
+    说话人分离 + 时间戳 + 交互式长文本能力，为零-ai 数字人说话人感知
+    （谁在何时说了什么）与会议转写功能铺路。
 
 ### 修复
 - **MCP stdio 传输在 Windows 中文环境下返回乱码**。`run_stdio` 原先用文本流
