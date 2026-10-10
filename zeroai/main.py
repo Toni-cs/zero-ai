@@ -1,16 +1,15 @@
 """ZeroAI 统一入口
 
 从 tui_agent.py 行14566-14614 迁移并增强。
-支持两种 UI 模式：
-- textual: 原始 Textual UI（tui_agent.py 中的 ZeroAI App）
-- zeroai-tui: C/Zig 加速的新 TUI 框架
 
 用法：
     python -m zeroai                    # 默认 textual UI
-    python -m zeroai --ui textual       # 显式指定 textual UI
-    python -m zeroai --ui zeroai-tui    # 使用 C/Zig 加速 TUI
     python -m zeroai --expert coder     # 直接指定专家
     python -m zeroai --version          # 显示版本号
+
+【历史】2026-10-10 移除 zeroai-tui（自研 C/Zig 渲染层）后，本入口不再有
+第二套 UI，`--ui` 选项随之删除。此处用 parse_known_args，因此旧的
+`zeroai --ui textual` 调用不会报错，未知参数被忽略。
 """
 import os
 import sys
@@ -110,8 +109,6 @@ def main():
         description="ZeroAI - 终端 AI 编程助手（多专家协作·语音对话·文档生成·安全审计）",
         prog="zeroai",
     )
-    parser.add_argument("--ui", choices=["textual", "zeroai-tui"], default="textual",
-                        help="UI framework to use (default: textual)")
     parser.add_argument("--expert", type=str, help="Direct expert mode (skip routing)")
     parser.add_argument("--version", action="version", version=f"ZeroAI v{version}")
     args, unknown = parser.parse_known_args()
@@ -127,32 +124,8 @@ def main():
         return 2
 
     try:
-        if args.ui == "zeroai-tui":
-            # 使用 zeroai-tui UI（C/Zig 加速）
-            try:
-                _script_dir = os.path.dirname(os.path.abspath(__file__))
-                _project_root = os.path.dirname(_script_dir)
-                _tui_dir = os.path.join(_project_root, "zeroai-tui")
-                if _tui_dir not in sys.path:
-                    sys.path.insert(0, _tui_dir)
-
-                from zeroai_tui.integration import ZeroAIIntegration
-
-                print(f"Starting ZeroAI v{version} with zeroai-tui (C-accelerated)...")
-                print("Press Ctrl+C to exit")
-                print()
-
-                integration = ZeroAIIntegration()
-                integration.start()
-
-            except ImportError as e:
-                print(f"zeroai-tui not available: {e}")
-                print("Falling back to Textual UI...")
-                args.ui = "textual"
-
-        if args.ui == "textual":
-            # 使用 Textual UI
-            #
+        # 使用 Textual UI
+        #
             # 【为什么不做"import 失败就回退/静默降级"】
             # ModuleNotFoundError 是 ImportError 的子类（已实测确认），所以
             # 「zeroai.tui 这个包不存在」和「zeroai.tui 内部的某个依赖 import 失败」

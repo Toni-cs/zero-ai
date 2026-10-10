@@ -7,6 +7,61 @@
 
 ## [Unreleased]
 
+### 移除
+- **删除 `zeroai-tui/`（自研 C/Zig 渲染层，29 个跟踪文件 + 6 个测试文件）**。
+  依据是同场基准 `evals/bench_c_vs_python.py` 的实测（同进程、同数据、先验证输出等价）：
+
+  | 场景 | 加速比 |
+  | --- | --- |
+  | 24x80 改动 30% | 0.66x |
+  | 24x80 改动 100% | 1.10x |
+  | 50x200 改动 30% | 0.66x |
+  | `make_style` | 0.9x |
+  | **中位** | **0.9x** |
+
+  即**不加速反而更慢**。根因在 `_renderer.c:409-478`：C 版在 Python 对象层
+  逐格 `PyList_GetItem` + 每变化格一次 `PyUnicode_Concat`，而 Python 版用的是
+  VM 原生列表索引。另一侧的量级对比是渲染单帧 0.08ms vs LLM 调用秒级，
+  **占总时延 <1%** —— 即便修到 10x 用户也无感。
+  此外 1.1.4~1.1.6 的 wheel 实测打进 13 个 `zeroai_tui/*.py`，而其 `.pyd`
+  因 wheel 标签 `py3-none-any` 装不上，属**装了也跑不动的死代码**。
+  取回方式：`git show <rev>:zeroai-tui/build.zig`（全部内容仍在历史中）。
+- **`--ui` 选项随之删除**（只剩 `textual` 一个值）。入口本就用
+  `parse_known_args`，故旧的 `zeroai --ui textual` 调用不报错，未知参数被忽略。
+- **`pyproject.toml`**：`packages.find` 的 `where`/`include` 去掉 `zeroai_tui`、
+  `package-data` 去掉 `"zeroai_tui" = ["src/*.c"]`、`testpaths` 收敛为
+  `["tests"]`、classifier 移除 `Programming Language :: C` 与
+  `Other # Zig`（`zeroai/` 实测 90 文件 / 44,117 行全部是 Python，0 个 `.c`/`.zig`，
+  wheel 为 `py3-none-any`、0 二进制产物，继续挂 C/Zig 属虚报）。
+- **测试 727 → 680 passed**（逐条对账，见下）：删除
+  `tests/test_zig_parallel_memory.py`（−11）、`tests/test_render_benchmark.py`
+  （0 项，系带 `main()` 的独立脚本、本就不被 pytest 收集）、
+  `zeroai-tui/tests/`（−35）、`test_integration_smoke.py` 的
+  `test_zeroai_tui_optional`（−1）；`test_expert_config_single_source.py` 的
+  `test_tui_integration_reads_expert_team`（−1）被新增的
+  `test_zeroai_tui_layer_is_removed`（+1）取代，作为**结构锁**钉死
+  「目录不得复活、包不得重新进入环境」。
+- **`.gitignore`：修复 3 处损坏字节 + 统一 16 行编码**。该文件此前**既不是
+  合法 UTF-8 也不是合法 GBK**（406 处非法区间），系早年某次文本模式写入把
+  多字节字符的末字节替换成了 `0x3f('?')`；另有 16 行整行是 GBK。
+  已按语境精确还原（`运行时生?`→`运行时生成`、`不入?`→`不入库）`、
+  `API Key?`→`API Key）`），16 行 GBK 转 UTF-8，并删除 11 行 zeroai-tui 规则。
+  全程字节级操作，**规则行零丢失、零新增**，现已严格 UTF-8 且 0 CR。
+  此前 git 一直不报错（git 不校验 UTF-8，工作区 `i/lf w/lf` 全绿），
+  是 `evals/encoding_check2.py` 逮出来的。
+- **`evals/encoding_check2.py`：修正 CRLF 误判**。原逻辑按工作区字节数
+  `\r\n` 就阻断，但本仓库 `core.autocrlf=true` 且无 `.gitattributes` ——
+  检出时 git 把 LF 写成工作区 CRLF、提交时归一化回 LF。实测 `tests/` 下
+  47 个跟踪文件**索引全是 `i/lf`**，其中 12 个工作区是 `w/crlf`，
+  即每个 fresh clone 都会被误拦。现改为看 git 索引：`i/lf` 放行、
+  `i/crlf`/`i/mixed` 阻断、未跟踪文件带 CRLF 阻断（无归一化兜底）。
+  四个用例回归：检出产物放行 / 未跟踪 CRLF 拦 / 非法 UTF-8 拦 / BOM 拦。
+- **文档同步**：`README.md`、`README.zh-CN.md`、`CONTRIBUTING.md`、
+  `tests/README.md` 删除 C/Zig 章节、构建说明、目录树条目与测试命令，
+  改为「架构变更说明」并保留取回方式；`evals/bench_c_vs_python.py`
+  顶部补记原始数据与 `git worktree add <dir> HEAD~1` 的复现步骤
+  （其作用对象已删除，直接运行会以 rc=2 给出可读提示而非 traceback）。
+
 ### 重构
 - **拆分 `zeroai/tui/app.py` 的 `ZeroAI` 巨类**：3,664 行 / 单类 3,513 行
   → `app.py` 563 行（生命周期与骨架）+ 8 个 `app_*.py` mixin，最大 734 行。

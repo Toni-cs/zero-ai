@@ -4,8 +4,9 @@ ZeroAI Full Integration Test
 验证 ZeroAI 核心模块的完整集成：
 - zeroai 主包导入
 - 专家系统 / LLM / 配置模块
-- zeroai_tui C/Zig 加速层（可选，未安装时降级测试）
 - MCP / Agent Loop / 向量记忆（阶段 3 新增）
+
+【历史】2026-10-10 删除 zeroai-tui 后，原 "ZeroAI-TUI (optional)" 一并移除。
 
 运行：python tests/test_integration_smoke.py
 """
@@ -35,7 +36,6 @@ def test_full_integration():
         ("Vector memory ready", test_vector_memory),
         ("Tools registry ready", test_tools_registry),
         ("TUI app importable", test_tui_app_importable),
-        ("ZeroAI-TUI (optional)", test_zeroai_tui_optional),
     ]
 
     passed = 0
@@ -68,9 +68,6 @@ def test_full_integration():
         print("  # Run with Textual UI (default)")
         print("  zeroai")
         print("  # or: python -m zeroai")
-        print()
-        print("  # Run with zeroai-tui UI (if installed)")
-        print("  zeroai --ui zeroai-tui")
         print()
         print("  # Run ZeroAI as MCP Server")
         print("  python -m zeroai.mcp")
@@ -136,15 +133,6 @@ def test_tools_registry():
     from zeroai.tools.registry import TOOL_MAP, TOOLS
     assert len(TOOL_MAP) > 0, "TOOL_MAP 为空"
     assert len(TOOLS) > 0, "TOOLS 为空"
-
-
-def test_zeroai_tui_optional():
-    """Test zeroai_tui (optional - skip if not installed)"""
-    try:
-        import zeroai_tui
-    except ImportError:
-        pytest.skip("zeroai_tui 未安装（可选依赖）")
-    assert hasattr(zeroai_tui, '__version__'), "zeroai_tui 缺少 __version__ 属性"
 
 
 if __name__ == "__main__":

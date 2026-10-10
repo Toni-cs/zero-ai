@@ -8,28 +8,25 @@
 默认行为；更糟的是从根收集会连带扫进 `build/`、`zero-ai-repo/` 等目录里的
 **同名旧副本**，同一份测试被重复执行。
 
-现已收敛为 `testpaths = ["tests", "zeroai-tui/tests"]`，两个明确的目录，不再从根递归。
+现已收敛为 `testpaths = ["tests"]`，单一明确目录，不再从根递归。
 **新增主包测试请放在本目录。**
 
-## 两个测试目录的分工
+## 关于第二个测试目录（已于 2026-10-10 删除）
 
-| 目录 | 测什么 | 依赖 |
-| --- | --- | --- |
-| `tests/`（本目录） | `zeroai` 主包 | 纯 Python 依赖 |
-| `zeroai-tui/tests/` | `zeroai_tui` C/Zig 加速层 | 需要同版本的 `.pyd`/`.so` 才能跑满 |
+本目录曾是"两个测试目录"之一，另一个是 `zeroai-tui/tests/`（`zeroai_tui`
+C/Zig 加速层，28 项）。2026-10-10 该层整体删除，理由是同场基准实测
+**加速比中位 0.9x**（24x80 改动30% = 0.66x、24x80 改动100% = 1.10x、
+50x200 改动30% = 0.66x），即不加速反而更慢；且渲染单帧 0.08ms 对 LLM
+调用秒级，占总时延 <1%。相应的两个专测文件也一并删除：
 
-`zeroai-tui/tests/` 此前被排除在 `testpaths` 之外（需显式指定路径才能运行，
-等于默认不跑）。2026-09-15 实测后纳入，依据：
+- `tests/test_render_benchmark.py`（405 行）
+- `tests/test_zig_parallel_memory.py`（534 行）
 
-- 单独运行：**28 passed**
-- 与 `tests/` 合跑：**247 passed**（219 + 28），无相互干扰
-- 无 C 扩展时：**20 passed / 8 skipped**（测试自身按 `HAS_C_RENDERER` 跳过，不失败）
-- 与 `tests/` 无重名文件，该目录下也没有 `conftest.py`，不存在收集冲突
+原记录（保留备查）：2026-09-15 实测该目录单独 28 passed、与 `tests/` 合跑
+247 passed（219 + 28）、无 C 扩展时 20 passed / 8 skipped。
 
-**注意**：`.pyd` 未被 git 跟踪（29 个跟踪文件中 0 个 `.pyd`），因此**新克隆的
-仓库本来就没有 C 扩展** —— 贡献者拿到的是 "20 passed / 8 skipped" 这一档。
-这是预期行为而非故障；那 8 个 skip 测的是 C 路径的性能与 ABI，纯 Python 回退
-路径由另外 20 个覆盖。
+`tests/test_expert_config_single_source.py::test_zeroai_tui_layer_is_removed`
+现作为**结构锁**钉死这个决定：目录不得复活、包不得重新进入环境。
 
 ## 命名约定：按"被测试的能力"命名
 
@@ -90,13 +87,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ## 运行
 
 ```bash
-pytest                                   # 走 testpaths，跑两个目录（默认 352 项）
-pytest tests/                            # 只跑主包测试
-pytest zeroai-tui/tests/                 # 只跑加速层测试
+pytest                                   # 走 testpaths（即 tests/），全量
+pytest tests/                            # 同上，显式指定
 pytest tests/test_mcp_e2e.py -v
 python tests/test_release_readiness.py   # 部分文件保留了 __main__ 直跑入口
 ```
 
-注意：部分测试依赖可选组件（`zeroai-tui` 的 C/Zig 扩展、FAISS、MCP 预设
-依赖等）。这类测试在组件缺失时应**降级跳过**而不是失败；若你看到
-`SKIP` 而非 `FAILED`，通常不是回归。
+注意：部分测试依赖可选组件（FAISS、MCP 预设依赖等）。这类测试在组件缺失时
+应**降级跳过**而不是失败；若你看到 `SKIP` 而非 `FAILED`，通常不是回归。

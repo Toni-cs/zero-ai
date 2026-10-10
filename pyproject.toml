@@ -30,8 +30,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: C",
-    "Programming Language :: Other",  # Zig
+    # 【2026-10-10】移除 "Programming Language :: C" 与 "Other # Zig"：
+    # 那两条是为 zeroai-tui（自研 C/Zig 渲染层）打的标签。zeroai/ 目录
+    # 实测 90 个文件 / 44,117 行**全部是 Python，0 个 .c/.zig**，且 wheel
+    # 标签为 py3-none-any（0 二进制产物）—— 继续挂着 C/Zig 属虚报。
     "Topic :: Software Development :: Code Generators",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Terminals :: Terminal Emulators/X Terminals",
@@ -193,16 +195,17 @@ py-modules = []
 version = { attr = "zeroai.__version__" }
 
 [tool.setuptools.packages.find]
-# zeroai-tui/ 目录名含连字符，不是合法 Python 包名，默认发现器扫不到它，
-# 因此把该目录也加入 where 搜索路径，让 zeroai_tui 包能被正确安装。
-#
 # namespaces = false 很关键：pyproject 模式下 setuptools 默认开启命名空间包
-# 发现，会把 zeroai-proxy/、zeroai-tui/ 这类"名字以 zeroai 开头"的目录
-# 当成命名空间包塞进 wheel（实测确实被塞进去了）。这里关掉，并且用
-# "zeroai" / "zeroai.*" 这种精确模式（注意 "zeroai-proxy" 不含点，
+# 发现，会把 zeroai-proxy/ 这类"名字以 zeroai 开头但没有 __init__.py"的
+# 目录当成命名空间包塞进 wheel（1.1.6 实测确实被塞进去了）。这里关掉，
+# 并且用 "zeroai" / "zeroai.*" 这种精确模式（注意 "zeroai-proxy" 不含点，
 # 因此不会被 "zeroai.*" 匹配），确保客户端包里只有真正的代码。
-where = [".", "zeroai-tui"]
-include = ["zeroai", "zeroai.*", "zeroai_tui", "zeroai_tui.*"]
+#
+# 【历史】2026-10-10 移除 zeroai-tui/（自研 C/Zig 渲染层）后，这里原本的
+# where = [".", "zeroai-tui"] 与 include 中的 zeroai_tui* 一并删除。
+# 此前 wheel 里确实装着 13 个 zeroai_tui/*.py + src/，而它的二进制产物
+# 装不上（见下方 package-data 的历史说明），属于装了也跑不动的死代码。
+include = ["zeroai", "zeroai.*"]
 namespaces = false
 
 [tool.setuptools.package-data]
@@ -230,17 +233,11 @@ namespaces = false
 # `skill_list` 能看到技能，但 pip 安装版一个都没有：**与图标当年
 # "glob 从未命中"是同一类故障**（源码树正常、安装版静默失效）。
 # 声明后须以"解包 wheel 复测"验证，不能只看源码树。
-# 【重要】zeroai_tui 的平台相关二进制产物（*.dll / *.pyd / *.so / *.dylib）
-# 此前被声明为随包分发，但 wheel 标签是 py3-none-any（Root-Is-Purelib: true）
-# —— 这是**自相矛盾**的声明：pip 在 Linux/macOS 上会照装，随后 import
-# zeroai_tui 加载 win_amd64 的 .pyd 必然失败（1.1.4 实测即为该问题）。
-#
-# 处置：本发行版（zero-ai-cli）定位为**纯 Python 主包**，不再携带任何平台
-# 二进制，标签因此真实。C 加速 TUI 作为独立发行版单独构建与发布
-# （见 pyproject.accelerated.toml 的说明），由用户在明确知道自己平台时安装。
-#
-# 只保留 C 源码（有参考价值、平台无关、体积极小），不保留编译产物。
-"zeroai_tui" = ["src/*.c"]
+# 【历史】2026-10-10 删除 zeroai_tui（自研 C/Zig 渲染层）后，此键一并移除。
+# 此前它声明 "zeroai_tui" = ["src/*.c"]，但 1.1.4 实测出过自相矛盾：
+# wheel 标签是 py3-none-any（Root-Is-Purelib: true），却要分发 win_amd64 的
+# .pyd —— pip 在 Linux/macOS 上照装，import 随即失败。
+# 现定位明确：zero-ai-cli 是**纯 Python 主包**，不携带任何平台二进制。
 
 [tool.pytest.ini_options]
 # pytest-asyncio 自动模式：无需 @pytest.mark.asyncio 装饰器
@@ -252,19 +249,8 @@ addopts = "-p no:xonsh"
 # pyproject.toml / README.md 平级），根目录因此变成"什么都往里放"的杂物间；
 # 而且从根收集会连带扫进 build/、zero-ai-repo/ 等目录里的**同名旧副本**，
 # 造成同一份测试被重复执行。
-# 现收敛为下面两个明确的目录，不再从根递归。
+# 现收敛为单个明确目录，不再从根递归。
 #
-# 【为什么加入 zeroai-tui/tests/】
-# 此前它被排除在 testpaths 之外，需要显式指定路径才能运行，等于默认不跑。
-# 实测状态（2026-09-15）：
-#   - 单独运行        : 28 passed
-#   - 与 tests/ 合跑  : 247 passed（219 + 28），无冲突
-#   - 无 C 扩展时     : 20 passed / 8 skipped（测试自身按 HAS_C_RENDERER 跳过，不失败）
-#   - 重名文件        : 无（与 tests/ 无同名 *.py）
-#   - conftest 冲突   : 无（该目录下没有任何 conftest.py）
-# 结论：既能跑、又不干扰，没有理由继续排除。
-#
-# 注意 .pyd 未被 git 跟踪（29 个跟踪文件中 0 个 .pyd），因此**新克隆的仓库
-# 本来就没有 C 扩展** —— 贡献者拿到的是"20 passed / 8 skipped"这一档。
-# 这是预期行为，不是故障；测试用 HAS_C_RENDERER 分支而非硬断言。
-testpaths = ["tests", "zeroai-tui/tests"]
+# 【历史】2026-10-10 删除 zeroai-tui/ 后，testpaths 里的 "zeroai-tui/tests"
+# 一并移除（原先为 28 个渲染/Zig 测试）。本目录现为测试唯一入口。
+testpaths = ["tests"]

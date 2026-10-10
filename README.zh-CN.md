@@ -266,17 +266,9 @@ ZeroAI 采用**两级混合路由**，兼顾速度与精准度：
 - **Claude Desktop 配置示例**：`zeroai/mcp/examples/claude_desktop_config.json` 提供即用配置
 - **启动方式**：`python -m zeroai.mcp` 启动 MCP Server
 
-### C/Zig 加速层（高性能终端渲染）
-
-阶段 D 引入的混合语言加速层，为 TUI 渲染提供性能保障：
-
-- **三层降级**：Zig 共享库 → C 扩展 → 纯 Python，自动选择最快可用路径
-- **跨平台构建**：`scripts/build_extensions.py` 支持 Windows / macOS / Linux
-- **ABI 一致性**：`StyleStruct` 8 字节结构在 C/Zig/Python 三端布局完全一致
-- **ctypes 加载**：Zig 库通过 ctypes 加载，无需编译 Python 扩展即可使用
-- **多层路径搜索**：环境变量 → 包内 → 项目根 → zig-out → site-packages → 系统库
-- **诊断函数**：`_diagnose_zig_load_failure()` 提供详细的加载失败原因分析
-- **ABI 测试套件**：`tests/test_abi.py` 验证字段偏移、颜色映射、大缓冲区 stress 测试
+> **架构变更说明**：阶段 D 引入的混合语言加速层（`zeroai-tui/`，C/Zig 终端渲染）已于 **2026-10-10 整体删除**。
+> 同场基准实测**加速比中位 0.9x**（即比纯 Python 更慢），而渲染单帧 0.08ms 对比 LLM 调用秒级、占总时延不足 1%；
+> 且 wheel 会打进 13 个跑不起来的 `zeroai_tui/*.py` 死代码。需要查看旧代码时用 `git show <版本>:zeroai-tui/build.zig`。
 
 ---
 
@@ -320,8 +312,6 @@ zeroai
 
 ```bash
 python -m zeroai                    # 默认 Textual UI（推荐）
-python -m zeroai --ui textual       # 显式指定 Textual UI
-python -m zeroai --ui zeroai-tui    # C/Zig 加速 TUI
 python -m zeroai --expert coder     # 直接指定专家
 python -m zeroai --version          # 查看版本号
 ```
@@ -329,6 +319,8 @@ python -m zeroai --version          # 查看版本号
 > **架构变更说明**：自 v1.1.3 起，项目从单文件 `tui_agent.py` 重构为模块化 `zeroai` 包。
 > `tui_agent.py` 已于 2026-10-06 彻底删除，唯一入口是 `python -m zeroai`（或 `zeroai` 命令）。
 > 需要查看旧文件时用 `git show <版本>:tui_agent.py`。
+> `--ui` 选项已于 2026-10-10 随 `zeroai-tui` 后端一并删除，Textual 是唯一的 UI；
+> 旧的 `zeroai --ui textual` 调用仍然可用（未知参数会被忽略）。
 
 ### 首次使用配置
 
@@ -694,24 +686,11 @@ python -m build
 
 生成的包在 `dist/` 目录（`.whl` 与 `.tar.gz`）。
 
-### 构建 C/Zig 加速层（可选）
-
-```bash
-cd zeroai-tui
-python setup.py build_ext --inplace            # 同时构建 Zig 和 C 扩展
-python setup.py build_ext --inplace --skip-zig # 仅构建 C 扩展（跳过 Zig）
-```
-
-加速层架构：Python → C → Zig（失败自动回退到 C 标量实现）。
-
 ### 运行测试
 
 ```bash
-# 全量测试（单元 + 回归 + 集成，共 352 项）
+# 全量测试（单元 + 回归 + 集成）
 python -m pytest -q
-
-# C/Zig 加速层测试套件
-python -m pytest zeroai-tui/tests/ -v -p no:xonsh
 ```
 
 ### 项目结构
@@ -750,15 +729,6 @@ zero-ai-cli/
 │   │   └── icons.py          # 图标加载
 │   ├── main.py               # 统一入口
 │   └── __main__.py           # 模块入口（支持 python -m zeroai）
-├── zeroai-tui/               # C/Zig 加速 TUI 框架
-│   ├── zeroai_tui/           # TUI 组件包
-│   │   ├── src/_renderer.c   # C 渲染核心（动态加载 Zig）
-│   │   ├── src/_terminal.c   # C 终端控制
-│   │   └── components.py     # TUI 组件框架
-│   ├── src/zig_render.zig    # Zig 渲染加速
-│   ├── build.zig             # Zig 构建脚本
-│   ├── setup.py              # C/Zig 扩展构建
-│   └── tests/                # 测试套件
 ├── zeroai-proxy/             # 代理服务器（API Key 保护）
 │   ├── main.py               # FastAPI 代理主程序
 │   ├── requirements.txt      # 依赖清单

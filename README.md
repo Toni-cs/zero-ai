@@ -272,17 +272,7 @@ The bidirectional MCP support introduced in Phase 3 lets ZeroAI act either as an
 - **Claude Desktop configuration example**: a ready-to-use configuration is provided at `zeroai/mcp/examples/claude_desktop_config.json`
 - **Launching**: start the MCP Server with `python -m zeroai.mcp`
 
-### C/Zig Acceleration Layer (high-performance terminal rendering)
-
-The mixed-language acceleration layer introduced in Phase D provides performance headroom for TUI rendering:
-
-- **Three-tier fallback**: Zig shared library → C extension → pure Python, automatically selecting the fastest available path
-- **Cross-platform builds**: `scripts/build_extensions.py` supports Windows / macOS / Linux
-- **ABI consistency**: the 8-byte `StyleStruct` has an identical layout across C, Zig, and Python
-- **ctypes loading**: the Zig library is loaded via ctypes, usable without compiling a Python extension
-- **Multi-path search**: environment variable → inside the package → project root → zig-out → site-packages → system libraries
-- **Diagnostic function**: `_diagnose_zig_load_failure()` gives a detailed analysis of load failures
-- **ABI test suite**: `tests/test_abi.py` verifies field offsets, color mapping, and large-buffer stress tests
+> **Architecture change note**: the Phase-D mixed-language acceleration layer (`zeroai-tui/`, C/Zig terminal rendering) was **removed on 2026-10-10**. A same-process benchmark measured a median speed-up of **0.9x** (i.e. slower than plain Python), while a rendered frame takes 0.08 ms against LLM calls measured in seconds — under 1% of total latency. The wheel also shipped 13 dead `zeroai_tui/*.py` files. For the old tree, use `git show <rev>:zeroai-tui/build.zig`.
 
 ---
 
@@ -326,14 +316,13 @@ Or use the Python module entry point (recommended):
 
 ```bash
 python -m zeroai                    # default Textual UI (recommended)
-python -m zeroai --ui textual       # explicitly select the Textual UI
-python -m zeroai --ui zeroai-tui    # C/Zig-accelerated TUI
 python -m zeroai --expert coder     # specify an expert directly
 python -m zeroai --version          # print the version
 ```
 
 > **Architecture change note**: as of v1.1.3 the project was refactored from the single-file `tui_agent.py` into the modular `zeroai` package.
 > `tui_agent.py` was removed entirely on 2026-10-06 — `python -m zeroai` (or the `zeroai` console script) is the one entry point. For the old file, use `git show <rev>:tui_agent.py`.
+> The `--ui` option was removed on 2026-10-10 together with the `zeroai-tui` back end; Textual is now the only UI. Existing `zeroai --ui textual` invocations are still accepted (unknown arguments are ignored).
 
 ### First-Time Configuration
 
@@ -716,24 +705,11 @@ python -m build
 
 The generated packages appear in `dist/` (`.whl` and `.tar.gz`).
 
-### Building the C/Zig Acceleration Layer (optional)
-
-```bash
-cd zeroai-tui
-python setup.py build_ext --inplace            # build both the Zig and C extensions
-python setup.py build_ext --inplace --skip-zig # build only the C extension (skip Zig)
-```
-
-Acceleration layer architecture: Python → C → Zig (falling back automatically to the C scalar implementation on failure).
-
 ### Running Tests
 
 ```bash
-# Full test suite (unit + regression + integration, 352 tests)
+# Full test suite (unit + regression + integration)
 python -m pytest -q
-
-# C/Zig acceleration layer test suite
-python -m pytest zeroai-tui/tests/ -v -p no:xonsh
 ```
 
 ### Project Structure
@@ -772,15 +748,6 @@ zero-ai-cli/
 │   │   └── icons.py          # Icon loading
 │   ├── main.py               # Unified entry point
 │   └── __main__.py           # Module entry point (supports python -m zeroai)
-├── zeroai-tui/               # C/Zig-accelerated TUI framework
-│   ├── zeroai_tui/           # TUI component package
-│   │   ├── src/_renderer.c   # C rendering core (dynamically loads Zig)
-│   │   ├── src/_terminal.c   # C terminal control
-│   │   └── components.py     # TUI component framework
-│   ├── src/zig_render.zig    # Zig rendering acceleration
-│   ├── build.zig             # Zig build script
-│   ├── setup.py              # C/Zig extension build
-│   └── tests/                # Test suite
 ├── zeroai-proxy/             # Proxy server (API key protection)
 │   ├── main.py               # FastAPI proxy entry point
 │   ├── requirements.txt      # Dependency list

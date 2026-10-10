@@ -8,7 +8,8 @@
 
 - Python >= 3.10
 - Git
-- 可选：Zig 0.17+（用于构建 C/Zig 加速层）
+
+（2026-10-10 起不再需要 Zig：C/Zig 加速层已整体删除，详见 README 的架构变更说明。）
 
 ### 初始化
 
@@ -18,13 +19,6 @@ cd zero-ai-cli
 pip install -e .           # 安装主包（开发模式）
 pip install -e ".[dev]"    # 安装开发依赖
 pip install -e ".[voice]"  # 可选：安装语音依赖
-```
-
-### 构建 C/Zig 加速层（可选）
-
-```bash
-cd zeroai-tui
-python setup.py build_ext --inplace
 ```
 
 ## 项目结构
@@ -37,7 +31,6 @@ zero-ai-cli/
 │   ├── tui/               # TUI 层（app.py 骨架 + 8 个 app_*.py mixin 等）
 │   ├── main.py            # 统一入口
 │   └── __main__.py        # 模块入口
-├── zeroai-tui/            # C/Zig 加速 TUI 框架
 ├── zeroai-proxy/          # 代理服务器
 ├── pyproject.toml         # 包配置
 └── README.md              # 项目说明
@@ -66,9 +59,6 @@ git checkout -b feature/your-feature
 ```bash
 # 全量测试（单元 + 回归 + 集成）
 python -m pytest -q
-
-# C/Zig 加速层测试
-python -m pytest zeroai-tui/tests/ -v
 ```
 
 ### 4. 提交代码

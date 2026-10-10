@@ -1,6 +1,24 @@
 # -*- coding: utf-8 -*-
 """C 扩展 vs 纯 Python 的同场对比基准。
 
+【本脚本的作用对象已于 2026-10-10 删除】
+zeroai-tui/（自研 C/Zig 渲染层）整体移除，因此本脚本**现在无法直接运行**：
+下方 import zeroai_tui 会 ModuleNotFoundError。这是预期的，不是脚本坏了。
+
+它产出的结论（README / tests/test_expert_config_single_source.py 引用的
+"加速比中位 0.9x"）是删除该层的依据，原始数据如下（同场、同进程、先验输出等价）：
+
+    24x80  改动 30%   0.66x
+    24x80  改动 100%  1.10x
+    50x200 改动 30%   0.66x
+    make_style        0.9x
+    中位              0.9x          ← 比纯 Python 更慢
+
+复现方式（目标代码仍在 git 历史里）：
+    git worktree add <临时目录> HEAD~1     # 取删除前那一版
+    cd <临时目录>
+    python evals/bench_c_vs_python.py
+
 背景：zeroai-tui/tests/test_performance.py 号称是性能测试，但它
   1) 没有任何 assert —— 永远通过
   2) 用 if HAS_C_RENDERER / else 分支 —— 一次只测一条路径，从不对比
@@ -12,13 +30,24 @@
 """
 from __future__ import annotations
 
+import os
 import statistics
 import sys
 import time
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-sys.path.insert(0, r"D:\C\C\zeroai-tui")
+_TUI_DIR = r"D:\C\C\zeroai-tui"
+if not os.path.isdir(_TUI_DIR):
+    sys.stderr.write(
+        "[已停用] zeroai-tui/ 已于 2026-10-10 删除，本基准无法运行。\n"
+        "         结论见本文件顶部；复现方式：\n"
+        "             git worktree add <临时目录> HEAD~1\n"
+        "             python evals/bench_c_vs_python.py\n"
+    )
+    raise SystemExit(2)
+
+sys.path.insert(0, _TUI_DIR)
 
 from zeroai_tui.renderer import Renderer, RenderBuffer, Style, HAS_C_RENDERER
 from zeroai_tui.terminal import Color

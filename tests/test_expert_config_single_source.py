@@ -14,6 +14,8 @@
       被 expert.py 全链路使用（拼 system_prompt / 取 label）
   - zeroai-tui/zeroai_tui/integration.py -> init_core()
       **随 wheel 分发**，直接把 system_prompt 拼进 messages
+      〔2026-10-10 zeroai-tui 已整体删除，该路径不复存在；下方
+        test_tui_integration_reads_expert_team 随之移除。〕
 
 后果不是"配置不一致"这种抽象问题，而是具体的：
 
@@ -39,8 +41,8 @@ import yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_YAML = os.path.join(ROOT, "zeroai", "config.yaml")
 CONFIG_PY = os.path.join(ROOT, "zeroai", "core", "config.py")
-INTEGRATION_PY = os.path.join(ROOT, "zeroai-tui", "zeroai_tui",
-                              "integration.py")
+# 【历史】原还有 INTEGRATION_PY = zeroai-tui/zeroai_tui/integration.py，
+# 随 zeroai-tui 删除（2026-10-10）一并移除。
 
 
 def _team():
@@ -120,12 +122,13 @@ def _find_config_experts_reads(src, filename):
 def test_no_code_reads_config_experts():
     """全仓运行时代码不得再读 config.yaml 的 experts 段。"""
     offenders = []
-    for base in (os.path.join(ROOT, "zeroai"),
-                 os.path.join(ROOT, "zeroai-tui")):
+    # 【历史】原还要扫 zeroai-tui/（.py + .zig），随该目录删除一并移除；
+    # 扫描范围现仅 zeroai/ 主包，后缀仅 .py。
+    for base in (os.path.join(ROOT, "zeroai"),):
         for dp, dn, fn in os.walk(base):
-            dn[:] = [d for d in dn if d not in ("__pycache__", "zig-cache")]
+            dn[:] = [d for d in dn if d != "__pycache__"]
             for f in fn:
-                if not f.endswith((".py", ".zig")):
+                if not f.endswith(".py"):
                     continue
                 p = os.path.join(dp, f)
                 try:
@@ -138,7 +141,7 @@ def test_no_code_reads_config_experts():
                     hits = _find_config_experts_reads(
                         src, os.path.relpath(p, ROOT))
                 except SyntaxError:
-                    continue  # 非 Python 源（.zig）等交给专门测试
+                    continue  # 语法错误由别的测试负责，不属本测试范围
                 if hits:
                     offenders.append("%s:%s"
                                      % (os.path.relpath(p, ROOT), hits))
@@ -195,20 +198,27 @@ def test_academic_prompt_is_identical_across_entrypoints():
     assert via_tui == via_headless, "两个入口的 academic 提示词不同"
 
 
-# ────────────────── TUI 集成层（随 wheel 分发） ──────────────────
+# ────────────────── 自研渲染层已删除（结构锁） ──────────────────
 
-def test_tui_integration_reads_expert_team():
-    assert os.path.exists(INTEGRATION_PY), "zeroai_tui/integration.py 不存在"
-    src = io.open(INTEGRATION_PY, encoding="utf-8").read()
-    assert "from zeroai.core.constants import EXPERT_TEAM" in src, (
-        "zeroai_tui/integration.py 不再从 EXPERT_TEAM 取专家配置")
-    # 该模块随 wheel 分发，读到过期提示词会被直接打包带出去
-    hits = _find_config_experts_reads(src, "integration.py")
-    assert not hits, (
-        "zeroai_tui/integration.py 第 %s 行仍在读 config.yaml 的 experts 段"
-        % hits)
-    # 关键词/提示词取值必须落到 EXPERT_TEAM 上
-    assert "self._experts = EXPERT_TEAM" in src
+def test_zeroai_tui_layer_is_removed():
+    """zeroai-tui（自研 C/Zig 渲染层）已于 2026-10-10 整体删除。
+
+    判定依据（全部实测，见 evals/bench_c_vs_python.py 同场基准）：
+      - 加速比 24x80 改动30% = 0.66x、24x80 改动100% = 1.10x、
+        50x200 改动30% = 0.66x、make_style = 0.9x —— **中位 0.9x**，
+        即不加速反而更慢；根因在 _renderer.c 逐格 PyList_GetItem。
+      - 渲染单帧 0.08ms vs LLM 调用秒级，占总时延 <1%，修到 10x 也无感。
+      - 1.1.4~1.1.6 的 wheel 实测打进 13 个 zeroai_tui/*.py + src/，
+        而其 .pyd 装不上（py3-none-any），属装了也跑不动的死代码。
+
+    本测试把决定钉死：目录不得复活、包不得重新进入环境。
+    若确要恢复，必须先拿出同场基准证明加速比 > 1.5x。
+    """
+    assert not os.path.exists(os.path.join(ROOT, "zeroai-tui")), (
+        "zeroai-tui/ 目录重新出现 —— 该层已实测为负资产（中位 0.9x）并删除。")
+    import importlib.util
+    assert importlib.util.find_spec("zeroai_tui") is None, (
+        "zeroai_tui 包仍可被 import 解析 —— 它不应再被安装或打进 wheel。")
 
 
 def test_config_yaml_still_ships_required_sections():
