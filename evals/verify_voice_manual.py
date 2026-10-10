@@ -67,7 +67,7 @@ def main() -> int:
             print("\n结束。")
             break
 
-        print("  正在听（最长 10s，注意：开口需在 1.4 秒内）...")
+        print("  正在听（最长 10s，3 秒内开口即可；句中可停顿至多 1 秒）...")
         t0 = time.time()
         try:
             hyp = listen_asr(max_seconds=10, silence_seconds=1.0)
@@ -87,10 +87,7 @@ def main() -> int:
         print(f"  相似度: {sim:.3f}")
 
         if hyp == "（未录到声音）":
-            print("  -> VAD 没触发。已知原因：")
-            print("     voice.py:486 max_pre_wait=46，循环 sleep 0.03s")
-            print("     实际前置等待 = 46 x 0.03 = 1.38s（注释写 3s/5s）")
-            print("     => 回车后必须立刻开口，别等。")
+            print("  -> 前置静音超时（3 秒）。回车后 3 秒内开口即可，别等太久。")
         elif sim >= 0.5:
             print("\n  ✅ 通过：麦克风 -> 文字 已确证")
         elif sim >= 0.2:

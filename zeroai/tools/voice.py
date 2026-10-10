@@ -480,8 +480,16 @@ def listen_asr(max_seconds: int = 10, silence_seconds: float = 1.0) -> str:
         # ── 2. 正式录音：前置静音过滤 + 滑动窗口 VAD ──
         frames = []
         speech_started = False  # 是否检测到语音开始
-        silence_count = 0  # 连续静音帧数
-        max_silence_frames = int(silence_seconds * sample_rate / block_size)
+        # 【缺陷修复 2026-10-10】原实现与 L486 pre-wait 属同一单位错配：
+        #     max_silence_frames = int(silence_seconds * sample_rate / block_size)
+        #   算出的是 3 秒的"音频块"数（如 int(1.0*16000/1024)=15），
+        #   但 silence_count 按循环迭代累加（每次 time.sleep(0.03)），
+        #   实际静音超时只有 15 x 0.03 = 0.45 秒，
+        #   导致真人说话稍作停顿（如"今天天气很好，<停>我们一起去公园散步吧"）
+        #   就被中途掐断，识别只剩前半句——实测用户句子截在"去公"即是此因。
+        #   改为按时间判定，silence_seconds 语义回归"秒"。
+        max_silence = float(silence_seconds)
+        silence_start = None  # 本次静音段的起始时刻
         # 前置静音最长等待秒数（用户可能需要反应时间）
         # 【缺陷修复 2026-10-10】原实现：
         #     max_pre_wait = int(3.0 * sample_rate / block_size)   # = 46，按"音频块"算
@@ -515,17 +523,19 @@ def listen_asr(max_seconds: int = 10, silence_seconds: float = 1.0) -> str:
                         # 前置静音过滤：等到检测到语音才开始计时
                         if avg_volume > silence_threshold:
                             speech_started = True
+                            silence_start = None
                         elif time.time() - start > PRE_WAIT_SECONDS:
                             # 前置静音超时（3 秒）仍未检测到语音，返回空
                             return "（未录到声音）"
                     else:
-                        # 语音已开始，检测静音
-                        if avg_volume < silence_threshold:
-                            silence_count += 1
-                        else:
-                            silence_count = 0
-                        # 连续静音超过阈值 → 停止
-                        if silence_count >= max_silence_frames:
+                        # 语音已开始，检测静音（按时间判定，见上方缺陷说明）
+                        if avg_volume >= silence_threshold:
+                            silence_start = None  # 有语音，重置静音计时
+                        elif silence_start is None:
+                            silence_start = time.time()  # 静音段开始
+                        if silence_start is not None and \
+                                time.time() - silence_start >= max_silence:
+                            # 连续静音达到 silence_seconds → 停止
                             break
                 time.sleep(0.03)
 
