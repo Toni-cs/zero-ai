@@ -112,6 +112,7 @@ for _sym in (
 
 for _sym in (
     "_get_desktop_dir", "_resolve_save_path", "_find_resource_dir",
+    "_ensure_vendored_path",
     "_ensure_user_dir", "_get_resource_dir", "CONFIG_FILE", "CUSTOM_MODELS_FILE",
 ):
     _LAZY_SYMBOL_MAP[_sym] = "paths"
@@ -235,6 +236,7 @@ __all__ = [
     "_auto_generate_agents_md",
     # 路径
     "_get_desktop_dir", "_resolve_save_path", "_find_resource_dir",
+    "_ensure_vendored_path",
     "_ensure_user_dir", "_get_resource_dir", "CONFIG_FILE", "CUSTOM_MODELS_FILE",
     # 运行时
     "RuntimeCache", "runtime_cache", "_is_stopped", "_set_stop_flag",

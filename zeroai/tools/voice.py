@@ -13,12 +13,17 @@
 - 标准库：os, sys, re, asyncio, tempfile, threading, time, wave, urllib.request
 - 可选第三方库：edge-tts（TTS）、pygame（音频播放）、sounddevice + numpy（录音）、
   sherpa-onnx（SenseVoice 识别）、faster-whisper（回退识别）
-- zeroai.core.paths：_ZEROAI_USER_DIR, _find_resource_dir（模型路径解析）
+- zeroai.core.paths：_ZEROAI_USER_DIR, _find_resource_dir（模型路径解析）、
+  _ensure_vendored_path（把 libs/ 追加进 sys.path，使 sherpa_onnx/faster_whisper 可导入）
 """
 import os
 import sys
 
-from zeroai.core.paths import _ZEROAI_USER_DIR, _find_resource_dir
+from zeroai.core.paths import (
+    _ZEROAI_USER_DIR,
+    _ensure_vendored_path,
+    _find_resource_dir,
+)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -68,6 +73,11 @@ def get_asr_model():
     if _ASR_MODEL is not None:
         return _ASR_MODEL
 
+    # libs/ 此前从未进过 import 搜索路径，裸 import 会抛 ModuleNotFoundError
+    # （实测：voice 模块能加载，但 get_asr_model() 一调用就失败）。
+    # 先按需把 libs/ 追加到 sys.path 末尾再导入——追加是严格增量的，
+    # 不遮蔽任何已安装包；绝不能插到首位（会遮蔽 anyio 等，见 _ensure_vendored_path）。
+    _ensure_vendored_path()
     import sherpa_onnx
     if not os.path.isfile(_SENSE_VOICE_MODEL) or not os.path.isfile(_SENSE_VOICE_TOKENS):
         # 尝试自动下载模型（首次使用语音功能时）
@@ -567,6 +577,9 @@ def listen_asr(max_seconds: int = 10, silence_seconds: float = 1.0) -> str:
         # 回退 1：faster-whisper（本地离线，准确率一般）
         faster_whisper_err = None
         try:
+            # 同样依赖 libs/：faster_whisper 本身及其原生后端 av/ctranslate2
+            # 都只存在于 libs/（均未 pip 安装），不追加路径则必然 ImportError。
+            _ensure_vendored_path()
             from faster_whisper import WhisperModel
             # 设置 HuggingFace 国内镜像（避免模型下载被墙）
             os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")

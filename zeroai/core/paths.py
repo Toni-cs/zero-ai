@@ -5,7 +5,7 @@
 提供资源路径智能查找、桌面目录定位、保存路径解析等功能。
 支持开发模式（脚本目录）和 pip 安装模式（用户主目录）。
 
-本模块无外部依赖，仅使用标准库 os/sys/pathlib。
+本模块无外部依赖，仅使用标准库 os/sys/importlib/pathlib。
 """
 import os
 import sys
@@ -13,15 +13,21 @@ from pathlib import Path
 
 # ════════════════════════════════════════════════════════════════════
 # 资源路径智能查找（支持开发模式和 pip 安装模式）
-# 查找优先级：1. 脚本所在目录（开发模式）2. 环境变量 ZEROAI_HOME 3. 用户主目录 ~/.zeroai/
+# 查找优先级：1. 包源码根（__file__ 锚定）2. 脚本目录 3. 环境变量 ZEROAI_HOME 4. 用户主目录
 # ════════════════════════════════════════════════════════════════════
 # 脚本所在目录（兼容源码运行和打包模式）
-# 注意：使用 __file__ 的父目录的父目录，因为本文件位于 zeroai/core/ 下
-# 但为了与 tui_agent.py 行为完全一致，使用 sys.path[0] 或当前工作目录回退
+# 注意：_SCRIPT_DIR 依赖 sys.argv[0]，会随启动方式漂移（python -m、
+# 绝对路径、交互式各不相同），故只作次级候选，不能当资源定位的唯一锚点。
 try:
     _SCRIPT_DIR = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
 except Exception:
     _SCRIPT_DIR = os.getcwd()
+
+# 包源码根目录：由本文件自身位置锚定（zeroai/core/paths.py → 上溯三级）。
+# 与 _SCRIPT_DIR 不同，它不随工作目录或启动方式变化，是开发模式下定位
+# libs/、models/ 的可靠锚点。pip 安装场景下该位置没有 libs/，自动落到后续候选。
+_PACKAGE_ROOT_DIR = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))
 
 _USER_HOME = os.path.expanduser("~")
 _ZEROAI_USER_DIR = os.path.join(_USER_HOME, ".zeroai")
@@ -110,22 +116,58 @@ def _find_resource_dir(subdir: str) -> str:
     """智能查找资源目录（libs/、models/ 等），支持多位置查找。
 
     查找优先级：
-    1. 脚本所在目录的子目录（开发模式：D:\\C\\C\\libs）
-    2. 环境变量 ZEROAI_HOME 指定的子目录
-    3. 用户主目录 ~/.zeroai/ 的子目录（pip 安装模式）
+    1. 包源码根目录的子目录（__file__ 锚定，开发模式：D:\\C\\C\\libs）
+    2. 脚本所在目录的子目录（兼容旧行为）
+    3. 环境变量 ZEROAI_HOME 指定的子目录（未设置则跳过）
+    4. 用户主目录 ~/.zeroai/ 的子目录（pip 安装模式）
 
-    返回第一个存在的目录；若都不存在，返回脚本所在目录的子目录（用于错误提示）。
+    返回第一个存在的绝对目录；若都不存在，返回包源码根的子目录（用于错误提示）。
+
+    环境变量候选必须在未设置时跳过：否则 ``os.path.join("", subdir)`` 会得到
+    相对路径 ``"libs"``，只要进程工作目录下恰好有同名目录就会被误匹配，使调用方
+    拿到依赖 CWD 的结果。修复前实测即为此现象（从非项目根启动会定位失败），
+    故此处再加 ``os.path.isabs`` 作兜底校验。
     """
+    _zeroai_home = os.environ.get("ZEROAI_HOME", "")
     candidates = [
-        os.path.join(_SCRIPT_DIR, subdir),                    # 1. 开发模式
-        os.path.join(os.environ.get("ZEROAI_HOME", ""), subdir),  # 2. 环境变量
-        os.path.join(_ZEROAI_USER_DIR, subdir),               # 3. pip 安装模式
+        os.path.join(_PACKAGE_ROOT_DIR, subdir),                     # 1. __file__ 锚定
+        os.path.join(_SCRIPT_DIR, subdir),                           # 2. 脚本目录（兼容）
+        os.path.join(_zeroai_home, subdir) if _zeroai_home else "",  # 3. 环境变量
+        os.path.join(_ZEROAI_USER_DIR, subdir),                      # 4. pip 安装模式
     ]
     for p in candidates:
-        if p and os.path.isdir(p):
+        if p and os.path.isabs(p) and os.path.isdir(p):
             return p
-    # 默认返回脚本所在目录的子目录（用于错误提示和后续创建）
-    return os.path.join(_SCRIPT_DIR, subdir)
+    # 默认返回包源码根的子目录（用于错误提示和后续创建）
+    return os.path.join(_PACKAGE_ROOT_DIR, subdir)
+
+
+def _ensure_vendored_path() -> str:
+    """把 vendored 库目录 ``libs/`` **追加到 sys.path 末尾**（只做一次），返回该目录。
+
+    为什么需要它：``libs/`` 下是整套 vendored 依赖（sherpa_onnx 主 ASR 路径、
+    faster_whisper 回退路径及其原生依赖 av/ctranslate2 都在其中），但它们从未
+    被放进 import 搜索路径，导致 ``import sherpa_onnx`` 抛 ModuleNotFoundError，
+    注册好的语音工具实际不可用。
+
+    **只能 append，绝不能 insert 到首位。** 2026-10-10 实测：``libs/`` 含 24 个包，
+    若置于 sys.path 首位则其中 **19 个会遮蔽已安装版本**——包括 anyio
+    （asyncssh 的依赖，被替换会连带打断 SSH 功能）、httpx、yaml、packaging、
+    tokenizers、onnxruntime。而追加到末尾时，实测 10 个既有模块全部仍解析到
+    原位置、回归 0 个：site-packages 排在前面永远优先，本函数因此是**严格增量**的
+    （只让原本导入失败的名字变得可导入，不改变任何既有解析结果）。
+
+    调用时机：按需调用（用到语音功能前），避免进程启动即改动 sys.path。
+
+    Returns:
+        追加的 ``libs`` 目录绝对路径；目录不存在时返回空字符串且不改动 sys.path。
+    """
+    libs_dir = _find_resource_dir("libs")
+    if not libs_dir or not os.path.isdir(libs_dir):
+        return ""
+    if libs_dir not in sys.path:
+        sys.path.append(libs_dir)
+    return libs_dir
 
 
 def _ensure_user_dir() -> str:
