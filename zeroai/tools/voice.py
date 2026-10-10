@@ -482,9 +482,16 @@ def listen_asr(max_seconds: int = 10, silence_seconds: float = 1.0) -> str:
         speech_started = False  # 是否检测到语音开始
         silence_count = 0  # 连续静音帧数
         max_silence_frames = int(silence_seconds * sample_rate / block_size)
-        # 前置静音最长等待 3 秒（用户可能需要反应时间）
-        max_pre_wait = int(3.0 * sample_rate / block_size)
-        pre_wait_count = 0
+        # 前置静音最长等待秒数（用户可能需要反应时间）
+        # 【缺陷修复 2026-10-10】原实现：
+        #     max_pre_wait = int(3.0 * sample_rate / block_size)   # = 46，按"音频块"算
+        #     pre_wait_count += 1                                   # 却按"循环迭代"累加
+        #     time.sleep(0.03)                                      # 每次迭代 0.03s
+        # 两者的单位不一致，实际只等 46 * 0.03 = 1.38 秒，
+        # 与本行注释声称的 3 秒、以及下方"等了 5 秒"的注释都不符。
+        # 数字人对话中用户需要反应时间，1.38 秒会导致"还没开口就被判为未录到声音"。
+        # 改为直接计时：语义即"最多等 3 秒"，不受循环节拍、sleep 抖动或机器快慢影响。
+        PRE_WAIT_SECONDS = 3.0
         # 滑动窗口（最近 3 帧的音量）
         volume_window = []
 
@@ -508,11 +515,9 @@ def listen_asr(max_seconds: int = 10, silence_seconds: float = 1.0) -> str:
                         # 前置静音过滤：等到检测到语音才开始计时
                         if avg_volume > silence_threshold:
                             speech_started = True
-                        else:
-                            pre_wait_count += 1
-                            if pre_wait_count > max_pre_wait:
-                                # 等了 5 秒还没说话，返回空
-                                return "（未录到声音）"
+                        elif time.time() - start > PRE_WAIT_SECONDS:
+                            # 前置静音超时（3 秒）仍未检测到语音，返回空
+                            return "（未录到声音）"
                     else:
                         # 语音已开始，检测静音
                         if avg_volume < silence_threshold:

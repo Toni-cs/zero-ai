@@ -33,6 +33,20 @@
   直到真实调用含中文返回的工具才显形。修复为读写两侧一律走 `.buffer`
   二进制流并显式 UTF-8 编解码。修复后 `system_info` 正确返回
   `系统：Windows 11 / 架构：AMD64 / ...`，65 个工具描述零乱码。
+- **`listen_asr` 前置静音等待时间写错单位：声称 3 秒，实际只有 1.38 秒**。
+  `zeroai/tools/voice.py` 原先 `max_pre_wait = int(3.0 * sample_rate / block_size)`
+  = 46 是按**音频块**算的（`block_size`/`sample_rate`，3 秒的块数），
+  但 `pre_wait_count` 按**循环迭代**累加，而循环每次 `time.sleep(0.03)`，
+  于是实际只等 `46 × 0.03 = 1.38` 秒，与紧邻注释声称的"3 秒"、
+  以及下方"等了 5 秒"两处说明均不符。数字人对话中用户需要反应时间，
+  1.38 秒会导致"还没开口就被判为未录到声音"。
+  改为直接计时 `time.time() - start > PRE_WAIT_SECONDS`（`PRE_WAIT_SECONDS = 3.0`），
+  不再依赖循环节拍，`sleep` 抖动与机器快慢均不影响语义。
+  实测（静音环境下 `listen_asr` 返回耗时）：修复前 **2.74s** → 修复后 **3.73s**，
+  源码结构断言 3/3 通过。新增两个验证脚本：
+  `evals/verify_vad_timeout_fix.py`（结构 + 行为自动判定，实测 RC=0）、
+  `evals/verify_voice_manual.py`（麦克风→文字人工验证；本机立体声混音/虚拟设备
+  均无法建立自动回环，最后一段需真人对麦说话）。
 
 ### 移除
 - **删除 `zeroai-tui/`（自研 C/Zig 渲染层，29 个跟踪文件 + 6 个测试文件）**。
