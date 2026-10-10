@@ -6,7 +6,7 @@
 把 ZeroAI 挂成 OpenCode 的 MCP server 后，客户端能正常握手、能列出 65 个工具，
 但 ``tools/call`` 的返回值全是乱码::
 
-    实际:  ϵͳ��Windows 11
+    实际:  ϵͳ\ufffd\ufffdWindows 11
     应为:  系统：Windows 11
 
 根因（已逐行定位，非猜测）：``server.py`` 的 ``run_stdio`` 用文本流写回::
@@ -55,7 +55,7 @@ def _mojibake(s: str) -> list[str]:
     bad = []
     for c in s:
         o = ord(c)
-        if c == "�":
+        if c == "\ufffd":
             bad.append(c)
         elif 0x0370 <= o <= 0x03FF:  # 希腊字母
             bad.append(c)
@@ -196,7 +196,7 @@ class TestStdioRoundTripUTF8:
     def test_tool_result_with_chinese_is_clean(self):
         """真实调用含中文返回的工具，返回值必须是可读中文。
 
-        这是本次缺陷的原始现象：``system_info`` 返回 ``ϵͳ��Windows 11``。
+        这是本次缺陷的原始现象：``system_info`` 返回 ``ϵͳ\ufffd\ufffdWindows 11``。
         """
         proc = self._spawn()
         try:

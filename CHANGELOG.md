@@ -27,7 +27,7 @@
   `sys.stdout.write(json.dumps(..., ensure_ascii=False))`，其编码由
   `locale.getpreferredencoding()` 决定（实测 cp936），中文被编成 GBK 字节，
   而 MCP 规范要求 stdio 传输使用 UTF-8。现象：`system_info` 返回
-  `ϵͳ��Windows 11`（GBK 字节 `CF B5 CD B8` 被按 UTF-8 解成希腊字母）。
+  `ϵͳ\ufffd\ufffdWindows 11`（GBK 字节 `CF B5 CD B8` 被按 UTF-8 解成希腊字母）。
   原代码的 `msvcrt.setmode(..., os.O_BINARY)` **只禁用 CRLF 换行转换，
   不改变字符编码**；又因工具名全是 ASCII，此缺陷在此前的握手测试中不暴露，
   直到真实调用含中文返回的工具才显形。修复为读写两侧一律走 `.buffer`
