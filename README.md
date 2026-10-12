@@ -26,6 +26,67 @@ The system is purpose-built for research workflows: it queries the open OpenAlex
 
 ---
 
+## Roadmap: the ZeroAI Teaching Desktop App (updated 2026-10-12)
+
+On top of the terminal product, ZeroAI is developing a second product line: **a self-contained digital-teaching desktop application** — voice + AI-computer-operation + a deterministic teaching-rhythm layer, aimed at classroom demonstration and tutoring. This repository stays the single home of the ZeroAI engine; the desktop shell is built from a pinned fork of the MIT-licensed OpenCode desktop app.
+
+### Final architecture (decided 2026-10-11/12)
+
+```
+ZeroAI.exe   (fork of @opencode-ai/desktop v2.0.26, MIT — rebranded; engine 2.0.26)
+  ├─ intact OpenCode: sessions / model selector / permissions / skills / terminal / file tree
+  ├─ model brain: OpenCode's own provider system (auth.json / opencode-go gateway)
+  │     — every model in OpenCode stays usable, no extra "server" is bolted on
+  ├─ injected layer: ZeroAI branding + preset MCP config (mcp.zeroai, 65 tools)
+  ├─ voice layer: MOSS-Transcribe-Diarize 0.9B as the only teaching ASR
+  │     (no automatic SenseVoice fallback — debug switch `ZEROAI_ASR_ENGINE`
+  │     retained for troubleshooting), edge-tts narration, time-based VAD
+  │     (3 s pre-speech window; silence judged in real seconds)
+  ├─ computer-operation layer: Windows-MCP v4.1.0 (MIT, 20 tools)
+  │     App / Snapshot / Click / Type / Scroll / Move / Shortcut / PowerShell /
+  │     FileSystem / Process / Registry ...  (tool allowlist configurable)
+  ├─ browser layer: browser-use 0.13.x (MIT core) — B1 stepping primitives
+  │     + B2 autonomous runs, isolated in a dedicated engine venv
+  ├─ teaching-rhythm layer: step-by-step narration where cadence parameters live
+  │     inside the tool contracts (Type-per-keystroke, Wait, WaitFor) — the lesson
+  │     plan is written once by the LLM, the pace is executed deterministically
+  └─ deliberately NO on-screen avatar — the screen hosts the lesson itself
+```
+
+### Verified groundwork `[已确证]`, evidence under `evals/`
+
+| Conclusion | Evidence |
+|---|---|
+| OpenCode tree is MIT | LICENSE read from the local clone |
+| Desktop shell lives in the monorepo | `packages/desktop`: 126 files / 7,651 lines (TS/TSX) |
+| Engine contract intact | MCP config shape A **and** B accepted; `/mcp` zeroai connected; `POST /session` 200 (e2e on 1.18.35; 2.0.26 proven by this very desktop harness) |
+| MOSS chose end-to-end | TTS→ASR closed loop: character similarity **1.000** |
+| Desktop-operation tooling | Windows-MCP 4.1.0 stdio handshake + `tools/list` = 20 tools on this machine |
+| Teaching VAD judges real seconds | `tests/test_vad_time_based.py` 4/4 |
+
+### Milestones
+
+- **M2'** fork the v2.0.26 desktop app, rebrand, ship a runnable ZeroAI.exe
+- **M3'** inject MCP presets + voice/teaching overlays + Windows-MCP / browser-use sidecars
+- **M4'** NSIS packaging + on-demand model weights + electron-updater
+- **M5'** (optional) a local Ollama brain — OpenCode already accepts OpenAI-compatible endpoints
+
+### Open decisions
+
+- Whether MOSS weights (~1.7 GB) ship inside the installer or download on first run (default plan: on-demand download)
+- Teaching rhythm depth — tool-level cadence (M2a) first, engine-level lesson player (M2b) later
+
+### Licensing stack
+
+| Component | License |
+|---|---|
+| OpenCode desktop base (v2.0.26 fork) | MIT, upstream copyright retained |
+| MOSS-Transcribe-Diarize 0.9B | Apache-2.0 |
+| Windows-MCP | MIT |
+| browser-use | MIT core (upstream replaced the AGPL `PyMuPDF` transitive dependency with BSD-family `pypdf`) |
+
+---
+
 ## Research Value
 
 ### 1. Academic Literature Search and Review Assistance
@@ -67,8 +128,8 @@ Seven experts collaborate on a single research question, coordinated by the proj
 
 ### 5. Offline Speech Recognition and Data Privacy
 
-- Offline speech recognition engine based on SenseVoice (Alibaba DAMO Academy)
-- Support for five languages — Chinese, English, Japanese, Korean, and Cantonese — for international collaboration
+- Default engine **MOSS-Transcribe-Diarize 0.9B** (OpenMOSS, Apache-2.0; 1st place, INTERSPEECH 2026 MLC-SLM challenge); SenseVoice (Alibaba DAMO Academy) is kept as a legacy fallback / debug engine
+- 50+ languages including Chinese and English; MOSS transcription is timestamped and speaker-tagged, which also lays the groundwork for meeting transcription
 - Speech recognition, document generation, and formatting run locally; agent tasks call a configured model API (GLM / OpenRouter / Ollama), so task text does leave the machine unless a local model is used
 - Document generation and formatting run locally with no API key; academic search uses public APIs and may be rate-limited
 
@@ -227,7 +288,7 @@ User on Windows types 'ps aux'      -> automatically executes 'tasklist aux'
 
 ### Voice Conversation
 
-- Offline speech recognition: SenseVoice (Alibaba DAMO Academy), five languages (Chinese/English/Japanese/Korean/Cantonese), no API key required
+- Offline speech recognition: MOSS-Transcribe-Diarize 0.9B by default (SenseVoice keeps serving as an automatic legacy fallback when MOSS weights are absent; `ZEROAI_ASR_ENGINE=sensevoice` forces the legacy engine). No API key required for either engine
 - Speech synthesis: Edge TTS with male/female voice switching and adjustable speaking rate
 - Live subtitles: real-time subtitles in conversation mode
 - Shortcuts: `Ctrl+T` for single-shot voice input, `Ctrl+D` for continuous conversation mode
@@ -268,7 +329,7 @@ The bidirectional MCP support introduced in Phase 3 lets ZeroAI act either as an
 - **JSON-RPC 2.0 core**: a complete implementation of the MCP specification
 - **stdio / SSE dual transport**: supports both local subprocesses (stdio) and remote services (SSE)
 - **Automatic tool registration**: after connecting to an external MCP Server, its tools are registered into the ZeroAI tool table automatically
-- **58 tools exposed**: as an MCP Server, it exposes all 58 built-in tools to clients such as Claude Desktop
+- **65 tools exposed**: as an MCP Server, it exposes all 65 built-in tools to clients such as Claude Desktop
 - **Claude Desktop configuration example**: a ready-to-use configuration is provided at `zeroai/mcp/examples/claude_desktop_config.json`
 - **Launching**: start the MCP Server with `python -m zeroai.mcp`
 
@@ -299,6 +360,8 @@ pip install zero-ai-cli[voice]
 ```
 
 Voice support includes sherpa-onnx (speech recognition), faster-whisper (fallback recognition), and av (audio processing).
+
+On GPU machines the default engine is MOSS-Transcribe-Diarize 0.9B (weights ~1.7 GB under `models/moss-transcribe-diarize/`); when those weights are absent ZeroAI automatically degrades to the bundled SenseVoice path (~220 MB downloaded from the HuggingFace mirror on first use).
 
 On first use, the SenseVoice model (~220 MB) is downloaded automatically from the HuggingFace mirror; after that it runs offline.
 
@@ -592,7 +655,7 @@ For detailed deployment documentation, see [zeroai-proxy/README.md](zeroai-proxy
 | UI framework | Textual TUI |
 | AI interface | OpenAI SDK (compatible with the GLM API) |
 | SSH remote | asyncssh (pure-Python asynchronous SSH) |
-| Speech recognition | sherpa-onnx + SenseVoice (offline) |
+| Speech recognition | MOSS-Transcribe-Diarize 0.9B (default) / SenseVoice (legacy, offline) |
 | Speech synthesis | Edge TTS |
 | Document generation | python-docx + reportlab + matplotlib |
 | Academic formulas | LaTeX → Unicode + matplotlib mathtext |
@@ -726,9 +789,11 @@ zero-ai-cli/
 │   │   ├── context_compress.py # Context compression
 │   │   ├── model_manager.py  # Model management
 │   │   └── response_utils.py # Response handling utilities
-│   ├── tools/                # Tool layer (10 submodules, 56 tools)
+│   ├── tools/                # Tool layer (17 submodules, 65 tools)
 │   │   ├── file_manager.py   # File operations
 │   │   ├── command_exec.py   # Command execution
+│   │   ├── voice.py          # Voice interaction (listen_asr / recognize_audio / speak_tts)
+│   │   ├── asr_moss.py       # MOSS-Transcribe-Diarize engine (default ASR)
 │   │   ├── network.py        # Network operations
 │   │   ├── system_check.py   # System checks
 │   │   ├── security.py       # Security audit
@@ -736,7 +801,7 @@ zero-ai-cli/
 │   │   ├── academic.py       # Academic research
 │   │   ├── window_mgr.py     # Window management
 │   │   ├── ssh_ops.py        # SSH remote operations
-│   │   └── registry.py       # Tool registry (TOOLS + TOOL_MAP)
+│   │   └── registry.py       # Tool registry (TOOLS + TOOL_MAP, 65 tools)
 │   ├── tui/                  # TUI layer (app.py + 8 app_*.py mixins + support modules)
 │   │   ├── colors.py         # Color constants
 │   │   ├── markdown.py       # Markdown/LaTeX rendering
@@ -764,7 +829,8 @@ zero-ai-cli/
 ├── LICENSE                   # Apache-2.0 license
 ├── AUTHORS                   # Author list
 ├── install.bat               # Windows one-click installer
-└── libs/ models/             # Voice dependencies (development mode, not versioned)
+├── .local_vendor/             # Vendored third-party source (MOSS inference subtree; the local opencode v2.0.26 fork clone is gitignored)
+└── libs/ models/             # Voice dependencies and model weights (development mode, not versioned)
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
@@ -865,6 +931,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 - [OpenAlex](https://openalex.org/) - open scholarly index (primary literature source)
 - [Crossref](https://www.crossref.org/) - DOI registry and literature metadata (fallback)
 - [FastAPI](https://fastapi.tiangolo.com/) - proxy service framework
+- [OpenCode](https://github.com/anomalyco/opencode) - MIT-licensed desktop base forked for the ZeroAI teaching app
+- [OpenMOSS MOSS-Transcribe-Diarize](https://github.com/OpenMOSS/MOSS-Transcribe-Diarize) - default speech recognition engine (Apache-2.0)
+- [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) - desktop-operation MCP tooling (MIT)
+- [browser-use](https://github.com/browser-use/browser-use) - browser automation core (MIT)
 
 ---
 

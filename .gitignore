@@ -86,3 +86,7 @@ zeroai-dl/
 # 会被 pytest 的 testpaths=["."] 重复收集（见 pyproject.toml 说明）
 *.egg-info/
 .eggs/
+
+# 本地源码克隆工作区（ZeroAI 桌面应用 fork 底架，不入库）
+# 注意：.local_vendor/MOSS-Transcribe-Diarize/ 是有意入库的 vendored 第三方源码
+.local_vendor/opencode-fork-v2/

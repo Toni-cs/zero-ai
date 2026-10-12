@@ -26,6 +26,65 @@ ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系
 
 ---
 
+## 路线图：ZeroAI 数字人教学桌面应用（2026-10-12 更新）
+
+在终端产品之上，ZeroAI 正在推进第二条产品线：**自包含的数字人教学桌面应用**——声音 + AI 操作电脑 + 确定性教学节奏层，面向课堂演示与辅导。本仓库仍是 ZeroAI 引擎的唯一定义处；桌面壳基于 MIT 许可的 OpenCode 桌面应用定版 fork 构建。
+
+### 终版架构（2026-10-11/12 定稿）
+
+```
+ZeroAI.exe（fork @opencode-ai/desktop v2.0.26，MIT——改品牌；引擎 2.0.26）
+  ├─ 完整保留 OpenCode：会话 / 模型选择器 / 权限 / 技能 / 终端 / 文件树
+  ├─ 模型大脑：OpenCode 自带 provider 体系（auth.json / opencode-go 网关）
+  │     ——OpenCode 内所有模型都可用，不再额外接"服务器"
+  ├─ 注入层：ZeroAI 品牌替换 + MCP 预配置（mcp.zeroai，65 个工具）
+  ├─ 语音层：MOSS-Transcribe-Diarize 0.9B 为教学唯一 ASR
+  │     （不做 SenseVoice 自动兜底——仅保留 `ZEROAI_ASR_ENGINE` 调试开关），
+  │     edge-tts 朗读；VAD 为时间语义（3 秒前置窗；静音按秒判定）
+  ├─ 电脑操作层：Windows-MCP v4.1.0（MIT，20 个工具）
+  │     App / Snapshot / Click / Type / Scroll / Move / Shortcut / PowerShell /
+  │     FileSystem / Process / Registry ...（可按 allowlist 收缩）
+  ├─ 浏览器层：browser-use 0.13.x（MIT 核心）—— B1 步进原语 + B2 自主跑，
+  │     独立 engine venv 隔离
+  ├─ 教学节奏层：逐步讲解；节奏参数刻在工具契约里
+  │     （逐击 Type / Wait / WaitFor）——课程计划由 LLM 一次性写定，节奏由代码确定性执行
+  └─ 明确不做屏幕"数字人形象"——屏幕留给课程本身
+```
+
+### 已验证地基（[已确证]，证据在 `evals/`）
+
+| 结论 | 证据 |
+|---|---|
+| OpenCode 源码为 MIT | 本地 clone LICENSE 实读 |
+| 桌面壳在 monorepo 里 | packages/desktop：126 文件 / 7,651 行（TS/TSX）|
+| 引擎契约完好 | MCP 配置形状 A/B 双收；`/mcp` zeroai connected；`POST /session` 200（1.18.35 e2e；2.0.26 由本机桌面会话实证）|
+| MOSS 端到端 | TTS→ASR 闭环：字符相似度 **1.000** |
+| 桌面操作工具 | Windows-MCP 4.1.0 stdio 握手 + `tools/list` = 20 个工具 |
+| 教学 VAD 按真实秒判定 | tests/test_vad_time_based.py 4/4 |
+
+### 里程碑
+
+- **M2'** fork v2.0.26 桌面应用、改品牌、产出可运行 ZeroAI.exe
+- **M3'** 注入 MCP 预配置 + 语音/教学浮窗 + Windows-MCP / browser-use sidecar
+- **M4'** NSIS 打包 + 模型权重按需下载 + electron-updater
+- **M5'**（可选）本地 Ollama 大脑——OpenCode 原生支持 OpenAI 兼容端点
+
+### 未决
+
+- MOSS 权重（约 1.7GB）进安装包 or 首启按需下载（默认方案：按需下载）
+- 教学节奏深度——先 M2a 工具级 cadence，后 M2b 引擎级课程播放器
+
+### 许可拼盘
+
+| 组件 | 许可 |
+|---|---|
+| OpenCode 桌面底座（v2.0.26 fork）| MIT（保留上游版权声明）|
+| MOSS-Transcribe-Diarize 0.9B | Apache-2.0 |
+| Windows-MCP | MIT |
+| browser-use | MIT 核心（上游已把 AGPL 的 PyMuPDF 传递依赖换成 BSD 系 pypdf）|
+
+---
+
 ## 科研价值
 
 ### 1. 学术文献检索与综述辅助
@@ -63,8 +122,8 @@ ZeroAI 是一个面向科研工作者与开发者的终端 AI 协作平台。系
 
 ### 5. 离线语音识别与数据隐私
 
-- 基于 SenseVoice（阿里达摩院）的离线语音识别引擎
-- 中英日韩粤 5 语言支持，适用于国际协作
+- 默认语音识别引擎 **MOSS-Transcribe-Diarize 0.9B**（OpenMOSS，Apache-2.0；INTERSPEECH 2026 MLC-SLM 挑战赛第一名）；SenseVoice（阿里达摩院）保留为回退/调试引擎
+- 50+ 语言支持（含中英）；MOSS 转写自带时间戳与说话人标签，为会议转写铺底
 - 语音识别、文档生成与排版完全在本机运行；智能体任务需调用所配置的模型 API（GLM / OpenRouter / Ollama），使用本地模型时任务文本才不会出本机
 - 语音识别无需 API Key；文档生成与格式化无需 API Key，学术检索调用公开 API 可能被限流
 
@@ -221,7 +280,7 @@ ZeroAI 采用**两级混合路由**，兼顾速度与精准度：
 
 ### 语音对话
 
-- 离线语音识别：SenseVoice（阿里达摩院），中英日韩粤 5 语言，无需 API Key
+- 离线语音识别：默认 MOSS-Transcribe-Diarize 0.9B（SenseVoice 在 MOSS 权重缺失时自动回退，`ZEROAI_ASR_ENGINE=sensevoice` 可强制）；两种引擎均无需 API Key
 - 语音合成：Edge TTS，男女声切换、语速调节
 - 实时字幕：对话模式下显示实时字幕
 - 快捷操作：Ctrl+T 单次语音输入，Ctrl+D 持续对话模式
@@ -262,7 +321,7 @@ ZeroAI 采用**两级混合路由**，兼顾速度与精准度：
 - **JSON-RPC 2.0 核心**：完整实现 MCP 协议规范
 - **stdio / SSE 双传输**：支持本地子进程（stdio）和远程服务（SSE）两种传输方式
 - **自动工具注册**：接入外部 MCP Server 后，其工具自动注册到 ZeroAI 工具表
-- **58 个工具暴露**：作为 MCP Server 时，将全部 58 个内置工具暴露给 Claude Desktop 等客户端
+- **65 个工具暴露**：作为 MCP Server 时，将全部 65 个内置工具暴露给 Claude Desktop 等客户端
 - **Claude Desktop 配置示例**：`zeroai/mcp/examples/claude_desktop_config.json` 提供即用配置
 - **启动方式**：`python -m zeroai.mcp` 启动 MCP Server
 
@@ -296,7 +355,7 @@ pip install zero-ai-cli[voice]
 
 语音功能包含：sherpa-onnx（语音识别）、faster-whisper（备用识别）、av（音频处理）。
 
-首次使用语音功能时，会自动从 HuggingFace 镜像下载 SenseVoice 模型（约 220MB），下载后离线运行。
+在有 GPU 的机器上，默认语音引擎为 **MOSS-Transcribe-Diarize 0.9B**（权重约 1.7GB，置于 `models/moss-transcribe-diarize/`，`models/` 已 gitignore）；当 MOSS 权重缺失时，系统自动降级为内置 SenseVoice 路径——首次使用会自动从 HuggingFace 镜像下载 SenseVoice 模型（约 220MB），下载后离线运行。
 
 ---
 
@@ -575,7 +634,7 @@ cert.key
 | UI 框架 | Textual TUI |
 | AI 接口 | OpenAI SDK（兼容 GLM API） |
 | SSH 远程 | asyncssh（纯 Python 异步 SSH） |
-| 语音识别 | sherpa-onnx + SenseVoice（离线） |
+| 语音识别 | MOSS-Transcribe-Diarize 0.9B（默认）/ SenseVoice（回退，离线） |
 | 语音合成 | Edge TTS |
 | 文档生成 | python-docx + reportlab + matplotlib |
 | 学术公式 | LaTeX → Unicode + matplotlib mathtext |
@@ -707,9 +766,11 @@ zero-ai-cli/
 │   │   ├── context_compress.py # 上下文压缩
 │   │   ├── model_manager.py  # 模型管理
 │   │   └── response_utils.py # 响应处理工具
-│   ├── tools/                # 工具层（10 个子模块，56 个工具）
+│   ├── tools/                # 工具层（17 个子模块，65 个工具）
 │   │   ├── file_manager.py   # 文件操作
 │   │   ├── command_exec.py   # 命令执行
+│   │   ├── voice.py          # 语音交互（listen_asr / speak_tts）
+│   │   ├── asr_moss.py       # MOSS-Transcribe-Diarize 引擎（默认 ASR）
 │   │   ├── network.py        # 网络操作
 │   │   ├── system_check.py   # 系统检查
 │   │   ├── security.py       # 安全审计
@@ -745,7 +806,8 @@ zero-ai-cli/
 ├── LICENSE                   # Apache-2.0 开源许可证
 ├── AUTHORS                   # 作者列表
 ├── install.bat               # Windows 一键安装脚本
-└── libs/ models/             # 语音依赖（开发模式，不入库）
+├── .local_vendor/             # 第三方源码 vendored（MOSS 推理子树；本地 opencode v2.0.26 fork 克隆不入库）
+└── libs/ models/             # 语音依赖与模型权重（开发模式，不入库）
 ```
 
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
@@ -842,6 +904,10 @@ ZeroAI Team。详见 [AUTHORS](AUTHORS)。
 - [Textual](https://textual.textualize.io/) - TUI 框架
 - [asyncssh](https://asyncssh.readthedocs.io/) - 异步 SSH 客户端
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - 语音识别
+- [OpenCode](https://github.com/anomalyco/opencode) - MIT 许可的桌面应用底座（ZeroAI 教学应用为其 fork）
+- [OpenMOSS MOSS-Transcribe-Diarize](https://github.com/OpenMOSS/MOSS-Transcribe-Diarize) - 默认语音识别引擎（Apache-2.0）
+- [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) - 桌面操作 MCP 工具集（MIT）
+- [browser-use](https://github.com/browser-use/browser-use) - 浏览器自动化核心（MIT）
 - [OpenAlex](https://openalex.org/) - 开放学术索引（主检索源）
 - [Crossref](https://www.crossref.org/) - DOI 注册机构与文献元数据（兜底）
 - [FastAPI](https://fastapi.tiangolo.com/) - 代理服务框架
